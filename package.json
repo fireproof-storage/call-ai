@@ -12,8 +12,7 @@
     "build": "tsc",
     "test": "jest",
     "prepublishOnly": "npm run build",
-    "typecheck": "tsc --noEmit",
-    "fppublish": "npm run build && npm publish --no-git-checks"
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [
     "ai",
