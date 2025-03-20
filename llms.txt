@@ -2,9 +2,21 @@
 
 The `callAI` helper function provides an easy way to make AI requests to OpenAI-compatible model providers with streaming support.
 
+## Installation
+
+```bash
+npm install call-ai
+# or
+pnpm add call-ai
+# or
+yarn add call-ai
+```
+
 ## Basic Usage
 
 ```javascript
+import { callAI } from 'call-ai';
+
 // Simple text generation
 const generator = callAI("What are three cool project ideas for React?");
 
@@ -19,6 +31,8 @@ for await (const partialResponse of generator) {
 To get structured JSON responses:
 
 ```javascript
+import { callAI } from 'call-ai';
+
 // Define your schema
 const todoSchema = {
   properties: {
@@ -40,6 +54,8 @@ console.log(todoData.todos); // Array of todo items
 In this example, we're using the `callAI` helper function to get weather data in a structured format with streaming preview.
 
 ```javascript
+import { callAI } from 'call-ai';
+
 const weatherSchema = {
   properties: {
     location: {
@@ -90,6 +106,8 @@ try {
 By default, the function uses `openrouter/auto` (automatic model selection). You can specify a different model:
 
 ```javascript
+import { callAI } from 'call-ai';
+
 // Use a specific model via options
 const generator = callAI(
   "Explain quantum computing in simple terms", 
@@ -103,6 +121,8 @@ const generator = callAI(
 You can also use callAI with OpenAI's API directly by providing the appropriate endpoint and API key:
 
 ```javascript
+import { callAI } from 'call-ai';
+
 // Use with OpenAI's API
 const generator = callAI(
   "Explain the theory of relativity", 
@@ -125,6 +145,8 @@ for await (const partialResponse of generator) {
 If you prefer to get the complete response at once:
 
 ```javascript
+import { callAI } from 'call-ai';
+
 // Use non-streaming mode
 const response = await callAI(
   "Summarize this article", 
@@ -135,7 +157,7 @@ const response = await callAI(
   }
 );
 
-// Response is the complete text, not a generator
+// With stream: false, the function returns the full string directly (not a generator)
 console.log(response);
 ```
 
@@ -144,6 +166,8 @@ console.log(response);
 You can pass extra parameters to customize the request:
 
 ```javascript
+import { callAI } from 'call-ai';
+
 const generator = callAI(
   "Write a creative story",
   null,
@@ -161,6 +185,8 @@ const generator = callAI(
 For multi-turn conversations, you can pass an array of messages:
 
 ```javascript
+import { callAI } from 'call-ai';
+
 // Create a conversation
 const messages = [
   { role: "system", content: "You are a helpful coding assistant." },
@@ -200,6 +226,8 @@ const nextGenerator = callAI(messages);
 You can specify a custom endpoint for any OpenAI-compatible API:
 
 ```javascript
+import { callAI } from 'call-ai';
+
 // Use with any OpenAI-compatible API
 const generator = callAI(
   "Generate ideas for a mobile app",
@@ -217,10 +245,12 @@ const generator = callAI(
 The function handles errors gracefully and returns a friendly message if something goes wrong.
 
 ```javascript
+import { callAI } from 'call-ai';
+
 try {
   const generator = callAI("Your prompt here");
   // Process response...
 } catch (error) {
   console.error("Error:", error);
 }
-``` 
+```

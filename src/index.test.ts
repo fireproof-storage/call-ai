@@ -1,5 +1,4 @@
-import callAI from './index';
-import { Message, Schema } from './index';
+import { callAI, Message, Schema } from './index';
 
 // Mock global fetch
 global.fetch = jest.fn();

@@ -42,7 +42,7 @@ export interface AIResponse {
  * @param schema Optional JSON schema for structured output
  * @param options Configuration options
  */
-export default async function* callAI(
+export async function* callAI(
   prompt: string | Message[],
   schema: Schema | null = null,
   options: Record<string, any> = {}
