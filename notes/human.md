@@ -2,9 +2,10 @@
 
 ## GitHub Actions
 
-- Fixed GitHub Actions workflow (2023-07-06) to use `npm install` instead of `npm ci` since package-lock.json is in .gitignore
-- Remove npm cache since lock files are not in the repository
+- Updated GitHub Actions workflow to use `npm ci` and enable caching since package-lock.json is now tracked in git
+- Previously, package-lock.json was in .gitignore which caused issues with CI
 
 ## Project Structure
 
-- The package-lock.json, yarn.lock, and pnpm-lock.yaml files are intentionally ignored in git (see .gitignore) 
+- Only yarn.lock and pnpm-lock.yaml files are intentionally ignored in git to avoid lock file conflicts
+- package-lock.json is now tracked in the repository for CI purposes 
