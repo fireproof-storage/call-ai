@@ -240,6 +240,76 @@ describe('callAI', () => {
     expect(mockResponse.json).toHaveBeenCalledTimes(1);
   });
 
+  it('should include schema name property when provided', async () => {
+    const schemaWithName: Schema = {
+      name: 'test_schema',
+      properties: {
+        result: { type: 'string' }
+      }
+    };
+    
+    const options = { 
+      apiKey: 'test-api-key',
+      schema: schemaWithName
+    };
+    
+    mockResponse.json.mockResolvedValue({
+      choices: [{ message: { content: '{"result": "Test successful"}' } }]
+    });
+    
+    await callAI('Test with schema name', options);
+    
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    expect(body.response_format.type).toBe('json_schema');
+    expect(body.response_format.json_schema.name).toBe('test_schema');
+  });
+
+  it('should work correctly with schema without name property', async () => {
+    const schemaWithoutName: Schema = {
+      properties: {
+        result: { type: 'string' }
+      }
+    };
+    
+    const options = { 
+      apiKey: 'test-api-key',
+      schema: schemaWithoutName
+    };
+    
+    mockResponse.json.mockResolvedValue({
+      choices: [{ message: { content: '{"result": "Test successful"}' } }]
+    });
+    
+    await callAI('Test without schema name', options);
+    
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    expect(body.response_format.type).toBe('json_schema');
+    expect(body.response_format.json_schema.name).toBe('result');
+  });
+
+  it('should use default name "result" when schema has no name property', async () => {
+    const schemaWithoutName: Schema = {
+      properties: {
+        data: { type: 'string' }
+      }
+    };
+    
+    const options = { 
+      apiKey: 'test-api-key',
+      schema: schemaWithoutName
+    };
+    
+    mockResponse.json.mockResolvedValue({
+      choices: [{ message: { content: '{"data": "Some content"}' } }]
+    });
+    
+    await callAI('Generate content with schema', options);
+    
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    expect(body.response_format.type).toBe('json_schema');
+    expect(body.response_format.json_schema.name).toBe('result');
+  });
+
   it('should handle errors during API call for non-streaming', async () => {
     (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
     

@@ -10,6 +10,7 @@ export type Message = {
 export interface Schema {
   /**
    * Optional schema name - will be sent to OpenRouter if provided
+   * If not specified, defaults to "result"
    */
   name?: string;
   /**
@@ -109,8 +110,8 @@ function prepareRequestParams(
         response_format: { 
           type: 'json_schema', 
           json_schema: {
-            // Include name if provided
-            ...(schema.name && { name: schema.name }),
+            // Always include name, with default "result" if not provided in schema
+            name: schema.name || "result",
             type: 'object',
             properties: schema.properties || {},
             required: schema.required || Object.keys(schema.properties || {}),
