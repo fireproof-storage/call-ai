@@ -48,6 +48,11 @@ describe('callAI integration tests', () => {
         
         console.log(`${modelName} response:`, result);
         
+        // Check if we got an error response
+        if (typeof result === 'string' && result.includes('"error"')) {
+          throw new Error(`API returned an error response: ${result}`);
+        }
+        
         // Extract JSON if wrapped in code blocks (for Claude and Gemini)
         const content = result as string;
         const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
@@ -56,7 +61,7 @@ describe('callAI integration tests', () => {
         
         const jsonContent = jsonMatch[1] || content;
         
-        // Parse the result and validate the structure
+        // Parse the result and validate the structure - let any JSON parse errors propagate
         const data = JSON.parse(jsonContent);
         
         // Verify the structure matches our schema
@@ -112,7 +117,7 @@ describe('callAI integration tests', () => {
         
         const jsonContent = jsonMatch[1] || content;
         
-        // Parse the result and validate the structure
+        // Parse the result and validate the structure - let any JSON parse errors propagate
         const data = JSON.parse(jsonContent);
         
         // Verify the structure matches our schema
@@ -201,7 +206,7 @@ describe('callAI integration tests', () => {
           
           const jsonContent = jsonMatch[1] || content;
           
-          // Parse the final result and validate
+          // Parse the final result and validate - let any JSON parse errors propagate
           const data = JSON.parse(jsonContent);
           
           // Verify the structure matches our schema
@@ -266,7 +271,7 @@ Do not include any explanation or text outside of the JSON object.`
         
         let jsonContent = jsonMatch[1] || content;
         
-        // Parse the result and validate
+        // Parse the result and validate - let any JSON parse errors propagate
         const data = JSON.parse(jsonContent);
         
         // Verify the structure follows our request

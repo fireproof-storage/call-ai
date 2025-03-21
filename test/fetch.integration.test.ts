@@ -514,38 +514,28 @@ describe('OpenRouter API wire protocol tests', () => {
     
     // Check if Claude 3.5 supports the JSON schema format
     // The test may still pass if Claude returns proper JSON even without supporting the schema format
-    try {
-      const result = JSON.parse(responseBody);
-      
-      if (result.error) {
-        console.log('Claude 3.5 does not support the same JSON schema format, skipping schema validation');
-        return;
-      }
-      
-      // Verify the structure of the response
-      expect(result).toHaveProperty('choices');
-      expect(result.choices).toBeInstanceOf(Array);
-      expect(result.choices.length).toBeGreaterThan(0);
-      expect(result.choices[0]).toHaveProperty('message');
-      expect(result.choices[0].message).toHaveProperty('content');
-      
-      // Try to parse the content as JSON 
-      try {
-        const data = JSON.parse(result.choices[0].message.content);
-        
-        // Verify the structure follows our request
-        expect(data).toHaveProperty('todos');
-        expect(Array.isArray(data.todos)).toBe(true);
-        
-        console.log('Claude 3.5 result:', data);
-      } catch (e) {
-        console.error('Failed to parse Claude response as JSON:', e);
-        console.log('Raw content:', result.choices[0].message.content);
-        // We don't throw here because Claude might not be returning strict JSON
-      }
-    } catch (e) {
-      console.error('Failed to parse Claude response:', e);
+    const result = JSON.parse(responseBody);
+    
+    if (result.error) {
+      console.log('Claude 3.5 does not support the same JSON schema format, skipping schema validation');
+      return;
     }
+    
+    // Verify the structure of the response
+    expect(result).toHaveProperty('choices');
+    expect(result.choices).toBeInstanceOf(Array);
+    expect(result.choices.length).toBeGreaterThan(0);
+    expect(result.choices[0]).toHaveProperty('message');
+    expect(result.choices[0].message).toHaveProperty('content');
+    
+    // Parse the content as JSON - let any parse failures propagate directly
+    const data = JSON.parse(result.choices[0].message.content);
+    
+    // Verify the structure follows our request
+    expect(data).toHaveProperty('todos');
+    expect(Array.isArray(data.todos)).toBe(true);
+    
+    console.log('Claude 3.5 result:', data);
   }, 30000); // Increase timeout to 30 seconds for API call
 
   // Test JSON schema for structured data with Claude 3.5 (without schema format)
@@ -612,21 +602,15 @@ Do not include any explanation or text outside of the JSON object.`
     
     let jsonContent = jsonMatch[1] || content;
     
-    // Try to parse the content as JSON
-    try {
-      const data = JSON.parse(jsonContent);
-      
-      // Verify the structure follows our request
-      expect(data).toHaveProperty('title');
-      expect(data).toHaveProperty('author');
-      expect(data).toHaveProperty('genre');
-      
-      console.log('Claude 3.5 Prompt Engineering result:', data);
-    } catch (e) {
-      console.error('Failed to parse Claude JSON response:', e);
-      console.log('Raw content:', content);
-      throw e;
-    }
+    // Try to parse the content as JSON - let any parse failures propagate directly
+    const data = JSON.parse(jsonContent);
+    
+    // Verify the structure follows our request
+    expect(data).toHaveProperty('title');
+    expect(data).toHaveProperty('author');
+    expect(data).toHaveProperty('genre');
+    
+    console.log('Claude 3.5 Prompt Engineering result:', data);
   }, 30000); // Increase timeout to 30 seconds for API call
 
   // Test JSON schema for structured data with Google Gemini 
@@ -701,24 +685,18 @@ Do not include any explanation or text outside of the JSON object.`
     
     let jsonContent = jsonMatch[1] || content;
     
-    // Try to parse the content as JSON
-    try {
-      const data = JSON.parse(jsonContent);
-      
-      // Verify the structure follows our request
-      expect(data).toHaveProperty('recipe');
-      expect(data.recipe).toHaveProperty('name');
-      expect(data.recipe).toHaveProperty('ingredients');
-      expect(Array.isArray(data.recipe.ingredients)).toBe(true);
-      expect(data.recipe).toHaveProperty('steps');
-      expect(Array.isArray(data.recipe.steps)).toBe(true);
-      
-      console.log('Gemini result:', data);
-    } catch (e) {
-      console.error('Failed to parse Gemini JSON response:', e);
-      console.log('Raw content:', content);
-      // Don't throw here because Gemini might not be returning strict JSON
-    }
+    // Try to parse the content as JSON - let any parse failures propagate directly
+    const data = JSON.parse(jsonContent);
+    
+    // Verify the structure follows our request
+    expect(data).toHaveProperty('recipe');
+    expect(data.recipe).toHaveProperty('name');
+    expect(data.recipe).toHaveProperty('ingredients');
+    expect(Array.isArray(data.recipe.ingredients)).toBe(true);
+    expect(data.recipe).toHaveProperty('steps');
+    expect(Array.isArray(data.recipe.steps)).toBe(true);
+    
+    console.log('Gemini result:', data);
   }, 30000); // Increase timeout to 30 seconds for API call
 
   // Try the JSON schema format with Gemini (may not be supported)
@@ -768,37 +746,29 @@ Do not include any explanation or text outside of the JSON object.`
     
     // This test is more exploratory - we're checking if the schema format works with Gemini
     // If it doesn't, we'll log the outcome but won't fail the test
-    try {
-      const result = JSON.parse(responseBody);
+    const result = JSON.parse(responseBody);
+    
+    if (result.error) {
+      console.log('Gemini does not support the same JSON schema format, skipping schema validation');
+      return;
+    }
+    
+    // If there's no error, proceed with validation
+    expect(result).toHaveProperty('choices');
+    expect(result.choices).toBeInstanceOf(Array);
+    
+    if (result.choices.length > 0) {
+      expect(result.choices[0]).toHaveProperty('message');
+      expect(result.choices[0].message).toHaveProperty('content');
       
-      if (result.error) {
-        console.log('Gemini does not support the same JSON schema format, skipping schema validation');
-        return;
-      }
+      // Parse the content as JSON - let any parse failures propagate directly
+      const data = JSON.parse(result.choices[0].message.content);
       
-      // If there's no error, proceed with validation
-      expect(result).toHaveProperty('choices');
-      expect(result.choices).toBeInstanceOf(Array);
+      // Verify the structure follows our request
+      expect(data).toHaveProperty('todos');
+      expect(Array.isArray(data.todos)).toBe(true);
       
-      if (result.choices.length > 0) {
-        expect(result.choices[0]).toHaveProperty('message');
-        expect(result.choices[0].message).toHaveProperty('content');
-        
-        // Try to parse the content as JSON
-        try {
-          const data = JSON.parse(result.choices[0].message.content);
-          
-          // Verify the structure follows our request
-          expect(data).toHaveProperty('todos');
-          expect(Array.isArray(data.todos)).toBe(true);
-          
-          console.log('Gemini schema result:', data);
-        } catch (e) {
-          console.log('Gemini response was not valid JSON:', result.choices[0].message.content);
-        }
-      }
-    } catch (e) {
-      console.log('Failed to parse Gemini response, may not support JSON schema format');
+      console.log('Gemini schema result:', data);
     }
   }, 30000); // Increase timeout to 30 seconds for API call
 }); 

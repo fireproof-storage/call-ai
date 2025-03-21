@@ -79,7 +79,7 @@ This document captures the differences in how various LLM models handle structur
 - **Works well** but adds code fences around the JSON
 - Returns code-fenced JSON when instructed via system message:
   ```
-  \`\`\`json
+  ```json
   {
     "title": "The Martian",
     "author": "Andy Weir",
@@ -87,7 +87,7 @@ This document captures the differences in how various LLM models handle structur
     "genre": "Science Fiction",
     "rating": 5
   }
-  \`\`\`
+  ```
   ```
 
 ## Recommendations
@@ -113,4 +113,180 @@ Our library should:
 3. Handle response post-processing based on model type:
    - OpenAI: Direct JSON parsing
    - Claude: Extract JSON from text or unwrap formatting
-   - Gemini: Remove code fences if system message approach is used 
+   - Gemini: Remove code fences if system message approach is used
+
+## Implementation Details for Fixing Integration Tests
+
+### Current Failures
+We have two integration test failures:
+1. **OpenAI Book Recommendation Schema Test**
+2. **OpenAI Streaming Test**
+
+### Code Changes Needed
+
+1. **Fix the `prepareRequestParams` function to correctly handle schema for different models**:
+
+```typescript
+function prepareRequestParams(
+  prompt: string | Message[],
+  options: CallAIOptions = {}
+): { endpoint: string, requestOptions: RequestInit } {
+  // ... existing code ...
+  
+  // Detect model type
+  const isClaudeModel = options.model ? /claude/i.test(options.model) : false;
+  const isGeminiModel = options.model ? /gemini/i.test(options.model) : false;
+  const isOpenAIModel = !isClaudeModel && !isGeminiModel;
+  
+  // Prepare messages
+  let messages: Message[] = []; 
+  
+  if (Array.isArray(prompt)) {
+    messages = prompt;
+  } else {
+    // Create a single message
+    messages = [{ role: 'user', content: prompt as string }];
+  }
+  
+  // Handle schema for different models
+  if (options.schema) {
+    if (isClaudeModel) {
+      // Use system message approach for Claude models
+      const schemaProperties = Object.entries(options.schema.properties || {})
+        .map(([key, value]) => {
+          const type = (value as any).type || 'string';
+          return `  "${key}": ${type}`;
+        })
+        .join(',\n');
+      
+      const systemMessage: Message = {
+        role: 'system',
+        content: `Please return your response as JSON following this schema exactly:\n{\n${schemaProperties}\n}\nDo not include any explanation or text outside of the JSON object.`
+      };
+      
+      // Add system message at the beginning if none exists
+      if (!messages.some(m => m.role === 'system')) {
+        messages = [systemMessage, ...messages];
+      }
+    } else {
+      // For OpenAI and Gemini, use the schema format
+      requestParams.response_format = {
+        type: 'json_schema',
+        json_schema: {
+          name: options.schema.name || 'response',
+          schema: {
+            type: 'object',
+            properties: options.schema.properties || {},
+            required: options.schema.required || Object.keys(options.schema.properties || {}),
+            additionalProperties: options.schema.additionalProperties !== undefined 
+              ? options.schema.additionalProperties 
+              : false,
+          }
+        }
+      };
+    }
+  }
+  
+  // ... rest of the function ...
+}
+```
+
+2. **Fix the streaming handling in `callAIStreaming`**:
+
+```typescript
+async function* callAIStreaming(
+  prompt: string | Message[],
+  options: CallAIOptions = {}
+): AsyncGenerator<string, string, unknown> {
+  try {
+    const { endpoint, requestOptions } = prepareRequestParams(prompt, { ...options, stream: true });
+    
+    const response = await fetch(endpoint, requestOptions);
+    
+    // Handle streaming response
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let text = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value);
+      const lines = chunk.split('\n').filter(line => line.trim() !== '');
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          if (line.includes('[DONE]')) continue;
+          
+          try {
+            // Handle OPENROUTER PROCESSING lines
+            if (line.includes('OPENROUTER PROCESSING')) continue;
+            
+            const jsonLine = line.replace('data: ', '');
+            if (!jsonLine.trim()) continue;
+            
+            const json = JSON.parse(jsonLine);
+            const content = json.choices?.[0]?.delta?.content || '';
+            if (content) {
+              text += content;
+              yield text;
+            }
+          } catch (e) {
+            console.error("Error parsing chunk:", e);
+          }
+        }
+      }
+    }
+    return text;
+  } catch (error) {
+    console.error("AI call failed:", error);
+    return JSON.stringify({ 
+      error, 
+      message: "Sorry, I couldn't process that request." 
+    });
+  }
+}
+```
+
+3. **Improve JSON response handling in `callAINonStreaming`**:
+
+```typescript
+async function callAINonStreaming(
+  prompt: string | Message[],
+  options: CallAIOptions = {}
+): Promise<string> {
+  try {
+    const { endpoint, requestOptions } = prepareRequestParams(prompt, options);
+    
+    const response = await fetch(endpoint, requestOptions);
+    const responseBody = await response.json();
+    
+    if (!responseBody.choices || !responseBody.choices.length) {
+      throw new Error('Invalid response format from API');
+    }
+    
+    const content = responseBody.choices[0].message.content;
+    
+    // Post-process content based on model type
+    const isClaudeModel = options.model ? /claude/i.test(options.model) : false;
+    const isGeminiModel = options.model ? /gemini/i.test(options.model) : false;
+    
+    if (isClaudeModel || isGeminiModel) {
+      // Try to extract JSON from content if it might be wrapped
+      const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
+                       content.match(/```\s*([\s\S]*?)\s*```/) || 
+                       [null, content];
+      
+      return jsonMatch[1] || content;
+    }
+    
+    return content;
+  } catch (error) {
+    console.error("AI call failed:", error);
+    return JSON.stringify({ 
+      error, 
+      message: "Sorry, I couldn't process that request." 
+    });
+  }
+} 
