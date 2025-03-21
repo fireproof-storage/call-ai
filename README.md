@@ -158,3 +158,35 @@ interface CallAIOptions {
 ## License
 
 MIT or Apache-2.0, at your option
+
+## Contributing and Release Process
+
+### Development
+
+1. Fork the repository
+2. Make your changes
+3. Add tests for new functionality
+4. Run tests: `npm test`
+5. Run type checking: `npm run typecheck`
+6. Create a pull request
+
+### Release Process
+
+This library uses GitHub Actions to automate the release process:
+
+1. Update the version in `package.json` (follow semver)
+2. Update `CHANGELOG.md` with details of changes
+3. Commit changes: `git commit -am "Release vX.Y.Z"`
+4. Create a git tag: `git tag -a vX.Y.Z -m "Version X.Y.Z"`
+5. Push changes and tag: `git push origin main vX.Y.Z`
+
+The GitHub workflow in `.github/workflows/publish.yml` will:
+- Automatically trigger when a new tag is pushed
+- Run tests and type checking
+- Verify the tag signature
+- Publish the package to npm
+
+When making significant changes, remember to:
+- Document breaking changes in the changelog
+- Update documentation to reflect API changes
+- Update TypeScript types
