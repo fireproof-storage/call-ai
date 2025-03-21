@@ -71,6 +71,8 @@ export async function* callAI(
         model: model,
         stream: options.stream !== false, // Default to streaming
         messages: messages,
+        // For schema requests, add provider requirement to ensure JSON schema support
+        ...(schema && { provider: { require_parameters: true } }),
         // Pass through any additional options like temperature, but exclude internal keys
         ...Object.fromEntries(
           Object.entries(options).filter(([key]) => !['apiKey', 'model', 'endpoint'].includes(key))
