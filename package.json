@@ -19,7 +19,7 @@
   "scripts": {
     "build": "tsc",
     "test": "jest",
-    "test:integration": "jest --testPathPattern=test/integration.test.ts --testPathIgnorePatterns=''",
+    "test:integration": "jest --testMatch=\"**/test/integration.test.ts\" --testPathIgnorePatterns=''",
     "prepublishOnly": "npm run build",
     "typecheck": "tsc --noEmit"
   },

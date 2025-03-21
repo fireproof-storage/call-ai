@@ -2,6 +2,9 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   testMatch: ['**/src/**/*.test.ts', '**/test/**/*.test.ts'],
+  // We ignore integration tests by default for normal test runs
+  // but the test:integration script explicitly specifies this file,
+  // which will override this pattern
   testPathIgnorePatterns: ['/node_modules/', '/test/integration.test.ts'],
   collectCoverageFrom: [
     'src/**/*.ts',

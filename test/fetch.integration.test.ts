@@ -160,6 +160,85 @@ describe('OpenRouter API wire protocol tests', () => {
     console.log('Direct fetch test result:', data);
   }, 30000); // Increase timeout to 30 seconds for API call
   
+  // Add a more detailed test to debug schema issues
+  itif(!!haveApiKey)('should debug exact schema format sent to OpenRouter', async () => {
+    const apiKey = process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY;
+    const endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+    
+    // This schema format mirrors exactly what our library should be sending
+    const schema = {
+      name: 'book_recommendation',
+      properties: {
+        title: { type: 'string' },
+        author: { type: 'string' },
+        year: { type: 'number' },
+        genre: { type: 'string' },
+        rating: { type: 'number', minimum: 1, maximum: 5 }
+      }
+    };
+    
+    // Convert the schema to the format OpenRouter expects
+    // This exactly mirrors the transformation in our library
+    const requestBody = {
+      model: supportedModels.openAI,
+      messages: [
+        { role: 'user', content: 'Give me a short book recommendation in the requested format.' }
+      ],
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: schema.name,
+          schema: {
+            type: 'object',
+            properties: schema.properties,
+            required: Object.keys(schema.properties),
+            additionalProperties: false,
+          }
+        }
+      }
+    };
+    
+    console.log('Debug schema request payload:', JSON.stringify(requestBody, null, 2));
+    
+    // Make direct fetch call to OpenRouter API
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    });
+    
+    // Check response status and get the data
+    const responseBody = await response.text();
+    console.log('Debug schema response status:', response.status);
+    console.log('Debug schema response headers:', Object.fromEntries([...response.headers.entries()]));
+    console.log('Debug schema response preview:', responseBody.substring(0, 500) + '...');
+    
+    expect(response.status).toBe(200);
+    
+    try {
+      const result = JSON.parse(responseBody);
+      
+      // Verify the structure of the response
+      expect(result).toHaveProperty('choices');
+      expect(result.choices).toBeInstanceOf(Array);
+      expect(result.choices.length).toBeGreaterThan(0);
+      expect(result.choices[0]).toHaveProperty('message');
+      expect(result.choices[0].message).toHaveProperty('content');
+      
+      // Parse the content as JSON and verify it matches our schema
+      const data = JSON.parse(result.choices[0].message.content);
+      
+      console.log('Debug schema test result:', data);
+    } catch (e) {
+      console.error('Error in debug schema test:', e);
+      console.log('Raw response body:', responseBody);
+      throw e;
+    }
+  }, 30000);
+  
   itif(!!haveApiKey)('should handle streaming with our schema format', async () => {
     const apiKey = process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY;
     const endpoint = 'https://openrouter.ai/api/v1/chat/completions';
@@ -270,6 +349,119 @@ describe('OpenRouter API wire protocol tests', () => {
     } catch (e) {
       console.error('Failed to parse streaming response as JSON:', e);
       console.log('Raw text:', allText);
+      throw e;
+    }
+  }, 30000); // Increase timeout to 30 seconds for API call
+  
+  // Add a more detailed test to debug streaming issues
+  itif(!!haveApiKey)('should debug detailed streaming response for OpenAI', async () => {
+    const apiKey = process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY;
+    const endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+    
+    // This schema format mirrors exactly what our library should be sending
+    const schema = {
+      name: 'weather_forecast',
+      properties: {
+        location: { type: 'string' },
+        current_temp: { type: 'number' },
+        conditions: { type: 'string' },
+        tomorrow: {
+          type: 'object',
+          properties: {
+            high: { type: 'number' },
+            low: { type: 'number' },
+            conditions: { type: 'string' }
+          }
+        }
+      }
+    };
+    
+    // Convert the schema to the format OpenRouter expects
+    // This exactly mirrors the transformation in our library
+    const requestBody = {
+      model: supportedModels.openAI,
+      stream: true,
+      messages: [
+        { role: 'user', content: 'Give me a weather forecast for New York in the requested format.' }
+      ],
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: schema.name,
+          schema: {
+            type: 'object',
+            properties: schema.properties,
+            required: Object.keys(schema.properties),
+            additionalProperties: false,
+          }
+        }
+      }
+    };
+    
+    console.log('Debug streaming request payload:', JSON.stringify(requestBody, null, 2));
+    
+    try {
+      // Make direct fetch call to OpenRouter API
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+      
+      console.log('Debug streaming response status:', response.status);
+      console.log('Debug streaming response headers:', Object.fromEntries([...response.headers.entries()]));
+      
+      // Process streaming response directly
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let chunks = 0;
+      let fullChunksLog: string[] = [];
+      let allText = '';
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value);
+        fullChunksLog.push(chunk);
+        console.log(`DEBUG Stream chunk #${chunks}:`, chunk);
+        
+        const lines = chunk.split('\n').filter(line => line.trim() !== '');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            if (line.includes('[DONE]')) continue;
+            
+            try {
+              const json = JSON.parse(line.replace('data: ', ''));
+              const content = json.choices?.[0]?.delta?.content || '';
+              allText += content;
+              chunks++;
+              
+              if (chunks <= 5) {
+                console.log(`DEBUG Processed chunk #${chunks}:`, JSON.stringify(json));
+                console.log(`DEBUG Content delta:`, content);
+              }
+            } catch (e) {
+              console.error("DEBUG Error parsing chunk:", e);
+              console.log("DEBUG Problem line:", line);
+            }
+          }
+        }
+      }
+      
+      console.log('DEBUG Total chunks received:', chunks);
+      console.log('DEBUG Complete text:', allText);
+      
+      // Just verify we got some chunks
+      expect(chunks).toBeGreaterThan(0);
+      expect(allText.length).toBeGreaterThan(0);
+      
+    } catch (e) {
+      console.error('DEBUG Major error in streaming test:', e);
       throw e;
     }
   }, 30000); // Increase timeout to 30 seconds for API call
