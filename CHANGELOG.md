@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.1 (2024-06-22)
+
+### Fixes
+- Improved error handling for both streaming and non-streaming API calls
+- Added better error response format consistency
+- Addressed TypeScript type issues in tests
+- Enhanced test coverage for error conditions
+
+## 0.4.0 (2024-06-22)
+
+### Features
+- Added default "result" name for all JSON schemas
+- Improved test coverage for schema name handling
+- Enhanced documentation for schema name property
+- Ensured OpenRouter compatibility with standardized schema format
+
 ## 0.3.1 (2024-06-22)
 
 ### Improvements

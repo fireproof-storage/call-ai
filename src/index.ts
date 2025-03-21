@@ -149,7 +149,10 @@ async function callAINonStreaming(
     return content;
   } catch (error) {
     console.error("AI call failed:", error);
-    return "Sorry, I couldn't process that request.";
+    return JSON.stringify({ 
+      error, 
+      message: "Sorry, I couldn't process that request." 
+    });
   }
 }
 
@@ -192,10 +195,12 @@ async function* callAIStreaming(
         }
       }
     }
-
     return text;
   } catch (error) {
     console.error("AI call failed:", error);
-    return "Sorry, I couldn't process that request.";
+    return JSON.stringify({ 
+      error, 
+      message: "Sorry, I couldn't process that request." 
+    });
   }
 } 
