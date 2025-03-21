@@ -10,7 +10,7 @@ const itif = (condition: boolean) => condition ? it : it.skip;
 
 // Test models based on the OpenRouter documentation
 const supportedModels = {
-  openAI: 'openai/gpt-4o',
+  openAI: 'openai/gpt-4o-mini',
   claude: 'anthropic/claude-3-sonnet',
   gemini: 'google/gemini-2.0-flash-001'
 };
