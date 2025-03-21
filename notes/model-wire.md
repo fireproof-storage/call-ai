@@ -90,41 +90,127 @@ This document captures the differences in how various LLM models handle structur
   ```
   ```
 
+## Llama3 (Meta Llama 3.3 70B Instruct)
+
+### JSON Schema Support
+- **Does not properly support** the JSON schema format
+- Returns markdown-formatted text descriptions instead of JSON
+- Ignores the JSON schema structure and provides detailed text explanations
+- Example response:
+  ```
+  **Title:** "The Hitchhiker's Guide to the Galaxy" 
+  **Author:** Douglas Adams 
+  **Genre:** Science Fiction, Comedy 
+  **Description:** An comedic adventure through space following the misadventures of an unwitting human and his alien friend after Earth's destruction. 
+  **Why Read:** Unique blend of humor and science fiction, with witty observations on human society and the universe.
+  ```
+
+### System Message Approach
+- **Works well** with the system message approach
+- Returns clean, valid JSON when instructed via system message
+- Example system message response:
+  ```json
+  {
+    "title": "The Alchemist",
+    "author": "Paulo Coelho",
+    "year": 1988,
+    "genre": "Fantasy",
+    "rating": 4
+  }
+  ```
+
+## DeepSeek (DeepSeek Chat)
+
+### JSON Schema Support
+- **Does not properly support** the JSON schema format
+- Similar to Llama3, returns markdown-formatted text descriptions
+- Ignores the JSON schema structure and provides text explanations
+- Example response:
+  ```
+  **Title:** *The Alchemist*  
+  **Author:** Paulo Coelho  
+  **Genre:** Fiction, Inspirational  
+  **Why I Recommend It:** A timeless tale of self-discovery and pursuing one's dreams, *The Alchemist* is both simple and profound. Its allegorical style and universal themes make it a quick yet impactful read, perfect for anyone seeking motivation or a fresh perspective on life.
+  ```
+
+### System Message Approach
+- **Works well** with the system message approach
+- Returns clean, valid JSON when instructed via system message
+- Example system message response:
+  ```json
+  {
+    "title": "The Great Gatsby", 
+    "author": "F. Scott Fitzgerald", 
+    "year": 1925, 
+    "genre": "Tragedy", 
+    "rating": 4.5
+  }
+  ```
+
+## GPT-4 Turbo (OpenAI GPT-4 Turbo)
+
+### JSON Schema Support
+- **Does not support** the JSON schema format
+- Returns an error when response_format.json_schema is used:
+  ```
+  "error": { "message": "Invalid parameter: 'response_format' of type 'json_schema' is not supported with this model" }
+  ```
+
+### System Message Approach
+- **Works very well** with the system message approach
+- Returns clean, properly formatted JSON when instructed via system message
+- Example system message response:
+  ```json
+  {
+    "title": "The Great Gatsby",
+    "author": "F. Scott Fitzgerald",
+    "year": 1925,
+    "genre": "Novel",
+    "rating": 4.5
+  }
+  ```
+
 ## Recommendations
 
-1. **For OpenAI models**:
+1. **For OpenAI GPT-4o and Gemini models**:
    - Use the JSON schema format as designed
-   - Streaming works well token by token
+   - Streaming works well token by token with GPT-4o
 
-2. **For Claude models**:
+2. **For Claude, Llama3, DeepSeek, and GPT-4 Turbo models**:
    - Prefer using the system message approach
    - Include explicit instruction to return only JSON
-   - Consider post-processing to extract JSON if using schema approach
 
-3. **For Gemini models**:
-   - Prefer using the JSON schema format
-   - Apply post-processing to handle code fences if using system message approach
+3. **Model-specific handling**:
+   - OpenAI GPT-4o: JSON schema format works well
+   - Claude: System message approach is more reliable
+   - Gemini: Either approach works, but may need to strip code fences
+   - Llama3: Only use system message approach
+   - DeepSeek: Only use system message approach
+   - GPT-4 Turbo: Only use system message approach (json_schema not supported)
 
 ## Library Implementation
 
 Our library should:
 1. Detect the model type from the model string
-2. For Claude: Add fallback to system message approach when schema is requested
+2. For Claude, Llama3, DeepSeek, and GPT-4 Turbo: Add fallback to system message approach when schema is requested
 3. Handle response post-processing based on model type:
-   - OpenAI: Direct JSON parsing
+   - OpenAI GPT-4o: Direct JSON parsing
    - Claude: Extract JSON from text or unwrap formatting
    - Gemini: Remove code fences if system message approach is used
+   - Llama3: Extract JSON from text or unwrap formatting
+   - DeepSeek: Extract JSON from text or unwrap formatting
+   - GPT-4 Turbo: Direct JSON parsing
 
 ## Implementation Details for Fixing Integration Tests
 
 ### Current Failures
-We have two integration test failures:
-1. **OpenAI Book Recommendation Schema Test**
-2. **OpenAI Streaming Test**
+We have tests failing for the following reasons:
+1. Llama3, DeepSeek and GPT-4 Turbo models return markdown-formatted text or errors when using JSON schema format
+2. Our implementation doesn't automatically use system message approach for these models
 
 ### Code Changes Needed
 
-1. **Fix the `prepareRequestParams` function to correctly handle schema for different models**:
+1. **Update the `prepareRequestParams` function to detect more model types**:
 
 ```typescript
 function prepareRequestParams(
@@ -136,7 +222,12 @@ function prepareRequestParams(
   // Detect model type
   const isClaudeModel = options.model ? /claude/i.test(options.model) : false;
   const isGeminiModel = options.model ? /gemini/i.test(options.model) : false;
-  const isOpenAIModel = !isClaudeModel && !isGeminiModel;
+  const isLlama3Model = options.model ? /llama-3/i.test(options.model) : false;
+  const isDeepSeekModel = options.model ? /deepseek/i.test(options.model) : false;
+  const isGPT4TurboModel = options.model ? /gpt-4-turbo/i.test(options.model) : false;
+  
+  // Models that should use system message approach for structured output
+  const useSystemMessageApproach = isClaudeModel || isLlama3Model || isDeepSeekModel || isGPT4TurboModel;
   
   // Prepare messages
   let messages: Message[] = []; 
@@ -150,8 +241,8 @@ function prepareRequestParams(
   
   // Handle schema for different models
   if (options.schema) {
-    if (isClaudeModel) {
-      // Use system message approach for Claude models
+    if (useSystemMessageApproach || options.forceSystemMessage) {
+      // Use system message approach for models that need it
       const schemaProperties = Object.entries(options.schema.properties || {})
         .map(([key, value]) => {
           const type = (value as any).type || 'string';
@@ -169,7 +260,7 @@ function prepareRequestParams(
         messages = [systemMessage, ...messages];
       }
     } else {
-      // For OpenAI and Gemini, use the schema format
+      // For OpenAI GPT-4o and Gemini, use the schema format
       requestParams.response_format = {
         type: 'json_schema',
         json_schema: {
@@ -191,102 +282,28 @@ function prepareRequestParams(
 }
 ```
 
-2. **Fix the streaming handling in `callAIStreaming`**:
+2. **Update response handling to detect and process model-specific formats**:
 
 ```typescript
-async function* callAIStreaming(
-  prompt: string | Message[],
-  options: CallAIOptions = {}
-): AsyncGenerator<string, string, unknown> {
-  try {
-    const { endpoint, requestOptions } = prepareRequestParams(prompt, { ...options, stream: true });
-    
-    const response = await fetch(endpoint, requestOptions);
-    
-    // Handle streaming response
-    const reader = response.body!.getReader();
-    const decoder = new TextDecoder();
-    let text = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const chunk = decoder.decode(value);
-      const lines = chunk.split('\n').filter(line => line.trim() !== '');
-      
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          if (line.includes('[DONE]')) continue;
-          
-          try {
-            // Handle OPENROUTER PROCESSING lines
-            if (line.includes('OPENROUTER PROCESSING')) continue;
-            
-            const jsonLine = line.replace('data: ', '');
-            if (!jsonLine.trim()) continue;
-            
-            const json = JSON.parse(jsonLine);
-            const content = json.choices?.[0]?.delta?.content || '';
-            if (content) {
-              text += content;
-              yield text;
-            }
-          } catch (e) {
-            console.error("Error parsing chunk:", e);
-          }
-        }
-      }
-    }
-    return text;
-  } catch (error) {
-    console.error("AI call failed:", error);
-    return JSON.stringify({ 
-      error, 
-      message: "Sorry, I couldn't process that request." 
-    });
-  }
-}
-```
-
-3. **Improve JSON response handling in `callAINonStreaming`**:
-
-```typescript
-async function callAINonStreaming(
-  prompt: string | Message[],
-  options: CallAIOptions = {}
-): Promise<string> {
-  try {
-    const { endpoint, requestOptions } = prepareRequestParams(prompt, options);
-    
-    const response = await fetch(endpoint, requestOptions);
-    const responseBody = await response.json();
-    
-    if (!responseBody.choices || !responseBody.choices.length) {
-      throw new Error('Invalid response format from API');
-    }
-    
-    const content = responseBody.choices[0].message.content;
-    
-    // Post-process content based on model type
-    const isClaudeModel = options.model ? /claude/i.test(options.model) : false;
-    const isGeminiModel = options.model ? /gemini/i.test(options.model) : false;
-    
-    if (isClaudeModel || isGeminiModel) {
-      // Try to extract JSON from content if it might be wrapped
-      const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
+async function processResponseContent(content: string, options: CallAIOptions = {}): Promise<string> {
+  // Detect model type
+  const isClaudeModel = options.model ? /claude/i.test(options.model) : false;
+  const isGeminiModel = options.model ? /gemini/i.test(options.model) : false;
+  const isLlama3Model = options.model ? /llama-3/i.test(options.model) : false;
+  const isDeepSeekModel = options.model ? /deepseek/i.test(options.model) : false;
+  
+  // For models that might return formatted text instead of JSON
+  const needsJsonExtraction = isClaudeModel || isGeminiModel || isLlama3Model || isDeepSeekModel;
+  
+  if (needsJsonExtraction && options.schema) {
+    // Try to extract JSON from content if it might be wrapped
+    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
                        content.match(/```\s*([\s\S]*?)\s*```/) || 
+                       content.match(/\{[\s\S]*\}/) ||
                        [null, content];
-      
-      return jsonMatch[1] || content;
-    }
     
-    return content;
-  } catch (error) {
-    console.error("AI call failed:", error);
-    return JSON.stringify({ 
-      error, 
-      message: "Sorry, I couldn't process that request." 
-    });
+    return jsonMatch[1] || content;
   }
-} 
+  
+  return content;
+}
