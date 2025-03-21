@@ -60,7 +60,7 @@ import { callAI } from 'call-ai';
 
 const todoResponse = await callAI("Give me a todo list for learning React", {
   schema: {
-    name: "todo",
+    name: "todo",  // Optional - defaults to "result" if not provided
     properties: {
       todos: {
         type: "array",
@@ -329,4 +329,71 @@ const demoData = await callAI("Generate 4 fictional cyberpunk fortune scenarios 
     }
   }
 });
+```
+
+## Error Handling
+
+The library provides consistent error handling for both streaming and non-streaming modes:
+
+```javascript
+import { callAI } from 'call-ai';
+
+try {
+  const response = await callAI("Generate some content", {
+    apiKey: "invalid-key" // Invalid or missing API key
+  });
+  
+  // If there was an error, response will be a JSON string with error details
+  try {
+    const errorObj = JSON.parse(response);
+    if (errorObj.message && errorObj.error) {
+      console.error("API error:", errorObj.message);
+    } else {
+      // Process normal response
+      console.log(response);
+    }
+  } catch {
+    // Not an error JSON, process normal response
+    console.log(response);
+  }
+} catch (e) {
+  // Handle any unexpected errors
+  console.error("Unexpected error:", e);
+}
+```
+
+For streaming, error handling works similarly:
+
+```javascript
+import { callAI } from 'call-ai';
+
+try {
+  const generator = callAI("Generate some content", {
+    apiKey: "invalid-key", // Invalid or missing API key
+    stream: true
+  });
+  
+  // Consume the generator
+  let finalResponse = '';
+  for await (const chunk of generator) {
+    finalResponse = chunk;
+  }
+  
+  // Check if the final response is an error
+  try {
+    const errorObj = JSON.parse(finalResponse);
+    if (errorObj.message && errorObj.error) {
+      console.error("API error:", errorObj.message);
+    } else {
+      // Process final response
+      console.log(finalResponse);
+    }
+  } catch {
+    // Not an error JSON, process normal response
+    console.log(finalResponse);
+  }
+} catch (e) {
+  // Handle any unexpected errors
+  console.error("Unexpected error:", e);
+}
 ```
