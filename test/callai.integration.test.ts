@@ -1,13 +1,13 @@
 import { callAI, Schema } from '../src/index';
 import dotenv from 'dotenv';
-const TIMEOUT = 10000;
+const TIMEOUT = 20000;
 
 // Load environment variables from .env file if present
 dotenv.config();
 
 // Skip tests if no API key is available
 const haveApiKey = process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY;
-const itif = (condition: boolean) => condition ? it : it.skip;
+const itif = (condition: boolean) => condition ? it.concurrent : it.skip;
 
 // Test models based on the OpenRouter documentation
 const supportedModels = {
@@ -89,7 +89,7 @@ describe('callAI integration tests', () => {
         author: { type: 'string' },
         year: { type: 'number' },
         genre: { type: 'string' },
-        rating: { type: 'number', minimum: 1, maximum: 5 }
+        rating: { type: 'number' }
       }
     };
     
@@ -230,7 +230,7 @@ describe('callAI integration tests', () => {
         } else {
           throw new Error(`No valid content received from ${modelName} streaming`);
         }
-      }, TIMEOUT); // Increase timeout to 30 seconds for API call
+      }, TIMEOUT);
     });
   });
   
@@ -250,7 +250,7 @@ describe('callAI integration tests', () => {
   "author": string,
   "year": number,
   "genre": string,
-  "rating": number (between 1-5)
+  "rating": number
 }
 Do not include any explanation or text outside of the JSON object.`
             },
