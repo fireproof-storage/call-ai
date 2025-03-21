@@ -40,6 +40,7 @@ export interface CallAIOptions {
   [key: string]: any;
 }
 
+// Note: When using schema, we recommend using openai/gpt-4o which fully supports structured output
 export interface AIResponse {
   text: string;
   usage?: {
@@ -78,7 +79,8 @@ function prepareRequestParams(
   options: CallAIOptions
 ): { apiKey: string, model: string, endpoint: string, requestOptions: RequestInit } {
   const apiKey = options.apiKey || (typeof window !== 'undefined' ? (window as any).CALLAI_API_KEY : null);
-  const model = options.model || 'openrouter/auto';
+  // Default to openai/gpt-4o if schema is provided since it supports structured output
+  const model = options.model || (options.schema ? 'openai/gpt-4o' : 'openrouter/auto');
   const endpoint = options.endpoint || 'https://openrouter.ai/api/v1/chat/completions';
   const schema = options.schema || null;
   
@@ -112,7 +114,9 @@ function prepareRequestParams(
           json_schema: {
             // Always include name, with default "result" if not provided in schema
             name: schema.name || "result",
-            // Include the schema definition within a schema property for OpenAI compatibility
+            // Add strict mode for better enforcement
+            strict: true,
+            // Schema definition for OpenAI compatibility
             schema: {
               type: 'object',
               properties: schema.properties || {},
