@@ -1,6 +1,6 @@
 # CallAI Helper Function
 
-The `callAI` helper function provides an easy way to make AI requests to OpenAI-compatible model providers with streaming support.
+The `callAI` helper function provides an easy way to make AI requests to OpenAI-compatible model providers.
 
 ## Installation
 
@@ -14,15 +14,33 @@ yarn add call-ai
 
 ## Basic Usage
 
+By default the function returns a Promise that resolves to the complete response:
+
 ```javascript
 import { callAI } from 'call-ai';
 
-// Simple text generation
-const generator = callAI("What are three cool project ideas for React?");
+// Default behavior - returns a Promise<string>
+const response = await callAI("Summarize this article", null, {
+  apiKey: "your-api-key"
+});
+
+// Use the complete response directly
+console.log(response); // Complete response text
+```
+
+## Streaming Mode
+
+If you prefer to receive the response incrementally as it's generated, set `stream: true`. This returns an AsyncGenerator:
+
+```javascript
+import { callAI } from 'call-ai';
+
+// Enable streaming mode explicitly - returns an AsyncGenerator
+const generator = callAI("Write a creative story", null, { stream: true });
 
 // Process the streaming response
 for await (const partialResponse of generator) {
-  console.log(partialResponse); // Incrementally builds up the complete response
+  console.log(partialResponse); // Updates incrementally
 }
 ```
 
@@ -43,15 +61,15 @@ const todoSchema = {
   }
 };
 
-// Simple usage with await (no streaming updates)
+// Using with non-streaming (default)
 const todoResponse = await callAI("Give me a todo list for learning React", todoSchema);
 const todoData = JSON.parse(todoResponse);
 console.log(todoData.todos); // Array of todo items
 ```
 
-## JSON with Streaming (Best Practice)
+## JSON with Streaming
 
-In this example, we're using the `callAI` helper function to get weather data in a structured format with streaming preview.
+In this example, we're using the `callAI` helper function to get weather data in a structured format with streaming preview:
 
 ```javascript
 import { callAI } from 'call-ai';
@@ -74,7 +92,9 @@ const weatherSchema = {
 };
 
 // Get weather data with streaming updates
-const generator = callAI("What's the weather like in Paris today?", weatherSchema);
+const generator = callAI("What's the weather like in Paris today?", weatherSchema, {
+  stream: true
+});
 
 // Display streaming updates as they arrive
 const resultElement = document.getElementById('result');
@@ -109,55 +129,12 @@ By default, the function uses `openrouter/auto` (automatic model selection). You
 import { callAI } from 'call-ai';
 
 // Use a specific model via options
-const generator = callAI(
+const response = await callAI(
   "Explain quantum computing in simple terms", 
   null, 
   { model: "openai/gpt-4o" }
 );
-```
 
-## Using with OpenAI API
-
-You can also use callAI with OpenAI's API directly by providing the appropriate endpoint and API key:
-
-```javascript
-import { callAI } from 'call-ai';
-
-// Use with OpenAI's API
-const generator = callAI(
-  "Explain the theory of relativity", 
-  null,
-  {
-    model: "gpt-4",
-    apiKey: "sk-...", // Your OpenAI API key
-    endpoint: "https://api.openai.com/v1/chat/completions"
-  }
-);
-
-// Process the response as usual
-for await (const partialResponse of generator) {
-  console.log(partialResponse);
-}
-```
-
-## Non-Streaming Mode
-
-If you prefer to get the complete response at once:
-
-```javascript
-import { callAI } from 'call-ai';
-
-// Use non-streaming mode
-const response = await callAI(
-  "Summarize this article", 
-  null,
-  { 
-    model: "openrouter/auto",
-    stream: false 
-  }
-);
-
-// With stream: false, the function returns the full string directly (not a generator)
 console.log(response);
 ```
 
@@ -168,7 +145,7 @@ You can pass extra parameters to customize the request:
 ```javascript
 import { callAI } from 'call-ai';
 
-const generator = callAI(
+const response = await callAI(
   "Write a creative story",
   null,
   {
@@ -178,6 +155,8 @@ const generator = callAI(
     top_p: 0.95           // Control randomness
   }
 );
+
+console.log(response);
 ```
 
 ## Message History
@@ -196,19 +175,74 @@ const messages = [
 ];
 
 // Pass the entire conversation history
-const generator = callAI(messages);
-
-// Process response as usual
-for await (const partialResponse of generator) {
-  console.log(partialResponse);
-}
+const response = await callAI(messages);
+console.log(response);
 
 // To continue the conversation, add the new response and send again
-messages.push({ role: "assistant", content: "final response from above" });
+messages.push({ role: "assistant", content: response });
 messages.push({ role: "user", content: "What about useEffect?" });
 
 // Call again with updated history
-const nextGenerator = callAI(messages);
+const nextResponse = await callAI(messages);
+console.log(nextResponse);
+```
+
+## Using with OpenAI API
+
+You can use callAI with OpenAI's API directly by providing the appropriate endpoint and API key:
+
+```javascript
+import { callAI } from 'call-ai';
+
+// Use with OpenAI's API
+const response = await callAI(
+  "Explain the theory of relativity", 
+  null,
+  {
+    model: "gpt-4",
+    apiKey: "sk-...", // Your OpenAI API key
+    endpoint: "https://api.openai.com/v1/chat/completions"
+  }
+);
+
+console.log(response);
+
+// Or with streaming
+const generator = callAI(
+  "Explain the theory of relativity", 
+  null,
+  {
+    model: "gpt-4",
+    apiKey: "sk-...", // Your OpenAI API key
+    endpoint: "https://api.openai.com/v1/chat/completions",
+    stream: true
+  }
+);
+
+for await (const chunk of generator) {
+  console.log(chunk);
+}
+```
+
+## Custom Endpoints
+
+You can specify a custom endpoint for any OpenAI-compatible API:
+
+```javascript
+import { callAI } from 'call-ai';
+
+// Use with any OpenAI-compatible API
+const response = await callAI(
+  "Generate ideas for a mobile app",
+  null,
+  {
+    model: "your-model-name",
+    apiKey: "your-api-key",
+    endpoint: "https://your-custom-endpoint.com/v1/chat/completions"
+  }
+);
+
+console.log(response);
 ```
 
 ## Recommended Models
@@ -221,35 +255,16 @@ const nextGenerator = callAI(messages);
 | `anthropic/claude-3-opus` | Complex reasoning | Slower, highest quality |
 | `mistralai/mistral-large` | Open weights alternative | Good balance |
 
-## Custom Endpoints
-
-You can specify a custom endpoint for any OpenAI-compatible API:
-
-```javascript
-import { callAI } from 'call-ai';
-
-// Use with any OpenAI-compatible API
-const generator = callAI(
-  "Generate ideas for a mobile app",
-  null,
-  {
-    model: "your-model-name",
-    apiKey: "your-api-key",
-    endpoint: "https://your-custom-endpoint.com/v1/chat/completions"
-  }
-);
-```
-
 ## Error Handling
 
-The function handles errors gracefully and returns a friendly message if something goes wrong.
+The function handles errors gracefully and returns a friendly message if something goes wrong:
 
 ```javascript
 import { callAI } from 'call-ai';
 
 try {
-  const generator = callAI("Your prompt here");
-  // Process response...
+  const response = await callAI("Your prompt here");
+  console.log(response);
 } catch (error) {
   console.error("Error:", error);
 }

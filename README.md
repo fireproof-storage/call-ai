@@ -17,13 +17,24 @@ pnpm add call-ai
 ```typescript
 import { callAI } from 'call-ai';
 
-// Basic usage with string prompt
-const response = callAI('Explain quantum computing in simple terms', null, {
+// Basic usage with string prompt (non-streaming by default)
+const response = await callAI('Explain quantum computing in simple terms', null, {
   apiKey: 'your-api-key',
   model: 'gpt-4'
 });
 
-for await (const chunk of response) {
+// The response is the complete text
+console.log(response);
+
+// With streaming enabled (returns an AsyncGenerator)
+const generator = callAI('Tell me a story', null, {
+  apiKey: 'your-api-key',
+  model: 'gpt-4',
+  stream: true
+});
+
+// Process streaming updates
+for await (const chunk of generator) {
   console.log(chunk); // Streaming updates as they arrive
 }
 
@@ -33,20 +44,12 @@ const messages = [
   { role: 'user', content: 'Explain quantum computing in simple terms' }
 ];
 
-const response = callAI(messages, null, {
+const response = await callAI(messages, null, {
   apiKey: 'your-api-key',
   model: 'gpt-4'
 });
 
-// Non-streaming mode
-// With stream: false, the function returns the full string directly (not a generator)
-const result = await callAI('Write a short poem', null, {
-  apiKey: 'your-api-key',
-  model: 'gpt-4',
-  stream: false
-});
-
-console.log(result);
+console.log(response);
 
 // Using schema for structured output
 const schema = {
@@ -59,8 +62,7 @@ const schema = {
 };
 
 const response = await callAI('Summarize the benefits of exercise', schema, {
-  apiKey: 'your-api-key',
-  stream: false
+  apiKey: 'your-api-key'
 });
 
 const structuredOutput = JSON.parse(response);
@@ -69,7 +71,7 @@ console.log(structuredOutput.title);
 
 ## Features
 
-- 🔄 Streaming responses via AsyncGenerator
+- 🔄 Streaming responses via AsyncGenerator when `stream: true`
 - 🧩 Structured JSON outputs with schema validation
 - 🔌 Compatible with OpenRouter and OpenAI API formats
 - 📝 Support for message arrays with system, user, and assistant roles
@@ -94,13 +96,13 @@ You can provide your API key in three ways:
 
 1. Directly in the options:
 ```typescript
-const response = callAI('Hello', null, { apiKey: 'your-api-key' });
+const response = await callAI('Hello', null, { apiKey: 'your-api-key' });
 ```
 
 2. Set globally in the browser:
 ```typescript
 window.CALLAI_API_KEY = 'your-api-key';
-const response = callAI('Hello');
+const response = await callAI('Hello');
 ```
 
 3. Use environment variables in Node.js (with a custom implementation):
@@ -108,18 +110,18 @@ const response = callAI('Hello');
 // Example of environment variable integration
 import { callAI } from 'call-ai';
 const apiKey = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY;
-const response = callAI('Hello', null, { apiKey });
+const response = await callAI('Hello', null, { apiKey });
 ```
 
 ## API
 
 ```typescript
 // Main function
-async function* callAI(
+function callAI(
   prompt: string | Message[],
   schema: Schema | null = null,
   options: Record<string, any> = {}
-): AsyncGenerator<string, string, unknown>
+): Promise<string> | AsyncGenerator<string, string, unknown>
 
 // Types
 type Message = {
@@ -140,7 +142,7 @@ interface Schema {
 * `apiKey`: Your API key (can also be set via window.CALLAI_API_KEY)
 * `model`: Model identifier (default: 'openrouter/auto')
 * `endpoint`: API endpoint (default: 'https://openrouter.ai/api/v1/chat/completions')
-* `stream`: Enable streaming responses (default: true)
+* `stream`: Enable streaming responses (default: false)
 * Any other options are passed directly to the API (temperature, max_tokens, etc.)
 
 ## License

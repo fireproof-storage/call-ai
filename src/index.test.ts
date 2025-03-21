@@ -35,15 +35,22 @@ describe('callAI', () => {
     (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
   });
 
-  it('should handle API key requirement', async () => {
+  it('should handle API key requirement for non-streaming', async () => {
+    mockResponse.json.mockResolvedValue({ choices: [{ message: { content: '' } }] });
+    
+    const result = await callAI('Hello, AI');
+    expect(result).toBe("Sorry, I couldn't process that request.");
+  });
+
+  it('should handle API key requirement for streaming', async () => {
     mockReader.read.mockResolvedValueOnce({ done: true });
-    const generator = callAI('Hello, AI');
+    const generator = callAI('Hello, AI', null, { stream: true }) as AsyncGenerator;
     
     const result = await generator.next();
     expect(result.value).toBe("Sorry, I couldn't process that request.");
   });
 
-  it('should make POST request with correct parameters', async () => {
+  it('should make POST request with correct parameters for non-streaming', async () => {
     const prompt = 'Hello, AI';
     const options = {
       apiKey: 'test-api-key',
@@ -51,11 +58,11 @@ describe('callAI', () => {
       temperature: 0.7
     };
 
-    // Mock successful response to avoid errors
-    mockReader.read.mockResolvedValueOnce({ done: true });
+    mockResponse.json.mockResolvedValue({
+      choices: [{ message: { content: 'Hello, I am an AI' } }]
+    });
     
-    const generator = callAI(prompt, null, options);
-    await generator.next();
+    await callAI(prompt, null, options);
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(global.fetch).toHaveBeenCalledWith(
@@ -73,6 +80,31 @@ describe('callAI', () => {
     expect(body.model).toBe('test-model');
     expect(body.messages).toEqual([{ role: 'user', content: 'Hello, AI' }]);
     expect(body.temperature).toBe(0.7);
+    expect(body.stream).toBe(false);
+  });
+
+  it('should make POST request with correct parameters for streaming', async () => {
+    const prompt = 'Hello, AI';
+    const options = {
+      apiKey: 'test-api-key',
+      model: 'test-model',
+      temperature: 0.7,
+      stream: true
+    };
+
+    // Mock successful response to avoid errors
+    mockReader.read.mockResolvedValueOnce({ done: true });
+    
+    const generator = callAI(prompt, null, options) as AsyncGenerator;
+    await generator.next();
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    expect(body.model).toBe('test-model');
+    expect(body.messages).toEqual([{ role: 'user', content: 'Hello, AI' }]);
+    expect(body.temperature).toBe(0.7);
+    expect(body.stream).toBe(true);
   });
 
   it('should handle message array for prompt', async () => {
@@ -80,12 +112,12 @@ describe('callAI', () => {
       { role: 'system', content: 'You are a helpful assistant' },
       { role: 'user', content: 'Hello' }
     ];
-    const options = { apiKey: 'test-api-key' };
+    const options = { apiKey: 'test-api-key', stream: true };
 
     // Mock successful response to avoid errors
     mockReader.read.mockResolvedValueOnce({ done: true });
     
-    const generator = callAI(messages, null, options);
+    const generator = callAI(messages, null, options) as AsyncGenerator;
     await generator.next();
 
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
@@ -101,12 +133,12 @@ describe('callAI', () => {
       required: ['name']
     };
     
-    const options = { apiKey: 'test-api-key' };
+    const options = { apiKey: 'test-api-key', stream: true };
     
     // Mock successful response to avoid errors
     mockReader.read.mockResolvedValueOnce({ done: true });
     
-    const generator = callAI('Get user info', schema, options);
+    const generator = callAI('Get user info', schema, options) as AsyncGenerator;
     await generator.next();
 
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
@@ -120,24 +152,45 @@ describe('callAI', () => {
     });
     
     const options = { 
-      apiKey: 'test-api-key',
-      stream: false
+      apiKey: 'test-api-key'
     };
     
-    const result = await callAI('Hello', null, options).next();
+    const result = await callAI('Hello', null, options);
     
-    expect(result.value).toBe('Hello, I am an AI');
-    expect(result.done).toBe(true);
+    expect(result).toBe('Hello, I am an AI');
     expect(mockResponse.json).toHaveBeenCalledTimes(1);
   });
 
-  it('should handle errors during API call', async () => {
+  it('should handle errors during API call for non-streaming', async () => {
     (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
     
     const options = { apiKey: 'test-api-key' };
-    const result = await callAI('Hello', null, options).next();
+    const result = await callAI('Hello', null, options);
+    
+    expect(result).toBe("Sorry, I couldn't process that request.");
+  });
+
+  it('should handle errors during API call for streaming', async () => {
+    (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
+    
+    const options = { apiKey: 'test-api-key', stream: true };
+    const generator = callAI('Hello', null, options) as AsyncGenerator;
+    const result = await generator.next();
     
     expect(result.value).toBe("Sorry, I couldn't process that request.");
     expect(result.done).toBe(true);
+  });
+  
+  it('should default to streaming mode (false) if not specified', async () => {
+    const options = { apiKey: 'test-api-key' };
+    
+    mockResponse.json.mockResolvedValue({
+      choices: [{ message: { content: 'Hello, I am an AI' } }]
+    });
+    
+    await callAI('Hello', null, options);
+
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    expect(body.stream).toBe(false);
   });
 }); 
