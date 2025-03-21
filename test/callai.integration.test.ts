@@ -1,5 +1,6 @@
 import { callAI, Schema } from '../src/index';
 import dotenv from 'dotenv';
+const TIMEOUT = 10000;
 
 // Load environment variables from .env file if present
 dotenv.config();
@@ -73,7 +74,7 @@ describe('callAI integration tests', () => {
         
         // Log the result for manual inspection
         console.log(`${modelName} structured data result:`, data);
-      }, 30000); // Increase timeout to 30 seconds for API call
+      }, TIMEOUT); // Increase timeout to 30 seconds for API call
     });
   });
   
@@ -140,7 +141,7 @@ describe('callAI integration tests', () => {
         
         // Log the result for manual inspection
         console.log(`${modelName} book recommendation result:`, data);
-      }, 30000); // Increase timeout to 30 seconds for API call
+      }, TIMEOUT); // Increase timeout to 30 seconds for API call
     });
   });
   
@@ -228,7 +229,7 @@ describe('callAI integration tests', () => {
         } else {
           throw new Error(`No valid content received from ${modelName} streaming`);
         }
-      }, 30000); // Increase timeout to 30 seconds for API call
+      }, TIMEOUT); // Increase timeout to 30 seconds for API call
     });
   });
   
@@ -283,7 +284,7 @@ Do not include any explanation or text outside of the JSON object.`
         
         // Log the result for manual inspection
         console.log(`${modelName} system message result:`, data);
-      }, 30000); // Increase timeout to 30 seconds for API call
+      }, TIMEOUT); // Increase timeout to 30 seconds for API call
     });
   });
 }); 

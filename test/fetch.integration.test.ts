@@ -1,10 +1,11 @@
 import dotenv from 'dotenv';
+const TIMEOUT = 10000;
 
 // Set up retries for all tests in this file
 jest.retryTimes(3, { logErrorsBeforeRetry: true });
 
 // Load environment variables from .env file if present
-dotenv.config();
+dotenv.config(); 
 
 // Skip tests if no API key is available
 const haveApiKey = process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY;
@@ -14,7 +15,9 @@ const itif = (condition: boolean) => condition ? it : it.skip;
 const supportedModels = {
   openAI: 'openai/gpt-4o',
   claude: 'anthropic/claude-3-sonnet',
-  gemini: 'google/gemini-2.0-flash-001'
+  gemini: 'google/gemini-2.0-flash-001',
+  llama3: 'meta-llama/llama-3.3-70b-instruct',
+  deepseek: 'deepseek/deepseek-chat'
 };
 
 describe('OpenRouter API wire protocol tests', () => {
@@ -83,7 +86,8 @@ describe('OpenRouter API wire protocol tests', () => {
     expect(Array.isArray(data.todos)).toBe(true);
     
     console.log('Direct fetch test result:', data);
-  }, 30000); // Increase timeout to 30 seconds for API call
+  }, TIMEOUT
+); // Increase timeout to 30 seconds for API call
   
   itif(!!haveApiKey)('should format schema correctly for OpenAI structured output', async () => {
     const apiKey = process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY;
@@ -161,7 +165,8 @@ describe('OpenRouter API wire protocol tests', () => {
     }
     
     console.log('Direct fetch test result:', data);
-  }, 30000); // Increase timeout to 30 seconds for API call
+  }, TIMEOUT
+); // Increase timeout to 30 seconds for API call
   
   // Add a more detailed test to debug schema issues
   itif(!!haveApiKey)('should debug exact schema format sent to OpenRouter', async () => {
@@ -240,7 +245,8 @@ describe('OpenRouter API wire protocol tests', () => {
       console.log('Raw response body:', responseBody);
       throw e;
     }
-  }, 30000);
+  }, TIMEOUT
+);
   
   itif(!!haveApiKey)('should handle streaming with our schema format', async () => {
     const apiKey = process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY;
@@ -354,7 +360,8 @@ describe('OpenRouter API wire protocol tests', () => {
       console.log('Raw text:', allText);
       throw e;
     }
-  }, 30000); // Increase timeout to 30 seconds for API call
+  }, TIMEOUT
+); // Increase timeout to 30 seconds for API call
   
   // Add a more detailed test to debug streaming issues
   itif(!!haveApiKey)('should debug detailed streaming response for OpenAI', async () => {
@@ -467,7 +474,8 @@ describe('OpenRouter API wire protocol tests', () => {
       console.error('DEBUG Major error in streaming test:', e);
       throw e;
     }
-  }, 30000); // Increase timeout to 30 seconds for API call
+  }, TIMEOUT
+); // Increase timeout to 30 seconds for API call
 
   // Test JSON schema format with Claude 3.5
   itif(!!haveApiKey)('should validate JSON schema format with Claude 3.5', async () => {
@@ -549,7 +557,8 @@ describe('OpenRouter API wire protocol tests', () => {
     expect(Array.isArray(data.todos)).toBe(true);
     
     console.log('Claude 3.5 result:', data);
-  }, 30000); // Increase timeout to 30 seconds for API call
+  }, TIMEOUT
+); // Increase timeout to 30 seconds for API call
 
   // Test JSON schema for structured data with Claude 3.5 (without schema format)
   itif(!!haveApiKey)('should handle JSON output with Claude 3.5 using prompt engineering', async () => {
@@ -624,7 +633,8 @@ Do not include any explanation or text outside of the JSON object.`
     expect(data).toHaveProperty('genre');
     
     console.log('Claude 3.5 Prompt Engineering result:', data);
-  }, 30000); // Increase timeout to 30 seconds for API call
+  }, TIMEOUT
+); // Increase timeout to 30 seconds for API call
 
   // Test JSON schema for structured data with Google Gemini 
   itif(!!haveApiKey)('should handle JSON output with Google Gemini using prompt engineering', async () => {
@@ -710,7 +720,8 @@ Do not include any explanation or text outside of the JSON object.`
     expect(Array.isArray(data.recipe.steps)).toBe(true);
     
     console.log('Gemini result:', data);
-  }, 30000); // Increase timeout to 30 seconds for API call
+  }, TIMEOUT
+); // Increase timeout to 30 seconds for API call
 
   // Try the JSON schema format with Gemini (may not be supported)
   itif(!!haveApiKey)('should attempt JSON schema format with Google Gemini', async () => {
@@ -783,5 +794,6 @@ Do not include any explanation or text outside of the JSON object.`
       
       console.log('Gemini schema result:', data);
     }
-  }, 30000); // Increase timeout to 30 seconds for API call
+  }, TIMEOUT
+); // Increase timeout to 30 seconds for API call
 }); 
