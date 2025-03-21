@@ -201,6 +201,15 @@ MIT or Apache-2.0, at your option
 5. Run type checking: `npm run typecheck`
 6. Create a pull request
 
+### Integration Tests
+
+The project includes integration tests that make real API calls to verify functionality with actual LLM models:
+
+1. Copy `.env.example` to `.env` and add your OpenRouter API key
+2. Run integration tests: `npm run test:integration`
+
+Note: Integration tests are excluded from the normal test suite to avoid making API calls during CI/CD. They require a valid API key to execute and will be skipped if no key is provided.
+
 ### Release Process
 
 This library uses GitHub Actions to automate the release process:

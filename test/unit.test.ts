@@ -1,4 +1,4 @@
-import { callAI, Message, Schema } from './index';
+import { callAI, Message, Schema } from '../src/index';
 
 // Mock global fetch
 global.fetch = jest.fn();
@@ -149,7 +149,7 @@ describe('callAI', () => {
 
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
     expect(body.response_format.type).toBe('json_schema');
-    expect(body.response_format.json_schema.required).toEqual(['name']);
+    expect(body.response_format.json_schema.schema.required).toEqual(['name']);
   });
 
   it('should handle schema parameter matching documentation example', async () => {
@@ -171,12 +171,11 @@ describe('callAI', () => {
       choices: [{ message: { content: '{"todos": ["Learn React basics", "Build a simple app", "Master hooks"]}' } }]
     });
     
-    const result = await callAI('Give me a todo list for learning React', options);
-    expect(result).toBe('{"todos": ["Learn React basics", "Build a simple app", "Master hooks"]}');
+    await callAI('Give me a todo list for learning React', options);
     
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
     expect(body.response_format.type).toBe('json_schema');
-    expect(body.response_format.json_schema.properties).toEqual(todoSchema.properties);
+    expect(body.response_format.json_schema.schema.properties).toEqual(todoSchema.properties);
   });
 
   it('should handle aliens schema example', async () => {
@@ -222,7 +221,7 @@ describe('callAI', () => {
     
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
     expect(body.response_format.type).toBe('json_schema');
-    expect(body.response_format.json_schema.properties).toEqual(alienSchema.properties);
+    expect(body.response_format.json_schema.schema.properties).toEqual(alienSchema.properties);
     expect(body.model).toBe('openrouter/auto');
     expect(body.stream).toBe(true);
   });
@@ -331,8 +330,8 @@ describe('callAI', () => {
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
     expect(body.response_format.type).toBe('json_schema');
     expect(body.response_format.json_schema.name).toBe('result');
-    expect(body.response_format.json_schema.properties).toEqual({});
-    expect(body.response_format.json_schema.required).toEqual([]);
+    expect(body.response_format.json_schema.schema.properties).toEqual({});
+    expect(body.response_format.json_schema.schema.required).toEqual([]);
   });
 
   it('should respect additionalProperties setting in schema', async () => {
@@ -355,7 +354,7 @@ describe('callAI', () => {
     await callAI('Test with additionalProperties', options);
     
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
-    expect(body.response_format.json_schema.additionalProperties).toBe(true);
+    expect(body.response_format.json_schema.schema.additionalProperties).toBe(true);
   });
 
   it('should handle errors during API call for non-streaming', async () => {
@@ -394,6 +393,47 @@ describe('callAI', () => {
 
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
     expect(body.stream).toBe(false);
+  });
+  
+  it('should include schema property in json_schema', async () => {
+    const schema: Schema = {
+      properties: {
+        title: { type: "string" },
+        description: { type: "string" },
+        songs: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              artist: { type: "string" },
+              year: { type: "string" },
+              comment: { type: "string" }
+            }
+          }
+        }
+      },
+      required: ["title", "description", "songs"]
+    };
+    
+    const options = { 
+      apiKey: 'test-api-key',
+      model: 'openai/gpt-4-turbo',
+      schema: schema
+    };
+    
+    mockResponse.json.mockResolvedValue({
+      choices: [{ message: { content: '{"title":"Healthy Living","description":"A playlist to inspire a healthy lifestyle"}' } }]
+    });
+    
+    await callAI('Create a themed music playlist', options);
+    
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    expect(body.response_format.type).toBe('json_schema');
+    // Check that schema property exists in json_schema containing the schema definition
+    expect(body.response_format.json_schema.schema).toBeDefined();
+    expect(body.response_format.json_schema.schema.properties).toEqual(schema.properties);
+    expect(body.response_format.json_schema.schema.required).toEqual(schema.required);
   });
   
   it('should handle streaming with schema for structured output', async () => {

@@ -112,18 +112,21 @@ function prepareRequestParams(
           json_schema: {
             // Always include name, with default "result" if not provided in schema
             name: schema.name || "result",
-            type: 'object',
-            properties: schema.properties || {},
-            required: schema.required || Object.keys(schema.properties || {}),
-            additionalProperties: schema.additionalProperties !== undefined 
-              ? schema.additionalProperties 
-              : false,
-            // Copy any additional schema properties (excluding properties we've already handled)
-            ...Object.fromEntries(
-              Object.entries(schema).filter(([key]) => 
-                !['name', 'properties', 'required', 'additionalProperties'].includes(key)
+            // Include the schema definition within a schema property for OpenAI compatibility
+            schema: {
+              type: 'object',
+              properties: schema.properties || {},
+              required: schema.required || Object.keys(schema.properties || {}),
+              additionalProperties: schema.additionalProperties !== undefined 
+                ? schema.additionalProperties 
+                : false,
+              // Copy any additional schema properties (excluding properties we've already handled)
+              ...Object.fromEntries(
+                Object.entries(schema).filter(([key]) => 
+                  !['name', 'properties', 'required', 'additionalProperties'].includes(key)
+                )
               )
-            )
+            }
           }
         }
       })
