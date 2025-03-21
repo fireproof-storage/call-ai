@@ -265,12 +265,24 @@ async function* callAIStreaming(
   try {
     const { endpoint, requestOptions, model } = prepareRequestParams(prompt, { ...options, stream: true });
     
+    // Detect model type for specialized handling
+    const isOpenAIModel = model ? /openai/i.test(model) : false;
+    
     const response = await fetch(endpoint, requestOptions);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`API Error: ${response.status} ${response.statusText}`, errorText);
+      throw new Error(`API returned error ${response.status}: ${response.statusText}`);
+    }
     
     // Handle streaming response
     const reader = response.body!.getReader();
     const decoder = new TextDecoder();
     let text = '';
+    let chunkCount = 0;
+    let accumulatedJSON = '';
+    let jsonComplete = false;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -290,23 +302,81 @@ async function* callAIStreaming(
             const jsonLine = line.replace('data: ', '');
             if (!jsonLine.trim()) continue;
             
+            // Parse the JSON chunk
             const json = JSON.parse(jsonLine);
-            const content = json.choices?.[0]?.delta?.content || '';
-            text += content;
-            yield processResponseContent(text, options);
+            
+            // Extract content from the delta
+            if (json.choices?.[0]?.delta?.content !== undefined) {
+              const content = json.choices[0].delta.content;
+              
+              // For OpenAI models with schema, we're building a JSON response
+              if (isOpenAIModel && options.schema) {
+                accumulatedJSON += content || '';
+                chunkCount++;
+                
+                // Only yield if we have what appears to be complete JSON
+                if (accumulatedJSON.trim().startsWith('{') && 
+                    accumulatedJSON.trim().endsWith('}') && 
+                    !jsonComplete) {
+                  try {
+                    // Test if it's valid JSON
+                    JSON.parse(accumulatedJSON);
+                    text = accumulatedJSON;
+                    yield text;
+                    jsonComplete = true;
+                  } catch (e) {
+                    // Not complete JSON yet, continue accumulating
+                  }
+                }
+              } else {
+                // For regular text responses
+                text += content || '';
+                chunkCount++;
+                yield processResponseContent(text, options);
+              }
+            } 
+            // Handle message content format
+            else if (json.choices?.[0]?.message?.content !== undefined) {
+              const content = json.choices[0].message.content;
+              text += content || '';
+              chunkCount++;
+              yield processResponseContent(text, options);
+            }
           } catch (e) {
-            console.error("Error parsing chunk:", e);
+            console.error("Error parsing chunk:", e, "Line:", line);
           }
         }
       }
     }
     
-    // Process the final text before returning
+    // If we've reached the end but haven't yielded any JSON yet (e.g. if the JSON wasn't valid),
+    // do a final yield with whatever we've accumulated
+    if (isOpenAIModel && options.schema && accumulatedJSON && !jsonComplete) {
+      try {
+        // Try to fix and parse the JSON as a last resort
+        const cleanedJSON = accumulatedJSON.trim();
+        // If it ends with a comma, remove it and add a closing brace
+        const fixedJSON = cleanedJSON.endsWith(',') 
+          ? cleanedJSON.slice(0, -1) + '}'
+          : cleanedJSON.endsWith('}') 
+            ? cleanedJSON 
+            : cleanedJSON + '}';
+            
+        text = fixedJSON;
+        return processResponseContent(text, options);
+      } catch (e) {
+        // If all else fails, return what we have
+        console.error("Failed to yield valid JSON:", e);
+        return accumulatedJSON;
+      }
+    }
+    
+    // Ensure the final return has proper, processed content
     return processResponseContent(text, options);
   } catch (error) {
     console.error("AI call failed:", error);
     return JSON.stringify({ 
-      error, 
+      error: String(error), 
       message: "Sorry, I couldn't process that request." 
     });
   }
