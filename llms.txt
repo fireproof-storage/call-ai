@@ -74,7 +74,7 @@ const todoSchema = {
 
 // Using with non-streaming (default)
 const todoResponse = await callAI("Give me a todo list for learning React", {
-  schema: todoSchema
+  schema: todoSchema  // Pass the schema object in the options
 });
 const todoData = JSON.parse(todoResponse);
 console.log(todoData.todos); // Array of todo items
@@ -317,4 +317,28 @@ for await (const partialResponse of generator) {
 // After streaming is complete, you can parse the final response
 const alienData = JSON.parse(/*final response*/);
 console.log(alienData.aliens); // Array of alien species
+```
+
+## Cyberpunk Fortune Example
+
+```javascript
+const demoData = await callAI("Generate 4 fictional cyberpunk fortune scenarios with name, desire, fear, mood (from: elated, hopeful, neutral, anxious, defeated), and fortune text. Return as structured JSON with these fields.", {
+  schema: {
+    properties: {
+      fortunes: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            desire: { type: "string" },
+            fear: { type: "string" },
+            mood: { type: "string" },
+            fortune: { type: "string" }
+          }
+        }
+      }
+    }
+  }
+});
 ```
