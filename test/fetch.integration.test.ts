@@ -29,8 +29,7 @@ describe('OpenRouter API wire protocol tests', () => {
       response_format: {
         type: 'json_schema',
         json_schema: {
-          name: 'todo',
-          strict: true,
+          name: 'todo', // Required parameter for OpenRouter
           schema: {
             type: 'object',
             properties: {
@@ -38,9 +37,7 @@ describe('OpenRouter API wire protocol tests', () => {
                 type: 'array',
                 items: { type: 'string' }
               }
-            },
-            required: ['todos'],
-            additionalProperties: false
+            }
           }
         }
       }
@@ -98,7 +95,7 @@ describe('OpenRouter API wire protocol tests', () => {
       response_format: {
         type: 'json_schema',
         json_schema: {
-          name: 'book_recommendation',
+          name: 'book_recommendation', // Required parameter for OpenRouter
           schema: {
             type: 'object',
             properties: {
@@ -107,8 +104,7 @@ describe('OpenRouter API wire protocol tests', () => {
               year: { type: 'number' },
               genre: { type: 'string' },
               rating: { type: 'number', minimum: 1, maximum: 5 }
-            },
-            required: ['title', 'author', 'genre']
+            }
           }
         }
       }
@@ -178,7 +174,7 @@ describe('OpenRouter API wire protocol tests', () => {
       response_format: {
         type: 'json_schema',
         json_schema: {
-          name: 'weather_forecast',
+          name: 'weather_forecast', // Required parameter for OpenRouter
           schema: {
             type: 'object',
             properties: {
@@ -193,8 +189,7 @@ describe('OpenRouter API wire protocol tests', () => {
                   conditions: { type: 'string' }
                 }
               }
-            },
-            required: ['location', 'current_temp', 'conditions', 'tomorrow']
+            }
           }
         }
       }
@@ -293,8 +288,7 @@ describe('OpenRouter API wire protocol tests', () => {
       response_format: {
         type: 'json_schema',
         json_schema: {
-          name: 'todo',
-          strict: true,
+          name: 'todo', // Required parameter for OpenRouter
           schema: {
             type: 'object',
             properties: {
@@ -302,9 +296,7 @@ describe('OpenRouter API wire protocol tests', () => {
                 type: 'array',
                 items: { type: 'string' }
               }
-            },
-            required: ['todos'],
-            additionalProperties: false
+            }
           }
         }
       }
@@ -551,7 +543,7 @@ Do not include any explanation or text outside of the JSON object.`
       response_format: {
         type: 'json_schema',
         json_schema: {
-          name: 'todo',
+          name: 'todo', // Required parameter for OpenRouter
           schema: {
             type: 'object',
             properties: {
@@ -559,8 +551,7 @@ Do not include any explanation or text outside of the JSON object.`
                 type: 'array',
                 items: { type: 'string' }
               }
-            },
-            required: ['todos']
+            }
           }
         }
       }
