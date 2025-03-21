@@ -68,13 +68,40 @@ const response = await callAI('Summarize the benefits of exercise', {
 
 const structuredOutput = JSON.parse(response);
 console.log(structuredOutput.title);
+
+// Streaming with schema for OpenRouter structured JSON output
+const schema = {
+  properties: {
+    title: { type: 'string' },
+    items: { 
+      type: 'array', 
+      items: { 
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          description: { type: 'string' }
+        }
+      } 
+    }
+  }
+};
+
+const generator = callAI('Create a list of sci-fi books', {
+  apiKey: 'your-api-key',
+  stream: true,
+  schema: schema
+});
+
+for await (const chunk of generator) {
+  console.log(chunk); // Shows the partial JSON as it's being generated
+}
 ```
 
 ## Features
 
 - 🔄 Streaming responses via AsyncGenerator when `stream: true`
 - 🧩 Structured JSON outputs with schema validation
-- 🔌 Compatible with OpenRouter and OpenAI API formats
+- 🔌 Full compatibility with OpenRouter's JSON schema format for structured outputs
 - 📝 Support for message arrays with system, user, and assistant roles
 - 🔧 TypeScript support with full type definitions
 - ✅ Works in Node.js and browser environments

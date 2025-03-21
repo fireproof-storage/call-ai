@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 (2024-06-22)
+
+### Bug Fixes
+- Fixed JSON schema structure for OpenRouter API integration
+- Removed unnecessary nested `schema` object within the JSON schema
+- Removed `provider.require_parameters` field which was causing issues
+- Flattened the schema structure to match OpenRouter's expected format
+- Improved test assertions to validate the correct schema structure
+
 ## 0.2.1 (2024-06-17)
 
 ### Improvements
