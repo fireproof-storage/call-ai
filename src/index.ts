@@ -12,6 +12,7 @@ export interface Schema {
   properties: Record<string, any>;
   required?: string[];
   additionalProperties?: boolean;
+  [key: string]: any;
 }
 
 export interface CallAIOptions {
@@ -84,28 +85,30 @@ function prepareRequestParams(
       model: model,
       stream: options.stream === true,
       messages: messages,
-      // For schema requests, add provider requirement to ensure JSON schema support
-      ...(schema && { provider: { require_parameters: true } }),
       // Pass through any additional options like temperature, but exclude internal keys
       ...Object.fromEntries(
         Object.entries(options).filter(([key]) => !['apiKey', 'model', 'endpoint', 'stream', 'schema'].includes(key))
       ),
       // Handle schema if provided
-      ...(schema && { response_format: { 
-        type: 'json_schema', 
-        json_schema: {
-          name: schema.name || 'response',
-          strict: true,
-          schema: {
+      ...(schema && { 
+        response_format: { 
+          type: 'json_schema', 
+          json_schema: {
             type: 'object',
             properties: schema.properties || {},
             required: schema.required || Object.keys(schema.properties || {}),
             additionalProperties: schema.additionalProperties !== undefined 
               ? schema.additionalProperties 
-              : false
+              : false,
+            // Copy any additional schema properties (excluding name, properties, required, additionalProperties)
+            ...Object.fromEntries(
+              Object.entries(schema).filter(([key]) => 
+                !['name', 'properties', 'required', 'additionalProperties'].includes(key)
+              )
+            )
           }
         }
-      }})
+      })
     })
   };
 

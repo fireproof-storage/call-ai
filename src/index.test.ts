@@ -147,7 +147,7 @@ describe('callAI', () => {
 
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
     expect(body.response_format.type).toBe('json_schema');
-    expect(body.response_format.json_schema.schema.required).toEqual(['name']);
+    expect(body.response_format.json_schema.required).toEqual(['name']);
   });
 
   it('should handle schema parameter matching documentation example', async () => {
@@ -174,7 +174,7 @@ describe('callAI', () => {
     
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
     expect(body.response_format.type).toBe('json_schema');
-    expect(body.response_format.json_schema.schema.properties).toEqual(todoSchema.properties);
+    expect(body.response_format.json_schema.properties).toEqual(todoSchema.properties);
   });
 
   it('should handle aliens schema example', async () => {
@@ -220,7 +220,7 @@ describe('callAI', () => {
     
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
     expect(body.response_format.type).toBe('json_schema');
-    expect(body.response_format.json_schema.schema.properties).toEqual(alienSchema.properties);
+    expect(body.response_format.json_schema.properties).toEqual(alienSchema.properties);
     expect(body.model).toBe('openrouter/auto');
     expect(body.stream).toBe(true);
   });
