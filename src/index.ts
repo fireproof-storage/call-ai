@@ -80,8 +80,16 @@ function prepareRequestParams(
 ): { apiKey: string, model: string, endpoint: string, requestOptions: RequestInit } {
   const apiKey = options.apiKey || (typeof window !== 'undefined' ? (window as any).CALLAI_API_KEY : null);
   
-  // Determine if this is a Claude model
+  // Detect model types
   const isClaudeModel = options.model ? /claude/i.test(options.model) : false;
+  const isGeminiModel = options.model ? /gemini/i.test(options.model) : false;
+  const isLlama3Model = options.model ? /llama-3/i.test(options.model) : false;
+  const isDeepSeekModel = options.model ? /deepseek/i.test(options.model) : false;
+  const isGPT4TurboModel = options.model ? /gpt-4-turbo/i.test(options.model) : false;
+  const isGPT4oModel = options.model ? /gpt-4o/i.test(options.model) : false;
+  
+  // Models that should use system message approach for structured output
+  const useSystemMessageApproach = isClaudeModel || isLlama3Model || isDeepSeekModel || isGPT4TurboModel;
   
   // Default to appropriate model based on schema and model type
   const model = options.model || (options.schema ? (isClaudeModel ? 'anthropic/claude-3-sonnet' : 'openai/gpt-4o') : 'openrouter/auto');
@@ -98,8 +106,15 @@ function prepareRequestParams(
     ? prompt 
     : [{ role: 'user', content: prompt }];
   
-  // For Claude models with schema but without json_schema support, add instructions to ensure structured output
-  if (schema && isClaudeModel) {
+  // Build request parameters
+  const requestParams: any = {
+    model: model,
+    stream: options.stream === true,
+    messages: messages,
+  };
+  
+  // For models that need schema as system message
+  if (schema && (useSystemMessageApproach)) {
     // Prepend a system message with schema instructions
     const hasSystemMessage = messages.some(m => m.role === 'system');
     
@@ -108,7 +123,8 @@ function prepareRequestParams(
       const schemaProperties = Object.entries(schema.properties || {})
         .map(([key, value]) => {
           const type = (value as any).type || 'string';
-          return `  "${key}": ${type}`;
+          const description = (value as any).description ? ` // ${(value as any).description}` : '';
+          return `  "${key}": ${type}${description}`;
         })
         .join(',\n');
       
@@ -118,8 +134,44 @@ function prepareRequestParams(
       };
       
       messages = [systemMessage, ...messages];
+      requestParams.messages = messages;
     }
   }
+  
+  // For models that support JSON schema format
+  if (schema && (!useSystemMessageApproach)) {
+    requestParams.response_format = {
+      type: 'json_schema',
+      json_schema: {
+        // Always include name, with default "result" if not provided in schema
+        name: schema.name || "result",
+        // Add strict mode for better enforcement
+        strict: true,
+        // Schema definition for OpenAI compatibility
+        schema: {
+          type: 'object',
+          properties: schema.properties || {},
+          required: schema.required || Object.keys(schema.properties || {}),
+          additionalProperties: schema.additionalProperties !== undefined 
+            ? schema.additionalProperties 
+            : false,
+          // Copy any additional schema properties (excluding properties we've already handled)
+          ...Object.fromEntries(
+            Object.entries(schema).filter(([key]) => 
+              !['name', 'properties', 'required', 'additionalProperties'].includes(key)
+            )
+          )
+        }
+      }
+    };
+  }
+  
+  // Add any other options provided, but exclude internal keys
+  Object.entries(options).forEach(([key, value]) => {
+    if (!['apiKey', 'model', 'endpoint', 'stream', 'schema'].includes(key)) {
+      requestParams[key] = value;
+    }
+  });
   
   const requestOptions = {
     method: 'POST',
@@ -127,45 +179,41 @@ function prepareRequestParams(
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({
-      model: model,
-      stream: options.stream === true,
-      messages: messages,
-      // Pass through any additional options like temperature, but exclude internal keys
-      ...Object.fromEntries(
-        Object.entries(options).filter(([key]) => !['apiKey', 'model', 'endpoint', 'stream', 'schema'].includes(key))
-      ),
-      // Handle schema if provided - for OpenAI and supported models
-      ...(schema && !isClaudeModel && { 
-        response_format: { 
-          type: 'json_schema', 
-          json_schema: {
-            // Always include name, with default "result" if not provided in schema
-            name: schema.name || "result",
-            // Add strict mode for better enforcement
-            strict: true,
-            // Schema definition for OpenAI compatibility
-            schema: {
-              type: 'object',
-              properties: schema.properties || {},
-              required: schema.required || Object.keys(schema.properties || {}),
-              additionalProperties: schema.additionalProperties !== undefined 
-                ? schema.additionalProperties 
-                : false,
-              // Copy any additional schema properties (excluding properties we've already handled)
-              ...Object.fromEntries(
-                Object.entries(schema).filter(([key]) => 
-                  !['name', 'properties', 'required', 'additionalProperties'].includes(key)
-                )
-              )
-            }
-          }
-        }
-      })
-    })
+    body: JSON.stringify(requestParams)
   };
 
   return { apiKey, model, endpoint, requestOptions };
+}
+
+/**
+ * Process response content based on model type and extract JSON if needed
+ */
+function processResponseContent(content: string, options: CallAIOptions = {}): string {
+  if (!content || !options.schema) {
+    return content;
+  }
+
+  // Detect model types
+  const isClaudeModel = options.model ? /claude/i.test(options.model) : false;
+  const isGeminiModel = options.model ? /gemini/i.test(options.model) : false;
+  const isLlama3Model = options.model ? /llama-3/i.test(options.model) : false;
+  const isDeepSeekModel = options.model ? /deepseek/i.test(options.model) : false;
+  
+  // For models that might return formatted text instead of JSON
+  const needsJsonExtraction = isClaudeModel || isGeminiModel || isLlama3Model || isDeepSeekModel;
+  
+  if (needsJsonExtraction) {
+    // Try to extract JSON from content if it might be wrapped
+    // Look for code blocks or JSON objects within the text
+    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
+                     content.match(/```\s*([\s\S]*?)\s*```/) || 
+                     content.match(/\{[\s\S]*\}/) ||
+                     [null, content];
+    
+    return jsonMatch[1] || content;
+  }
+  
+  return content;
 }
 
 /**
@@ -180,8 +228,24 @@ async function callAINonStreaming(
     
     const response = await fetch(endpoint, requestOptions);
     const result = await response.json();
+    
+    // Handle error responses
+    if (result.error) {
+      console.error("API returned an error:", result.error);
+      return JSON.stringify({ 
+        error: result.error, 
+        message: result.error.message || "API returned an error" 
+      });
+    }
+    
+    if (!result.choices || !result.choices.length) {
+      throw new Error('Invalid response format from API');
+    }
+    
     const content = result.choices[0]?.message?.content || '';
-    return content;
+    
+    // Process the content based on model type
+    return processResponseContent(content, options);
   } catch (error) {
     console.error("AI call failed:", error);
     return JSON.stringify({ 
@@ -199,7 +263,7 @@ async function* callAIStreaming(
   options: CallAIOptions = {}
 ): AsyncGenerator<string, string, unknown> {
   try {
-    const { endpoint, requestOptions } = prepareRequestParams(prompt, { ...options, stream: true });
+    const { endpoint, requestOptions, model } = prepareRequestParams(prompt, { ...options, stream: true });
     
     const response = await fetch(endpoint, requestOptions);
     
@@ -217,20 +281,28 @@ async function* callAIStreaming(
       
       for (const line of lines) {
         if (line.startsWith('data: ')) {
-          if (line.includes('[DONE]')) continue;
+          // Skip [DONE] marker or OPENROUTER PROCESSING lines
+          if (line.includes('[DONE]') || line.includes('OPENROUTER PROCESSING')) {
+            continue;
+          }
           
           try {
-            const json = JSON.parse(line.replace('data: ', ''));
-            const content = json.choices[0]?.delta?.content || '';
+            const jsonLine = line.replace('data: ', '');
+            if (!jsonLine.trim()) continue;
+            
+            const json = JSON.parse(jsonLine);
+            const content = json.choices?.[0]?.delta?.content || '';
             text += content;
-            yield text;
+            yield processResponseContent(text, options);
           } catch (e) {
             console.error("Error parsing chunk:", e);
           }
         }
       }
     }
-    return text;
+    
+    // Process the final text before returning
+    return processResponseContent(text, options);
   } catch (error) {
     console.error("AI call failed:", error);
     return JSON.stringify({ 

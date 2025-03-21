@@ -38,7 +38,7 @@ describe('Llama3 Wire Protocol Tests', () => {
     });
   });
   
-  it('should use the JSON schema format for Llama3 with schema', async () => {
+  it('should use the system message approach for Llama3 with schema', async () => {
     // Define schema
     const schema: Schema = {
       name: 'book_recommendation',
@@ -69,21 +69,26 @@ describe('Llama3 Wire Protocol Tests', () => {
       (global.fetch as jest.Mock).mock.calls[0][1].body
     );
     
-    // Check that we're using JSON Schema format
-    expect(actualRequestBody.response_format).toBeTruthy();
-    expect(actualRequestBody.response_format.type).toBe('json_schema');
-    expect(actualRequestBody.response_format.json_schema).toBeTruthy();
-    expect(actualRequestBody.response_format.json_schema.name).toBe('book_recommendation');
+    // Check that we're using system message approach rather than JSON schema format
+    expect(actualRequestBody.messages).toBeTruthy();
+    expect(actualRequestBody.messages.length).toBeGreaterThan(1);
     
-    // Verify schema structure
-    const schemaObj = actualRequestBody.response_format.json_schema.schema;
-    expect(schemaObj.type).toBe('object');
-    expect(schemaObj.properties).toBeTruthy();
-    expect(schemaObj.properties.title).toBeTruthy();
-    expect(schemaObj.properties.author).toBeTruthy();
-    expect(schemaObj.properties.year).toBeTruthy();
-    expect(schemaObj.properties.genre).toBeTruthy();
-    expect(schemaObj.properties.rating).toBeTruthy();
+    // Check for system message with schema info
+    const systemMessage = actualRequestBody.messages.find((m: any) => m.role === 'system');
+    expect(systemMessage).toBeTruthy();
+    expect(systemMessage.content).toContain('title');
+    expect(systemMessage.content).toContain('author');
+    expect(systemMessage.content).toContain('year');
+    expect(systemMessage.content).toContain('genre');
+    expect(systemMessage.content).toContain('rating');
+    
+    // Verify user message is included
+    const userMessage = actualRequestBody.messages.find((m: any) => m.role === 'user');
+    expect(userMessage).toBeTruthy();
+    expect(userMessage.content).toBe('Give me a short book recommendation in the requested format.');
+    
+    // Verify response_format is not used
+    expect(actualRequestBody.response_format).toBeUndefined();
   });
   
   it('should correctly handle Llama3 response with schema', async () => {
