@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1 (2024-06-17)
+
+### Improvements
+- Enhanced schema handling to better support JSON schema definition
+- Added test coverage for complex schema use cases
+- Updated documentation with comprehensive examples for structured responses
+- Added aliens schema example to show more complex schema usage
+
 ## 0.2.0 (2024-06-16)
 
 ### Breaking Changes

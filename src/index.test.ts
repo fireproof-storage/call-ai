@@ -150,6 +150,81 @@ describe('callAI', () => {
     expect(body.response_format.json_schema.schema.required).toEqual(['name']);
   });
 
+  it('should handle schema parameter matching documentation example', async () => {
+    const todoSchema: Schema = {
+      properties: {
+        todos: {
+          type: "array",
+          items: { type: "string" }
+        }
+      }
+    };
+    
+    const options = { 
+      apiKey: 'test-api-key',
+      schema: todoSchema
+    };
+    
+    mockResponse.json.mockResolvedValue({
+      choices: [{ message: { content: '{"todos": ["Learn React basics", "Build a simple app", "Master hooks"]}' } }]
+    });
+    
+    const result = await callAI('Give me a todo list for learning React', options);
+    expect(result).toBe('{"todos": ["Learn React basics", "Build a simple app", "Master hooks"]}');
+    
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    expect(body.response_format.type).toBe('json_schema');
+    expect(body.response_format.json_schema.schema.properties).toEqual(todoSchema.properties);
+  });
+
+  it('should handle aliens schema example', async () => {
+    const alienSchema: Schema = {
+      properties: {
+        aliens: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              description: { type: "string" },
+              traits: {
+                type: "array",
+                items: { type: "string" }
+              },
+              environment: { type: "string" }
+            }
+          }
+        }
+      }
+    };
+    
+    const messages: Message[] = [
+      { 
+        role: "user" as const, 
+        content: "Generate 3 unique alien species with unique biological traits, appearance, and preferred environments."
+      }
+    ];
+    
+    const options = { 
+      apiKey: 'test-api-key',
+      model: 'openrouter/auto',
+      stream: true,
+      schema: alienSchema
+    };
+    
+    // Mock successful response
+    mockReader.read.mockResolvedValueOnce({ done: true });
+    
+    const generator = callAI(messages, options) as AsyncGenerator;
+    await generator.next();
+    
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    expect(body.response_format.type).toBe('json_schema');
+    expect(body.response_format.json_schema.schema.properties).toEqual(alienSchema.properties);
+    expect(body.model).toBe('openrouter/auto');
+    expect(body.stream).toBe(true);
+  });
+
   it('should handle non-streaming response', async () => {
     mockResponse.json.mockResolvedValue({
       choices: [{ message: { content: 'Hello, I am an AI' } }]

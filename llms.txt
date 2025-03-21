@@ -263,3 +263,58 @@ console.log(response);
 | `openai/gpt-4o` | Best overall quality | Medium speed, highest quality |
 | `anthropic/claude-3-opus` | Complex reasoning | Slower, highest quality |
 | `mistralai/mistral-large` | Open weights alternative | Good balance |
+
+## Aliens Example
+
+```javascript
+import { callAI } from 'call-ai';
+
+const alienSchema = {
+  properties: {
+    aliens: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string"
+          },
+          description: {
+            type: "string"
+          },
+          traits: {
+            type: "array",
+            items: {
+              type: "string"
+            }
+          },
+          environment: {
+            type: "string"
+          }
+        }
+      }
+    }
+  }
+};
+
+// Making the call with message array and schema
+const generator = callAI([
+  {
+    role: "user",
+    content: "Generate 3 unique alien species with unique biological traits, appearance, and preferred environments. Make them scientifically plausible but creative."
+  }
+], {
+  model: "openrouter/auto",
+  stream: true,
+  schema: alienSchema
+});
+
+// Process the streaming response
+for await (const partialResponse of generator) {
+  console.log(partialResponse); // Will show the JSON being built incrementally
+}
+
+// After streaming is complete, you can parse the final response
+const alienData = JSON.parse(/*final response*/);
+console.log(alienData.aliens); // Array of alien species
+```
