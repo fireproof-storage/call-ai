@@ -1,6 +1,6 @@
 {
   "name": "call-ai",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Lightweight library for making AI API calls with streaming support",
   "main": "dist/index.js",
   "browser": "dist/index.js",
@@ -35,4 +35,4 @@
   "engines": {
     "node": ">=14.0.0"
   }
-} 
+}
