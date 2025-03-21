@@ -53,6 +53,7 @@ console.log(response);
 
 // Using schema for structured output
 const schema = {
+  name: "exercise_summary",
   properties: {
     title: { type: 'string' },
     summary: { type: 'string' },
@@ -157,6 +158,9 @@ type Message = {
 };
 
 interface Schema {
+  /**
+   * Optional schema name that will be sent to the model provider if supported
+   */
   name?: string;
   properties: Record<string, any>;
   required?: string[];

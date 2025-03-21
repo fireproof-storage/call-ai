@@ -8,10 +8,25 @@ export type Message = {
 };
 
 export interface Schema {
+  /**
+   * Optional schema name - will be sent to OpenRouter if provided
+   */
   name?: string;
+  /**
+   * Properties defining the structure of your schema
+   */
   properties: Record<string, any>;
+  /**
+   * Fields that are required in the response (defaults to all properties)
+   */
   required?: string[];
+  /**
+   * Whether to allow fields not defined in properties (defaults to false)
+   */
   additionalProperties?: boolean;
+  /**
+   * Any additional schema properties to pass through
+   */
   [key: string]: any;
 }
 
@@ -94,13 +109,15 @@ function prepareRequestParams(
         response_format: { 
           type: 'json_schema', 
           json_schema: {
+            // Include name if provided
+            ...(schema.name && { name: schema.name }),
             type: 'object',
             properties: schema.properties || {},
             required: schema.required || Object.keys(schema.properties || {}),
             additionalProperties: schema.additionalProperties !== undefined 
               ? schema.additionalProperties 
               : false,
-            // Copy any additional schema properties (excluding name, properties, required, additionalProperties)
+            // Copy any additional schema properties (excluding properties we've already handled)
             ...Object.fromEntries(
               Object.entries(schema).filter(([key]) => 
                 !['name', 'properties', 'required', 'additionalProperties'].includes(key)
