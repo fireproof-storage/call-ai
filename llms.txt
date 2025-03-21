@@ -6,10 +6,6 @@ The `callAI` helper function provides an easy way to make AI requests to OpenAI-
 
 ```bash
 npm install call-ai
-# or
-pnpm add call-ai
-# or
-yarn add call-ai
 ```
 
 ## API Key
@@ -62,19 +58,16 @@ To get structured JSON responses, provide a schema in the options:
 ```javascript
 import { callAI } from 'call-ai';
 
-// Define your schema
-const todoSchema = {
-  properties: {
-    todos: {
-      type: "array",
-      items: { type: "string" }
+const todoResponse = await callAI("Give me a todo list for learning React", {
+  schema: {
+    name: "todo",
+    properties: {
+      todos: {
+        type: "array",
+        items: { type: "string" }
+      }
     }
   }
-};
-
-// Using with non-streaming (default)
-const todoResponse = await callAI("Give me a todo list for learning React", {
-  schema: todoSchema  // Pass the schema object in the options
 });
 const todoData = JSON.parse(todoResponse);
 console.log(todoData.todos); // Array of todo items
@@ -87,30 +80,28 @@ In this example, we're using the `callAI` helper function to get weather data in
 ```javascript
 import { callAI } from 'call-ai';
 
-const weatherSchema = {
-  properties: {
-    location: {
-      type: "string",
-      description: "City or location name"
-    },
-    temperature: {
-      type: "number",
-      description: "Temperature in Celsius"
-    },
-    conditions: {
-      type: "string",
-      description: "Weather conditions description"
-    }
-  }
-};
-
 // Get weather data with streaming updates
 const generator = callAI("What's the weather like in Paris today?", {
-  schema: weatherSchema,
-  stream: true
+  stream: true,
+  schema: {
+    properties: {
+      location: {
+        type: "string",
+        description: "City or location name"
+      },
+      temperature: {
+        type: "number",
+        description: "Temperature in Celsius"
+      },
+      conditions: {
+        type: "string",
+        description: "Weather conditions description"
+      }
+    }
+  }
 });
 
-// Display streaming updates as they arrive
+// Preview streaming updates as they arrive, don't parse until the end
 const resultElement = document.getElementById('result');
 let finalResponse;
 
@@ -119,7 +110,7 @@ for await (const partialResponse of generator) {
   finalResponse = partialResponse;
 }
 
-// Process final result
+// Parse final result
 try {
   const weatherData = JSON.parse(finalResponse);
   
@@ -269,34 +260,6 @@ console.log(response);
 ```javascript
 import { callAI } from 'call-ai';
 
-const alienSchema = {
-  properties: {
-    aliens: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          name: {
-            type: "string"
-          },
-          description: {
-            type: "string"
-          },
-          traits: {
-            type: "array",
-            items: {
-              type: "string"
-            }
-          },
-          environment: {
-            type: "string"
-          }
-        }
-      }
-    }
-  }
-};
-
 // Making the call with message array and schema
 const generator = callAI([
   {
@@ -304,9 +267,34 @@ const generator = callAI([
     content: "Generate 3 unique alien species with unique biological traits, appearance, and preferred environments. Make them scientifically plausible but creative."
   }
 ], {
-  model: "openrouter/auto",
   stream: true,
-  schema: alienSchema
+  schema: {
+    properties: {
+      aliens: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            name: {
+              type: "string"
+            },
+            description: {
+              type: "string"
+            },
+            traits: {
+              type: "array",
+              items: {
+                type: "string"
+              }
+            },
+            environment: {
+              type: "string"
+            }
+          }
+        }
+      }
+    }
+  }
 });
 
 // Process the streaming response
