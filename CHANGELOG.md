@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1 (2024-06-22)
+
+### Improvements
+- Added proper support for schema name property in OpenRouter JSON schemas
+- Updated documentation to clarify that name is optional but supported
+- Ensured examples in documentation consistently show name usage
+- Improved JSDoc for Schema interface
+
 ## 0.3.0 (2024-06-22)
 
 ### Bug Fixes
