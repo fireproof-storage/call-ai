@@ -38,8 +38,9 @@ describe('callAI', () => {
   it('should handle API key requirement for non-streaming', async () => {
     mockResponse.json.mockResolvedValue({ choices: [{ message: { content: '' } }] });
     
-    const result = await callAI('Hello, AI');
-    expect(result).toBe("Sorry, I couldn't process that request.");
+    const result = await callAI('Hello, AI') as string;
+    const errorObj = JSON.parse(result);
+    expect(errorObj.message).toBe("Sorry, I couldn't process that request.");
   });
 
   it('should handle API key requirement for streaming', async () => {
@@ -47,7 +48,8 @@ describe('callAI', () => {
     const generator = callAI('Hello, AI', { stream: true }) as AsyncGenerator;
     
     const result = await generator.next();
-    expect(result.value).toBe("Sorry, I couldn't process that request.");
+    const errorObj = JSON.parse(result.value as string);
+    expect(errorObj.message).toBe("Sorry, I couldn't process that request.");
   });
 
   it('should make POST request with correct parameters for non-streaming', async () => {
@@ -310,13 +312,60 @@ describe('callAI', () => {
     expect(body.response_format.json_schema.name).toBe('result');
   });
 
+  it('should handle schema with empty properties', async () => {
+    const emptySchema: Schema = {
+      properties: {}
+    };
+    
+    const options = { 
+      apiKey: 'test-api-key',
+      schema: emptySchema
+    };
+    
+    mockResponse.json.mockResolvedValue({
+      choices: [{ message: { content: '{}' } }]
+    });
+    
+    await callAI('Test with empty schema', options);
+    
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    expect(body.response_format.type).toBe('json_schema');
+    expect(body.response_format.json_schema.name).toBe('result');
+    expect(body.response_format.json_schema.properties).toEqual({});
+    expect(body.response_format.json_schema.required).toEqual([]);
+  });
+
+  it('should respect additionalProperties setting in schema', async () => {
+    const schema: Schema = {
+      properties: {
+        result: { type: 'string' }
+      },
+      additionalProperties: true
+    };
+    
+    const options = { 
+      apiKey: 'test-api-key',
+      schema: schema
+    };
+    
+    mockResponse.json.mockResolvedValue({
+      choices: [{ message: { content: '{"result": "Test successful", "extra": "Additional field"}' } }]
+    });
+    
+    await callAI('Test with additionalProperties', options);
+    
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    expect(body.response_format.json_schema.additionalProperties).toBe(true);
+  });
+
   it('should handle errors during API call for non-streaming', async () => {
     (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
     
     const options = { apiKey: 'test-api-key' };
-    const result = await callAI('Hello', options);
+    const result = await callAI('Hello', options) as string;
     
-    expect(result).toBe("Sorry, I couldn't process that request.");
+    const errorObj = JSON.parse(result);
+    expect(errorObj.message).toBe("Sorry, I couldn't process that request.");
   });
 
   it('should handle errors during API call for streaming', async () => {
@@ -326,7 +375,11 @@ describe('callAI', () => {
     const generator = callAI('Hello', options) as AsyncGenerator;
     const result = await generator.next();
     
-    expect(result.value).toBe("Sorry, I couldn't process that request.");
+    // Parse the JSON error response
+    const errorObj = JSON.parse(result.value as string);
+    expect(errorObj).toHaveProperty('message');
+    expect(errorObj.message).toBe("Sorry, I couldn't process that request.");
+    expect(errorObj).toHaveProperty('error');
     expect(result.done).toBe(true);
   });
   
@@ -341,5 +394,61 @@ describe('callAI', () => {
 
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
     expect(body.stream).toBe(false);
+  });
+  
+  it('should handle streaming with schema for structured output', async () => {
+    const schema: Schema = {
+      name: 'weather',
+      properties: {
+        temperature: { type: 'number' },
+        conditions: { type: 'string' }
+      }
+    };
+    
+    const options = { 
+      apiKey: 'test-api-key', 
+      stream: true,
+      schema: schema
+    };
+    
+    // Clear all previous mock implementations
+    mockReader.read.mockReset();
+    
+    // Set up multiple mock responses
+    mockReader.read
+      .mockResolvedValueOnce({
+        done: false,
+        value: new TextEncoder().encode(`data: {"choices":[{"delta":{"content":"{\\"temp"}}]}\n\n`)
+      })
+      .mockResolvedValueOnce({
+        done: false,
+        value: new TextEncoder().encode(`data: {"choices":[{"delta":{"content":"erature\\": 22, \\"cond"}}]}\n\n`)
+      })
+      .mockResolvedValueOnce({
+        done: false,
+        value: new TextEncoder().encode(`data: {"choices":[{"delta":{"content":"itions\\": \\"Sunny\\"}"}}]}\n\n`)
+      })
+      .mockResolvedValueOnce({
+        done: true
+      });
+    
+    const generator = callAI('What is the weather?', options) as AsyncGenerator;
+    
+    // Manually iterate and collect
+    let finalValue = '';
+    let result = await generator.next();
+    while (!result.done) {
+      finalValue = result.value as string;
+      result = await generator.next();
+    }
+    
+    // Verify request format
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    expect(body.response_format.type).toBe('json_schema');
+    expect(body.response_format.json_schema.name).toBe('weather');
+    expect(body.stream).toBe(true);
+    
+    // Verify response
+    expect(finalValue).toBe('{"temperature": 22, "conditions": "Sunny"}');
   });
 }); 
