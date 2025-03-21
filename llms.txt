@@ -12,6 +12,20 @@ pnpm add call-ai
 yarn add call-ai
 ```
 
+## API Key
+
+You can set the API key in the `window` object:
+
+```javascript
+window.CALLAI_API_KEY = "your-api-key";
+```
+
+Or pass it directly to the `callAI` function:
+
+```javascript
+const response = await callAI("Write a haiku", { apiKey: "your-api-key" });
+```
+
 ## Basic Usage
 
 By default the function returns a Promise that resolves to the complete response:
@@ -20,9 +34,7 @@ By default the function returns a Promise that resolves to the complete response
 import { callAI } from 'call-ai';
 
 // Default behavior - returns a Promise<string>
-const response = await callAI("Summarize this article", null, {
-  apiKey: "your-api-key"
-});
+const response = await callAI("Write a haiku");
 
 // Use the complete response directly
 console.log(response); // Complete response text
@@ -36,8 +48,7 @@ If you prefer to receive the response incrementally as it's generated, set `stre
 import { callAI } from 'call-ai';
 
 // Enable streaming mode explicitly - returns an AsyncGenerator
-const generator = callAI("Write a creative story", null, { stream: true });
-
+const generator = callAI("Write an epic poem", { stream: true });
 // Process the streaming response
 for await (const partialResponse of generator) {
   console.log(partialResponse); // Updates incrementally
@@ -46,7 +57,7 @@ for await (const partialResponse of generator) {
 
 ## JSON Schema Responses
 
-To get structured JSON responses:
+To get structured JSON responses, provide a schema in the options:
 
 ```javascript
 import { callAI } from 'call-ai';
@@ -62,7 +73,9 @@ const todoSchema = {
 };
 
 // Using with non-streaming (default)
-const todoResponse = await callAI("Give me a todo list for learning React", todoSchema);
+const todoResponse = await callAI("Give me a todo list for learning React", {
+  schema: todoSchema
+});
 const todoData = JSON.parse(todoResponse);
 console.log(todoData.todos); // Array of todo items
 ```
@@ -92,7 +105,8 @@ const weatherSchema = {
 };
 
 // Get weather data with streaming updates
-const generator = callAI("What's the weather like in Paris today?", weatherSchema, {
+const generator = callAI("What's the weather like in Paris today?", {
+  schema: weatherSchema,
   stream: true
 });
 
@@ -131,7 +145,6 @@ import { callAI } from 'call-ai';
 // Use a specific model via options
 const response = await callAI(
   "Explain quantum computing in simple terms", 
-  null, 
   { model: "openai/gpt-4o" }
 );
 
@@ -147,7 +160,6 @@ import { callAI } from 'call-ai';
 
 const response = await callAI(
   "Write a creative story",
-  null,
   {
     model: "anthropic/claude-3-opus",
     temperature: 0.8,     // Higher for more creativity (0-1)
@@ -197,7 +209,6 @@ import { callAI } from 'call-ai';
 // Use with OpenAI's API
 const response = await callAI(
   "Explain the theory of relativity", 
-  null,
   {
     model: "gpt-4",
     apiKey: "sk-...", // Your OpenAI API key
@@ -210,7 +221,6 @@ console.log(response);
 // Or with streaming
 const generator = callAI(
   "Explain the theory of relativity", 
-  null,
   {
     model: "gpt-4",
     apiKey: "sk-...", // Your OpenAI API key
@@ -234,7 +244,6 @@ import { callAI } from 'call-ai';
 // Use with any OpenAI-compatible API
 const response = await callAI(
   "Generate ideas for a mobile app",
-  null,
   {
     model: "your-model-name",
     apiKey: "your-api-key",
@@ -254,18 +263,3 @@ console.log(response);
 | `openai/gpt-4o` | Best overall quality | Medium speed, highest quality |
 | `anthropic/claude-3-opus` | Complex reasoning | Slower, highest quality |
 | `mistralai/mistral-large` | Open weights alternative | Good balance |
-
-## Error Handling
-
-The function handles errors gracefully and returns a friendly message if something goes wrong:
-
-```javascript
-import { callAI } from 'call-ai';
-
-try {
-  const response = await callAI("Your prompt here");
-  console.log(response);
-} catch (error) {
-  console.error("Error:", error);
-}
-```

@@ -19,6 +19,7 @@ export interface CallAIOptions {
   model?: string;
   endpoint?: string;
   stream?: boolean;
+  schema?: Schema | null;
   [key: string]: any;
 }
 
@@ -35,23 +36,21 @@ export interface AIResponse {
 /**
  * Make an AI API call with the given options
  * @param prompt User prompt as string or an array of message objects
- * @param schema Optional JSON schema for structured output
- * @param options Configuration options
+ * @param options Configuration options including optional schema for structured output
  * @returns A Promise that resolves to the complete response string when streaming is disabled,
  *          or an AsyncGenerator that yields partial responses when streaming is enabled
  */
 export function callAI(
   prompt: string | Message[],
-  schema: Schema | null = null,
-  options: Record<string, any> = {}
+  options: CallAIOptions = {}
 ): Promise<string> | AsyncGenerator<string, string, unknown> {
   // Handle non-streaming mode (default)
   if (options.stream !== true) {
-    return callAINonStreaming(prompt, schema, options);
+    return callAINonStreaming(prompt, options);
   }
   
   // Handle streaming mode
-  return callAIStreaming(prompt, schema, options);
+  return callAIStreaming(prompt, options);
 }
 
 /**
@@ -59,12 +58,12 @@ export function callAI(
  */
 function prepareRequestParams(
   prompt: string | Message[],
-  schema: Schema | null,
-  options: Record<string, any>
+  options: CallAIOptions
 ): { apiKey: string, model: string, endpoint: string, requestOptions: RequestInit } {
   const apiKey = options.apiKey || (typeof window !== 'undefined' ? (window as any).CALLAI_API_KEY : null);
   const model = options.model || 'openrouter/auto';
   const endpoint = options.endpoint || 'https://openrouter.ai/api/v1/chat/completions';
+  const schema = options.schema || null;
   
   if (!apiKey) {
     throw new Error('API key is required. Provide it via options.apiKey or set window.CALLAI_API_KEY');
@@ -89,7 +88,7 @@ function prepareRequestParams(
       ...(schema && { provider: { require_parameters: true } }),
       // Pass through any additional options like temperature, but exclude internal keys
       ...Object.fromEntries(
-        Object.entries(options).filter(([key]) => !['apiKey', 'model', 'endpoint', 'stream'].includes(key))
+        Object.entries(options).filter(([key]) => !['apiKey', 'model', 'endpoint', 'stream', 'schema'].includes(key))
       ),
       // Handle schema if provided
       ...(schema && { response_format: { 
@@ -118,11 +117,10 @@ function prepareRequestParams(
  */
 async function callAINonStreaming(
   prompt: string | Message[],
-  schema: Schema | null = null,
-  options: Record<string, any> = {}
+  options: CallAIOptions = {}
 ): Promise<string> {
   try {
-    const { endpoint, requestOptions } = prepareRequestParams(prompt, schema, options);
+    const { endpoint, requestOptions } = prepareRequestParams(prompt, options);
     
     const response = await fetch(endpoint, requestOptions);
     const result = await response.json();
@@ -139,11 +137,10 @@ async function callAINonStreaming(
  */
 async function* callAIStreaming(
   prompt: string | Message[],
-  schema: Schema | null = null,
-  options: Record<string, any> = {}
+  options: CallAIOptions = {}
 ): AsyncGenerator<string, string, unknown> {
   try {
-    const { endpoint, requestOptions } = prepareRequestParams(prompt, schema, { ...options, stream: true });
+    const { endpoint, requestOptions } = prepareRequestParams(prompt, { ...options, stream: true });
     
     const response = await fetch(endpoint, requestOptions);
     

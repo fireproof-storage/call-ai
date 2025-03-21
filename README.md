@@ -18,7 +18,7 @@ pnpm add call-ai
 import { callAI } from 'call-ai';
 
 // Basic usage with string prompt (non-streaming by default)
-const response = await callAI('Explain quantum computing in simple terms', null, {
+const response = await callAI('Explain quantum computing in simple terms', {
   apiKey: 'your-api-key',
   model: 'gpt-4'
 });
@@ -27,7 +27,7 @@ const response = await callAI('Explain quantum computing in simple terms', null,
 console.log(response);
 
 // With streaming enabled (returns an AsyncGenerator)
-const generator = callAI('Tell me a story', null, {
+const generator = callAI('Tell me a story', {
   apiKey: 'your-api-key',
   model: 'gpt-4',
   stream: true
@@ -44,7 +44,7 @@ const messages = [
   { role: 'user', content: 'Explain quantum computing in simple terms' }
 ];
 
-const response = await callAI(messages, null, {
+const response = await callAI(messages, {
   apiKey: 'your-api-key',
   model: 'gpt-4'
 });
@@ -61,8 +61,9 @@ const schema = {
   required: ['title', 'summary']
 };
 
-const response = await callAI('Summarize the benefits of exercise', schema, {
-  apiKey: 'your-api-key'
+const response = await callAI('Summarize the benefits of exercise', {
+  apiKey: 'your-api-key',
+  schema: schema
 });
 
 const structuredOutput = JSON.parse(response);
@@ -96,7 +97,7 @@ You can provide your API key in three ways:
 
 1. Directly in the options:
 ```typescript
-const response = await callAI('Hello', null, { apiKey: 'your-api-key' });
+const response = await callAI('Hello', { apiKey: 'your-api-key' });
 ```
 
 2. Set globally in the browser:
@@ -110,7 +111,7 @@ const response = await callAI('Hello');
 // Example of environment variable integration
 import { callAI } from 'call-ai';
 const apiKey = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY;
-const response = await callAI('Hello', null, { apiKey });
+const response = await callAI('Hello', { apiKey });
 ```
 
 ## API
@@ -119,8 +120,7 @@ const response = await callAI('Hello', null, { apiKey });
 // Main function
 function callAI(
   prompt: string | Message[],
-  schema: Schema | null = null,
-  options: Record<string, any> = {}
+  options?: CallAIOptions
 ): Promise<string> | AsyncGenerator<string, string, unknown>
 
 // Types
@@ -135,6 +135,15 @@ interface Schema {
   required?: string[];
   additionalProperties?: boolean;
 }
+
+interface CallAIOptions {
+  apiKey?: string;
+  model?: string;
+  endpoint?: string;
+  stream?: boolean;
+  schema?: Schema | null;
+  [key: string]: any;
+}
 ```
 
 ### Options
@@ -143,6 +152,7 @@ interface Schema {
 * `model`: Model identifier (default: 'openrouter/auto')
 * `endpoint`: API endpoint (default: 'https://openrouter.ai/api/v1/chat/completions')
 * `stream`: Enable streaming responses (default: false)
+* `schema`: Optional JSON schema for structured output
 * Any other options are passed directly to the API (temperature, max_tokens, etc.)
 
 ## License
