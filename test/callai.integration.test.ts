@@ -12,7 +12,9 @@ const itif = (condition: boolean) => condition ? it : it.skip;
 const supportedModels = {
   openAI: 'openai/gpt-4o-mini',
   claude: 'anthropic/claude-3-sonnet',
-  gemini: 'google/gemini-2.0-flash-001'
+  gemini: 'google/gemini-2.0-flash-001',
+  llama3: 'meta-llama/llama-3.3-70b-instruct',
+  deepseek: 'deepseek/deepseek-chat'
 };
 
 // Define the model names as an array for looping

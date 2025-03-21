@@ -1,5 +1,8 @@
 import dotenv from 'dotenv';
 
+// Set up retries for all tests in this file
+jest.retryTimes(3, { logErrorsBeforeRetry: true });
+
 // Load environment variables from .env file if present
 dotenv.config();
 
