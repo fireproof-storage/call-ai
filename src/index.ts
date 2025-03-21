@@ -79,8 +79,13 @@ function prepareRequestParams(
   options: CallAIOptions
 ): { apiKey: string, model: string, endpoint: string, requestOptions: RequestInit } {
   const apiKey = options.apiKey || (typeof window !== 'undefined' ? (window as any).CALLAI_API_KEY : null);
-  // Default to openai/gpt-4o if schema is provided since it supports structured output
-  const model = options.model || (options.schema ? 'openai/gpt-4o' : 'openrouter/auto');
+  
+  // Determine if this is a Claude model
+  const isClaudeModel = options.model ? /claude/i.test(options.model) : false;
+  
+  // Default to appropriate model based on schema and model type
+  const model = options.model || (options.schema ? (isClaudeModel ? 'anthropic/claude-3-sonnet' : 'openai/gpt-4o') : 'openrouter/auto');
+  
   const endpoint = options.endpoint || 'https://openrouter.ai/api/v1/chat/completions';
   const schema = options.schema || null;
   
@@ -89,9 +94,32 @@ function prepareRequestParams(
   }
   
   // Handle both string prompts and message arrays for backward compatibility
-  const messages = Array.isArray(prompt) 
+  let messages = Array.isArray(prompt) 
     ? prompt 
     : [{ role: 'user', content: prompt }];
+  
+  // For Claude models with schema but without json_schema support, add instructions to ensure structured output
+  if (schema && isClaudeModel) {
+    // Prepend a system message with schema instructions
+    const hasSystemMessage = messages.some(m => m.role === 'system');
+    
+    if (!hasSystemMessage) {
+      // Build a schema description
+      const schemaProperties = Object.entries(schema.properties || {})
+        .map(([key, value]) => {
+          const type = (value as any).type || 'string';
+          return `  "${key}": ${type}`;
+        })
+        .join(',\n');
+      
+      const systemMessage: Message = {
+        role: 'system',
+        content: `Please return your response as JSON following this schema exactly:\n{\n${schemaProperties}\n}\nDo not include any explanation or text outside of the JSON object.`
+      };
+      
+      messages = [systemMessage, ...messages];
+    }
+  }
   
   const requestOptions = {
     method: 'POST',
@@ -107,8 +135,8 @@ function prepareRequestParams(
       ...Object.fromEntries(
         Object.entries(options).filter(([key]) => !['apiKey', 'model', 'endpoint', 'stream', 'schema'].includes(key))
       ),
-      // Handle schema if provided
-      ...(schema && { 
+      // Handle schema if provided - for OpenAI and supported models
+      ...(schema && !isClaudeModel && { 
         response_format: { 
           type: 'json_schema', 
           json_schema: {

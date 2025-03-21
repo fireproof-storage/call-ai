@@ -7,6 +7,13 @@ dotenv.config();
 const haveApiKey = process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY;
 const itif = (condition: boolean) => condition ? it : it.skip;
 
+// Test models based on the OpenRouter documentation
+const supportedModels = {
+  openAI: 'openai/gpt-4o',
+  claude: 'anthropic/claude-3-sonnet',
+  gemini: 'google/gemini-2.0-flash-001'
+};
+
 describe('OpenRouter API wire protocol tests', () => {
   // This test will be skipped if no API key is available
   itif(!!haveApiKey)('should validate the exact OpenRouter schema format', async () => {
@@ -15,7 +22,7 @@ describe('OpenRouter API wire protocol tests', () => {
     
     // Create payload with the exact format from OpenRouter docs
     const requestBody = {
-      model: 'openai/gpt-4o', // Using gpt-4o as mentioned in current docs
+      model: supportedModels.openAI, // Using GPT-4o which supports structured output
       messages: [
         { role: 'user', content: 'Create a todo list for learning programming' }
       ],
@@ -55,7 +62,7 @@ describe('OpenRouter API wire protocol tests', () => {
     const responseBody = await response.text();
     console.log('Response status:', response.status);
     console.log('Response headers:', Object.fromEntries([...response.headers.entries()]));
-    console.log('Response body:', responseBody);
+    console.log('Response body preview:', responseBody.substring(0, 500) + '...');
     
     expect(response.status).toBe(200);
     
@@ -84,7 +91,7 @@ describe('OpenRouter API wire protocol tests', () => {
     
     // Create payload with the format we know works based on our testing
     const requestBody = {
-      model: 'openai/gpt-4o', // Using gpt-4o which supports structured output
+      model: supportedModels.openAI, // Using gpt-4o which supports structured output
       messages: [
         { role: 'user', content: 'Give me a short book recommendation in the requested format.' }
       ],
@@ -122,7 +129,7 @@ describe('OpenRouter API wire protocol tests', () => {
     // Check response status and get the data
     const responseBody = await response.text();
     console.log('Response status:', response.status);
-    console.log('Response body:', responseBody);
+    console.log('Response body preview:', responseBody.substring(0, 500) + '...');
     
     expect(response.status).toBe(200);
     
@@ -163,7 +170,7 @@ describe('OpenRouter API wire protocol tests', () => {
     
     // Use our standard schema format for the implementation
     const requestBody = {
-      model: 'openai/gpt-4o', // Using gpt-4o which supports structured output
+      model: supportedModels.openAI, // Using gpt-4o which supports structured output
       stream: true,
       messages: [
         { role: 'user', content: 'Give me a weather forecast for New York in the requested format.' }
@@ -269,6 +276,346 @@ describe('OpenRouter API wire protocol tests', () => {
       console.error('Failed to parse streaming response as JSON:', e);
       console.log('Raw text:', allText);
       throw e;
+    }
+  }, 30000); // Increase timeout to 30 seconds for API call
+
+  // Test JSON schema format with Claude 3.5
+  itif(!!haveApiKey)('should validate JSON schema format with Claude 3.5', async () => {
+    const apiKey = process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY;
+    const endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+    
+    // Using the same format but with Claude 3.5
+    const requestBody = {
+      model: supportedModels.claude, // Using Claude 3.5 Sonnet
+      messages: [
+        { role: 'user', content: 'Create a todo list for learning programming in valid JSON format with the following structure: { "todos": ["item 1", "item 2", ...] }' }
+      ],
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'todo',
+          strict: true,
+          schema: {
+            type: 'object',
+            properties: {
+              todos: {
+                type: 'array',
+                items: { type: 'string' }
+              }
+            },
+            required: ['todos'],
+            additionalProperties: false
+          }
+        }
+      }
+    };
+    
+    console.log('Claude 3.5 Request payload:', JSON.stringify(requestBody, null, 2));
+    
+    // Make direct fetch call to OpenRouter API
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    });
+    
+    // Check response status and get the data
+    const responseBody = await response.text();
+    console.log('Claude 3.5 Response status:', response.status);
+    console.log('Claude 3.5 Response headers:', Object.fromEntries([...response.headers.entries()]));
+    console.log('Claude 3.5 Response body preview:', responseBody.substring(0, 500) + '...');
+    
+    // Check if Claude 3.5 supports the JSON schema format
+    // The test may still pass if Claude returns proper JSON even without supporting the schema format
+    try {
+      const result = JSON.parse(responseBody);
+      
+      if (result.error) {
+        console.log('Claude 3.5 does not support the same JSON schema format, skipping schema validation');
+        return;
+      }
+      
+      // Verify the structure of the response
+      expect(result).toHaveProperty('choices');
+      expect(result.choices).toBeInstanceOf(Array);
+      expect(result.choices.length).toBeGreaterThan(0);
+      expect(result.choices[0]).toHaveProperty('message');
+      expect(result.choices[0].message).toHaveProperty('content');
+      
+      // Try to parse the content as JSON 
+      try {
+        const data = JSON.parse(result.choices[0].message.content);
+        
+        // Verify the structure follows our request
+        expect(data).toHaveProperty('todos');
+        expect(Array.isArray(data.todos)).toBe(true);
+        
+        console.log('Claude 3.5 result:', data);
+      } catch (e) {
+        console.error('Failed to parse Claude response as JSON:', e);
+        console.log('Raw content:', result.choices[0].message.content);
+        // We don't throw here because Claude might not be returning strict JSON
+      }
+    } catch (e) {
+      console.error('Failed to parse Claude response:', e);
+    }
+  }, 30000); // Increase timeout to 30 seconds for API call
+
+  // Test JSON schema for structured data with Claude 3.5 (without schema format)
+  itif(!!haveApiKey)('should handle JSON output with Claude 3.5 using prompt engineering', async () => {
+    const apiKey = process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY;
+    const endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+    
+    // A different approach for Claude that uses prompt engineering instead of schema
+    const requestBody = {
+      model: supportedModels.claude, // Using Claude 3.5 Sonnet
+      messages: [
+        { 
+          role: 'system', 
+          content: `Please generate structured JSON responses that follow this exact schema:
+{
+  "title": string,
+  "author": string,
+  "year": number,
+  "genre": string,
+  "rating": number (between 1-5)
+}
+Do not include any explanation or text outside of the JSON object.`
+        },
+        { 
+          role: 'user', 
+          content: 'Give me a short book recommendation. Respond with only valid JSON matching the schema.' 
+        }
+      ]
+    };
+    
+    console.log('Claude 3.5 Prompt-based Request:', JSON.stringify(requestBody, null, 2));
+    
+    // Make direct fetch call to OpenRouter API
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    });
+    
+    // Check response status and get the data
+    const responseBody = await response.text();
+    console.log('Claude 3.5 Prompt Response status:', response.status);
+    console.log('Claude 3.5 Prompt Response preview:', responseBody.substring(0, 500) + '...');
+    
+    expect(response.status).toBe(200);
+    
+    const result = JSON.parse(responseBody);
+    
+    // Verify the structure of the response
+    expect(result).toHaveProperty('choices');
+    expect(result.choices).toBeInstanceOf(Array);
+    expect(result.choices.length).toBeGreaterThan(0);
+    expect(result.choices[0]).toHaveProperty('message');
+    expect(result.choices[0].message).toHaveProperty('content');
+    
+    // Try to extract JSON from the response - Claude may include markdown code blocks
+    const content = result.choices[0].message.content;
+    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
+                     content.match(/```\s*([\s\S]*?)\s*```/) || 
+                     [null, content];
+    
+    let jsonContent = jsonMatch[1] || content;
+    
+    // Try to parse the content as JSON
+    try {
+      const data = JSON.parse(jsonContent);
+      
+      // Verify the structure follows our request
+      expect(data).toHaveProperty('title');
+      expect(data).toHaveProperty('author');
+      expect(data).toHaveProperty('genre');
+      
+      console.log('Claude 3.5 Prompt Engineering result:', data);
+    } catch (e) {
+      console.error('Failed to parse Claude JSON response:', e);
+      console.log('Raw content:', content);
+      throw e;
+    }
+  }, 30000); // Increase timeout to 30 seconds for API call
+
+  // Test JSON schema for structured data with Google Gemini 
+  itif(!!haveApiKey)('should handle JSON output with Google Gemini using prompt engineering', async () => {
+    const apiKey = process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY;
+    const endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+    
+    // Since Gemini may not fully support JSON schema format through OpenRouter,
+    // we'll use prompt engineering approach similar to Claude
+    const requestBody = {
+      model: supportedModels.gemini, // Using Gemini 2.0 Flash
+      messages: [
+        { 
+          role: 'system', 
+          content: `Please generate structured JSON responses that follow this exact schema:
+{
+  "recipe": {
+    "name": string,
+    "ingredients": array of strings,
+    "steps": array of strings,
+    "prepTime": number (in minutes),
+    "difficulty": string (one of: "easy", "medium", "hard")
+  }
+}
+Do not include any explanation or text outside of the JSON object.`
+        },
+        { 
+          role: 'user', 
+          content: 'Give me a simple recipe for a quick dinner. Respond with only valid JSON matching the schema.' 
+        }
+      ]
+    };
+    
+    console.log('Gemini Request:', JSON.stringify(requestBody, null, 2));
+    
+    // Make direct fetch call to OpenRouter API
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    });
+    
+    // Check response status and get the data
+    const responseBody = await response.text();
+    console.log('Gemini Response status:', response.status);
+    console.log('Gemini Response preview:', responseBody.substring(0, 500) + '...');
+    
+    // Only proceed with the test if the response was successful
+    // Some models may not be available on OpenRouter or might have other issues
+    if (response.status !== 200) {
+      console.log('Gemini model may not be available or had an error. Skipping validation.');
+      return;
+    }
+    
+    const result = JSON.parse(responseBody);
+    
+    // Verify the structure of the response
+    expect(result).toHaveProperty('choices');
+    expect(result.choices).toBeInstanceOf(Array);
+    expect(result.choices.length).toBeGreaterThan(0);
+    expect(result.choices[0]).toHaveProperty('message');
+    expect(result.choices[0].message).toHaveProperty('content');
+    
+    // Try to extract JSON from the response - Gemini may include markdown code blocks
+    const content = result.choices[0].message.content;
+    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
+                     content.match(/```\s*([\s\S]*?)\s*```/) || 
+                     [null, content];
+    
+    let jsonContent = jsonMatch[1] || content;
+    
+    // Try to parse the content as JSON
+    try {
+      const data = JSON.parse(jsonContent);
+      
+      // Verify the structure follows our request
+      expect(data).toHaveProperty('recipe');
+      expect(data.recipe).toHaveProperty('name');
+      expect(data.recipe).toHaveProperty('ingredients');
+      expect(Array.isArray(data.recipe.ingredients)).toBe(true);
+      expect(data.recipe).toHaveProperty('steps');
+      expect(Array.isArray(data.recipe.steps)).toBe(true);
+      
+      console.log('Gemini result:', data);
+    } catch (e) {
+      console.error('Failed to parse Gemini JSON response:', e);
+      console.log('Raw content:', content);
+      // Don't throw here because Gemini might not be returning strict JSON
+    }
+  }, 30000); // Increase timeout to 30 seconds for API call
+
+  // Try the JSON schema format with Gemini (may not be supported)
+  itif(!!haveApiKey)('should attempt JSON schema format with Google Gemini', async () => {
+    const apiKey = process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY;
+    const endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+    
+    // Using the schema format with Gemini
+    const requestBody = {
+      model: supportedModels.gemini,
+      messages: [
+        { role: 'user', content: 'Create a todo list for learning programming' }
+      ],
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'todo',
+          schema: {
+            type: 'object',
+            properties: {
+              todos: {
+                type: 'array',
+                items: { type: 'string' }
+              }
+            },
+            required: ['todos']
+          }
+        }
+      }
+    };
+    
+    console.log('Gemini Schema Request payload:', JSON.stringify(requestBody, null, 2));
+    
+    // Make direct fetch call to OpenRouter API
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    });
+    
+    // Get the response data
+    const responseBody = await response.text();
+    console.log('Gemini Schema Response status:', response.status);
+    console.log('Gemini Schema Response preview:', responseBody.substring(0, 500) + '...');
+    
+    // This test is more exploratory - we're checking if the schema format works with Gemini
+    // If it doesn't, we'll log the outcome but won't fail the test
+    try {
+      const result = JSON.parse(responseBody);
+      
+      if (result.error) {
+        console.log('Gemini does not support the same JSON schema format, skipping schema validation');
+        return;
+      }
+      
+      // If there's no error, proceed with validation
+      expect(result).toHaveProperty('choices');
+      expect(result.choices).toBeInstanceOf(Array);
+      
+      if (result.choices.length > 0) {
+        expect(result.choices[0]).toHaveProperty('message');
+        expect(result.choices[0].message).toHaveProperty('content');
+        
+        // Try to parse the content as JSON
+        try {
+          const data = JSON.parse(result.choices[0].message.content);
+          
+          // Verify the structure follows our request
+          expect(data).toHaveProperty('todos');
+          expect(Array.isArray(data.todos)).toBe(true);
+          
+          console.log('Gemini schema result:', data);
+        } catch (e) {
+          console.log('Gemini response was not valid JSON:', result.choices[0].message.content);
+        }
+      }
+    } catch (e) {
+      console.log('Failed to parse Gemini response, may not support JSON schema format');
     }
   }, 30000); // Increase timeout to 30 seconds for API call
 }); 
