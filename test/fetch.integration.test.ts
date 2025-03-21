@@ -528,8 +528,18 @@ describe('OpenRouter API wire protocol tests', () => {
     expect(result.choices[0]).toHaveProperty('message');
     expect(result.choices[0].message).toHaveProperty('content');
     
+    // Claude often responds with text like "Here's a JSON..." before the actual JSON
+    // Extract JSON if wrapped in code blocks or attempt to find JSON-like content
+    const content = result.choices[0].message.content;
+    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
+                     content.match(/```\s*([\s\S]*?)\s*```/) || 
+                     content.match(/\{[\s\S]*\}/) ||
+                     [null, content];
+    
+    const jsonContent = jsonMatch[1] || jsonMatch[0] || content;
+    
     // Parse the content as JSON - let any parse failures propagate directly
-    const data = JSON.parse(result.choices[0].message.content);
+    const data = JSON.parse(jsonContent);
     
     // Verify the structure follows our request
     expect(data).toHaveProperty('todos');

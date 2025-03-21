@@ -191,7 +191,7 @@ describe('OpenAI Wire Protocol Tests', () => {
     expect(generator[Symbol.asyncIterator]).toBeDefined();
     
     // Collect all chunks
-    let chunks = [];
+    let chunks: string[] = [];
     for await (const chunk of generator) {
       chunks.push(chunk);
     }
