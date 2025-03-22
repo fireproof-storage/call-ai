@@ -281,12 +281,7 @@ async function* callAIStreaming(
     const decoder = new TextDecoder();
     let completeText = '';
     let chunkCount = 0;
-    let jsonAccumulator = '';
-    let isValidJson = false;
     
-    // For OpenAI models, we need to track the entire JSON build-up
-    const isJsonSchema = !!options.schema;
-
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -313,31 +308,9 @@ async function* callAIStreaming(
               const content = json.choices[0].delta.content || '';
               chunkCount++;
               
-              // Handle JSON accumulation for OpenAI with schema
-              if (isOpenAIModel && isJsonSchema) {
-                jsonAccumulator += content;
-                
-                // For OpenAI, we need to accumulate complete JSON before returning
-                if (jsonAccumulator.trim().startsWith('{') && 
-                    jsonAccumulator.trim().endsWith('}')) {
-                  try {
-                    // Test if it's valid JSON
-                    JSON.parse(jsonAccumulator);
-                    isValidJson = true;
-                    completeText = jsonAccumulator;
-                    
-                    // For tests and debug, yield the completely accumulated JSON
-                    yield completeText;
-                  } catch (error) {
-                    // Not complete JSON yet, continue accumulating
-                    isValidJson = false;
-                  }
-                }
-              } else {
-                // For non-OpenAI or non-schema requests, stream the text as it comes
-                completeText += content;
-                yield processResponseContent(completeText, options);
-              }
+              // Treat all models the same - yield as content arrives
+              completeText += content;
+              yield processResponseContent(completeText, options);
             } 
             // Handle message content format (non-streaming deltas)
             else if (json.choices?.[0]?.message?.content !== undefined) {
@@ -350,24 +323,6 @@ async function* callAIStreaming(
             console.error("Error parsing JSON chunk:", e);
           }
         }
-      }
-    }
-    
-    // If we have accumulated JSON but it's not valid yet, try to fix it
-    if (isOpenAIModel && isJsonSchema && jsonAccumulator && !isValidJson) {
-      // Clean up JSON if needed (e.g., if it's missing closing brace)
-      const fixedJson = jsonAccumulator.trim().endsWith(',')
-        ? jsonAccumulator.slice(0, -1) + '}'
-        : jsonAccumulator.endsWith('}')
-          ? jsonAccumulator
-          : jsonAccumulator + '}';
-      
-      try {
-        // Check if it's valid after fixing
-        JSON.parse(fixedJson);
-        completeText = fixedJson;
-      } catch (e) {
-        console.error("Failed to fix JSON:", e);
       }
     }
     

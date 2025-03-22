@@ -172,6 +172,81 @@ describe('callAI integration tests', () => {
         // For OpenAI models in the test, provide a valid dummy result to test the parsing logic
         // This is needed because the API requires authentication and we want to test the parsing logic
         
+        console.log(`Starting streaming test for model: ${modelName} (${modelId})`);
+        
+        // Add direct fetch test before callAI test
+        console.log(`Testing direct fetch for ${modelName} first`);
+        const apiKey = process.env.CALLAI_API_KEY;
+        const endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+        
+        // Create the same payload that callAI would use
+        const requestBody = {
+          model: modelId, 
+          stream: true,
+          messages: [
+            { role: 'user', content: 'Give me a weather forecast for New York in the requested format.' }
+          ],
+          response_format: {
+            type: 'json_schema',
+            json_schema: {
+              name: weatherSchema.name,
+              schema: {
+                type: 'object',
+                properties: weatherSchema.properties,
+                required: Object.keys(weatherSchema.properties),
+                additionalProperties: false
+              }
+            }
+          }
+        };
+        
+        console.log(`Direct fetch payload for ${modelName}:`, JSON.stringify(requestBody, null, 2));
+        
+        // Make direct fetch call
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody)
+        });
+        
+        console.log(`Direct fetch response status for ${modelName}:`, response.status);
+        
+        // Process streaming response directly
+        const reader = response.body!.getReader();
+        const decoder = new TextDecoder();
+        let directFetchChunks = 0;
+        let allText = '';
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          const chunk = decoder.decode(value);
+          console.log(`Direct fetch chunk for ${modelName}:`, chunk.substring(0, 50) + (chunk.length > 50 ? '...' : ''));
+          
+          const lines = chunk.split('\n').filter(line => line.trim() !== '');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              if (line.includes('[DONE]')) continue;
+              
+              try {
+                const json = JSON.parse(line.replace('data: ', ''));
+                const content = json.choices?.[0]?.delta?.content || '';
+                allText += content;
+                directFetchChunks++;
+              } catch (e) {
+                console.error(`Error parsing direct fetch chunk for ${modelName}:`, e);
+              }
+            }
+          }
+        }
+        
+        console.log(`Direct fetch received ${directFetchChunks} chunks for ${modelName}`);
+        console.log(`Direct fetch final text for ${modelName}:`, allText);
+        
         // Make the API call with streaming and structured output
         const generator = callAI(
           'Give me a weather forecast for New York in the requested format.', 
@@ -188,7 +263,11 @@ describe('callAI integration tests', () => {
         let chunkCount = 0;
         let debugChunks: string[] = [];
         
+        // Log before looping through chunks
+        console.log(`${modelName} - Starting to collect chunks`);
+        
         for await (const chunk of generator) {
+          console.log(`${modelName} - Received chunk ${chunkCount}:`, chunk.substring(0, 50) + (chunk.length > 50 ? '...' : ''));
           if (chunkCount < 3) {
             debugChunks.push(chunk); // Store first few chunks for debugging
           }
@@ -198,6 +277,7 @@ describe('callAI integration tests', () => {
         
         console.log(`${modelName} - First few chunks:`, debugChunks);
         console.log(`${modelName} - Complete response:`, lastChunk);
+        console.log(`${modelName} - Total chunks received: ${chunkCount}`);
         
         // Verify we received at least one chunk
         expect(chunkCount).toBeGreaterThan(0);
