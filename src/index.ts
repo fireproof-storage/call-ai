@@ -148,7 +148,7 @@ function prepareRequestParams(
         // Add strict mode for better enforcement
         strict: true,
         // Schema definition for OpenAI compatibility
-        schema: {
+        schema: recursivelyAddAdditionalProperties({
           type: 'object',
           properties: schema.properties || {},
           required: schema.required || Object.keys(schema.properties || {}),
@@ -161,7 +161,7 @@ function prepareRequestParams(
               !['name', 'properties', 'required', 'additionalProperties'].includes(key)
             )
           )
-        }
+        })
       }
     };
   }
@@ -267,6 +267,8 @@ async function* callAIStreaming(
     
     // Detect model type for specialized handling
     const isOpenAIModel = model ? /openai/i.test(model) : false;
+    console.log(`[DEBUG] Streaming with model: ${model}, isOpenAIModel: ${isOpenAIModel}`);
+    console.log(`[DEBUG] Request options:`, JSON.stringify(requestOptions, null, 2));
     
     const response = await fetch(endpoint, requestOptions);
     
@@ -276,63 +278,141 @@ async function* callAIStreaming(
       throw new Error(`API returned error ${response.status}: ${response.statusText}`);
     }
     
+    console.log(`[DEBUG] Response status:`, response.status);
+    console.log(`[DEBUG] Response headers:`, Object.fromEntries([...response.headers.entries()]));
+    
     // Handle streaming response
     const reader = response.body!.getReader();
     const decoder = new TextDecoder();
     let completeText = '';
     let chunkCount = 0;
+    let rawChunkCount = 0;
     
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        console.log(`[DEBUG] Reader done, total raw chunks: ${rawChunkCount}, processed chunks: ${chunkCount}`);
+        break;
+      }
 
+      rawChunkCount++;
       const chunk = decoder.decode(value);
+      console.log(`[DEBUG] Raw chunk #${rawChunkCount}:`, chunk.substring(0, 100) + (chunk.length > 100 ? '...' : ''));
+      
       const lines = chunk.split('\n').filter(line => line.trim() !== '');
+      console.log(`[DEBUG] Lines in chunk:`, lines.length);
       
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           // Skip [DONE] marker or OPENROUTER PROCESSING lines
           if (line.includes('[DONE]') || line.includes('OPENROUTER PROCESSING')) {
+            console.log(`[DEBUG] Skipping line:`, line);
             continue;
           }
           
           try {
             const jsonLine = line.replace('data: ', '');
-            if (!jsonLine.trim()) continue;
+            if (!jsonLine.trim()) {
+              console.log(`[DEBUG] Empty JSON line, skipping`);
+              continue;
+            }
             
             // Parse the JSON chunk
+            console.log(`[DEBUG] Parsing JSON line:`, jsonLine.substring(0, 100) + (jsonLine.length > 100 ? '...' : ''));
             const json = JSON.parse(jsonLine);
+            
+            // Add detailed error logging
+            if (json.error) {
+              console.log(`[DEBUG] FULL ERROR OBJECT:`, JSON.stringify(json.error, null, 2));
+            }
             
             // Extract content from the delta
             if (json.choices?.[0]?.delta?.content !== undefined) {
               const content = json.choices[0].delta.content || '';
+              console.log(`[DEBUG] Extracted delta content:`, content);
               chunkCount++;
               
               // Treat all models the same - yield as content arrives
               completeText += content;
-              yield processResponseContent(completeText, options);
+              const processed = processResponseContent(completeText, options);
+              console.log(`[DEBUG] Yielding processed content:`, processed.substring(0, 100) + (processed.length > 100 ? '...' : ''));
+              yield processed;
             } 
             // Handle message content format (non-streaming deltas)
             else if (json.choices?.[0]?.message?.content !== undefined) {
               const content = json.choices[0].message.content || '';
+              console.log(`[DEBUG] Extracted message content:`, content);
               completeText += content;
               chunkCount++;
-              yield processResponseContent(completeText, options);
+              const processed = processResponseContent(completeText, options);
+              console.log(`[DEBUG] Yielding processed content:`, processed.substring(0, 100) + (processed.length > 100 ? '...' : ''));
+              yield processed;
+            }
+            else {
+              console.log(`[DEBUG] No content in JSON:`, JSON.stringify(json).substring(0, 100) + (JSON.stringify(json).length > 100 ? '...' : ''));
             }
           } catch (e) {
-            console.error("Error parsing JSON chunk:", e);
+            console.error(`[DEBUG] Error parsing JSON chunk:`, e, `Line:`, line);
           }
+        }
+        else {
+          console.log(`[DEBUG] Non-data line:`, line);
         }
       }
     }
     
+    console.log(`[DEBUG] Stream complete, final text:`, completeText.substring(0, 100) + (completeText.length > 100 ? '...' : ''));
     // Ensure the final return has proper, processed content
     return processResponseContent(completeText, options);
   } catch (error) {
-    console.error("AI call failed:", error);
+    console.error("[DEBUG] AI call failed:", error);
     return JSON.stringify({ 
       error: String(error), 
       message: "Sorry, I couldn't process that request." 
     });
   }
+}
+
+/**
+ * Recursively adds additionalProperties: false to all object types in a schema
+ * This is needed for OpenAI's strict schema validation in streaming mode
+ */
+function recursivelyAddAdditionalProperties(schema: any): any {
+  // Clone to avoid modifying the original
+  const result = { ...schema };
+
+  // If this is an object type, ensure it has additionalProperties: false
+  if (result.type === 'object') {
+    // Set additionalProperties if not already set
+    if (result.additionalProperties === undefined) {
+      result.additionalProperties = false;
+    }
+
+    // Process nested properties if they exist
+    if (result.properties) {
+      result.properties = { ...result.properties };
+      
+      // Set required if not already set - OpenAI requires this for all nested objects
+      if (result.required === undefined) {
+        result.required = Object.keys(result.properties);
+      }
+      
+      // Check each property
+      Object.keys(result.properties).forEach(key => {
+        const prop = result.properties[key];
+        
+        // If property is an object or has nested objects, recursively process it
+        if (prop && typeof prop === 'object') {
+          result.properties[key] = recursivelyAddAdditionalProperties(prop);
+        }
+      });
+    }
+  }
+  
+  // Handle nested objects in arrays
+  if (result.type === 'array' && result.items && typeof result.items === 'object') {
+    result.items = recursivelyAddAdditionalProperties(result.items);
+  }
+
+  return result;
 } 
