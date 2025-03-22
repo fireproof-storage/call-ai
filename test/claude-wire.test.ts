@@ -82,7 +82,7 @@ describe('Claude Wire Protocol Tests', () => {
     expect(actualRequestBody.response_format).toBeUndefined();
   });
   
-  it('should fall back to system message approach with Claude even when schema is provided', async () => {
+  it('should use native tool mode with Claude for schema handling', async () => {
     // Define schema
     const schema: Schema = {
       name: 'book_recommendation',
@@ -95,14 +95,13 @@ describe('Claude Wire Protocol Tests', () => {
       }
     };
     
-    // Call the library function with the schema
+    // Call the library function with schema
     await callAI(
       'Give me a short book recommendation in the requested format.',
       {
         apiKey: 'test-api-key',
         model: 'anthropic/claude-3-sonnet',
-        schema: schema,
-        forceJsonSchema: false // Explicitly set to false to test the fallback
+        schema: schema
       }
     );
     
@@ -114,65 +113,12 @@ describe('Claude Wire Protocol Tests', () => {
       (global.fetch as jest.Mock).mock.calls[0][1].body
     );
     
-    // Check that we're using the system message approach
-    expect(actualRequestBody.messages).toBeTruthy();
-    expect(actualRequestBody.messages.length).toBeGreaterThanOrEqual(1);
-    
-    // Verify first message is a system message with schema info
-    const firstMessage = actualRequestBody.messages[0];
-    expect(firstMessage.role).toBe('system');
-    expect(firstMessage.content).toContain('title');
-    expect(firstMessage.content).toContain('author');
-    expect(firstMessage.content).toContain('year');
-    expect(firstMessage.content).toContain('rating');
-    
-    // Claude should not use response_format when forceJsonSchema is false
-    expect(actualRequestBody.response_format).toBeUndefined();
-  });
-  
-  it('should attempt to use JSON schema format with Claude when forceJsonSchema is true', async () => {
-    // Define schema
-    const schema: Schema = {
-      name: 'book_recommendation',
-      properties: {
-        title: { type: 'string' },
-        author: { type: 'string' },
-        year: { type: 'number' },
-        genre: { type: 'string' },
-        rating: { type: 'number', minimum: 1, maximum: 5 }
-      }
-    };
-    
-    // Call the library function with forceJsonSchema = true
-    await callAI(
-      'Give me a short book recommendation in the requested format.',
-      {
-        apiKey: 'test-api-key',
-        model: 'anthropic/claude-3-sonnet',
-        schema: schema,
-        forceJsonSchema: true // Force use of JSON schema format
-      }
-    );
-    
-    // Verify fetch was called
-    expect(global.fetch).toHaveBeenCalled();
-    
-    // Get the request body that was passed to fetch
-    const actualRequestBody = JSON.parse(
-      (global.fetch as jest.Mock).mock.calls[0][1].body
-    );
-    
-    // In the current implementation, Claude doesn't use response_format even with forceJsonSchema
-    // So this test is checking what actually happens in the implementation
-    expect(actualRequestBody.messages).toBeTruthy();
-    
-    // Verify first message is a system message with schema info
-    const firstMessage = actualRequestBody.messages[0];
-    expect(firstMessage.role).toBe('system');
-    expect(firstMessage.content).toContain('title');
-    expect(firstMessage.content).toContain('author');
-    expect(firstMessage.content).toContain('year');
-    expect(firstMessage.content).toContain('rating');
+    // Claude should use tool mode for schema handling
+    expect(actualRequestBody.tools).toBeTruthy();
+    expect(actualRequestBody.tool_choice).toBeTruthy();
+    expect(actualRequestBody.tools[0].name).toBe('book_recommendation');
+    expect(actualRequestBody.tools[0].input_schema).toBeTruthy();
+    expect(actualRequestBody.tools[0].input_schema.properties.title).toBeTruthy();
   });
   
   it('should handle Claude JSON response correctly', async () => {

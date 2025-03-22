@@ -37,10 +37,6 @@ export interface CallAIOptions {
   endpoint?: string;
   stream?: boolean;
   schema?: Schema | null;
-  /**
-   * Force use of json_schema approach even for models that typically use system message
-   */
-  forceJsonSchema?: boolean;
   [key: string]: any;
 }
 
@@ -91,15 +87,17 @@ function prepareRequestParams(
   const isDeepSeekModel = options.model ? /deepseek/i.test(options.model) : false;
   const isGPT4TurboModel = options.model ? /gpt-4-turbo/i.test(options.model) : false;
   const isGPT4oModel = options.model ? /gpt-4o/i.test(options.model) : false;
+  const isOpenAIModel = options.model ? /openai|gpt/i.test(options.model) : false;
   
-  // Use tool mode for Claude when schema is provided
+  // Models use their optimal schema strategy
+  // Claude: Use tool mode when schema is provided
   const useToolMode = isClaudeModel && options.schema;
   
-  // Models that should use system message approach for structured output
-  const useSystemMessageApproach = 
-    isLlama3Model || 
-    isDeepSeekModel || 
-    isGPT4TurboModel;
+  // System message approach for Llama, DeepSeek, and GPT-4 Turbo
+  const useSystemMessageApproach = isLlama3Model || isDeepSeekModel || isGPT4TurboModel;
+  
+  // JSON Schema approach for OpenAI models (GPT, GPT-4o) and Gemini
+  const useJsonSchemaApproach = (isOpenAIModel || isGeminiModel) && options.schema;
   
   // Default to appropriate model based on schema and model type
   const model = options.model || (options.schema ? (isClaudeModel ? 'anthropic/claude-3-sonnet' : 'openai/gpt-4o') : 'openrouter/auto');
@@ -153,7 +151,7 @@ function prepareRequestParams(
     };
   }
   // For models that need schema as system message
-  else if (schema && (useSystemMessageApproach)) {
+  else if (schema && useSystemMessageApproach) {
     // Prepend a system message with schema instructions
     const hasSystemMessage = messages.some(m => m.role === 'system');
     
@@ -180,8 +178,8 @@ function prepareRequestParams(
       console.log(`[DEBUG] System message content: ${systemMessage.content}`);
     }
   }
-  // For models that support JSON schema format (not using tool mode or system message)
-  else if (schema && (!useSystemMessageApproach)) {
+  // For models that support JSON schema format (OpenAI and Gemini)
+  else if (schema && useJsonSchemaApproach) {
     // Debug log the original schema
     console.log(`[DEBUG] Using json_schema approach for ${model}`);
     console.log(`[DEBUG] Original schema:`, JSON.stringify(schema, null, 2));
@@ -232,7 +230,7 @@ function prepareRequestParams(
   
   // Add any other options provided, but exclude internal keys
   Object.entries(options).forEach(([key, value]) => {
-    if (!['apiKey', 'model', 'endpoint', 'stream', 'schema', 'forceJsonSchema'].includes(key)) {
+    if (!['apiKey', 'model', 'endpoint', 'stream', 'schema'].includes(key)) {
       requestParams[key] = value;
     }
   });

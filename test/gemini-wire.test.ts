@@ -259,8 +259,7 @@ describe('Gemini Wire Protocol Tests', () => {
       {
         apiKey: 'test-api-key',
         model: 'google/gemini-2.0-flash-001',
-        schema: schema,
-        forceJsonSchema: true
+        schema: schema
       }
     );
     
