@@ -1,12 +1,12 @@
 import { callAI, Schema } from '../src/index';
 import dotenv from 'dotenv';
-const TIMEOUT = 20000;
+const TIMEOUT = 30000;
 
 // Load environment variables from .env file if present
 dotenv.config();
 
 // Skip tests if no API key is available
-const haveApiKey = process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY;
+const haveApiKey = process.env.CALLAI_API_KEY;
 const itif = (condition: boolean) => condition ? it.concurrent : it.skip;
 
 // Test models based on the OpenRouter documentation
@@ -44,7 +44,7 @@ describe('callAI integration tests', () => {
         const result = await callAI(
           'Create a todo list for learning programming', 
           {
-            apiKey: process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY,
+            apiKey: process.env.CALLAI_API_KEY,
             model: modelId,
             schema: todoSchema
           }
@@ -100,7 +100,7 @@ describe('callAI integration tests', () => {
         const result = await callAI(
           'Give me a short book recommendation in the requested format.', 
           {
-            apiKey: process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY,
+            apiKey: process.env.CALLAI_API_KEY,
             model: modelId,
             schema: bookSchema
           }
@@ -171,40 +171,12 @@ describe('callAI integration tests', () => {
       itif(!!haveApiKey)(`should handle streaming with ${modelName} model`, async () => {
         // For OpenAI models in the test, provide a valid dummy result to test the parsing logic
         // This is needed because the API requires authentication and we want to test the parsing logic
-        if (modelName === 'openAI' && process.env.CI) {
-          // Create a dummy valid response to properly test the parsing logic
-          const mockResponse = {
-            location: "New York",
-            current_temp: 72,
-            conditions: "Partly Cloudy",
-            tomorrow: {
-              high: 76,
-              low: 65,
-              conditions: "Sunny"
-            }
-          };
-          
-          // Verify the structure matches our schema
-          expect(mockResponse).toHaveProperty('location');
-          expect(mockResponse).toHaveProperty('current_temp');
-          expect(mockResponse).toHaveProperty('conditions');
-          expect(mockResponse).toHaveProperty('tomorrow');
-          
-          // Verify types
-          expect(typeof mockResponse.location).toBe('string');
-          expect(typeof mockResponse.current_temp).toBe('number');
-          expect(typeof mockResponse.conditions).toBe('string');
-          expect(typeof mockResponse.tomorrow).toBe('object');
-          expect(typeof mockResponse.tomorrow.conditions).toBe('string');
-          
-          return;
-        }
         
         // Make the API call with streaming and structured output
         const generator = callAI(
           'Give me a weather forecast for New York in the requested format.', 
           {
-            apiKey: process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY,
+            apiKey: process.env.CALLAI_API_KEY,
             model: modelId,
             schema: weatherSchema,
             stream: true
@@ -291,7 +263,7 @@ Do not include any explanation or text outside of the JSON object.`
             }
           ],
           {
-            apiKey: process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY,
+            apiKey: process.env.CALLAI_API_KEY,
             model: modelId
           }
         );

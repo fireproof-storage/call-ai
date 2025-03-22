@@ -279,10 +279,13 @@ async function* callAIStreaming(
     // Handle streaming response
     const reader = response.body!.getReader();
     const decoder = new TextDecoder();
-    let text = '';
+    let completeText = '';
     let chunkCount = 0;
-    let accumulatedJSON = '';
-    let jsonComplete = false;
+    let jsonAccumulator = '';
+    let isValidJson = false;
+    
+    // For OpenAI models, we need to track the entire JSON build-up
+    const isJsonSchema = !!options.schema;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -307,72 +310,69 @@ async function* callAIStreaming(
             
             // Extract content from the delta
             if (json.choices?.[0]?.delta?.content !== undefined) {
-              const content = json.choices[0].delta.content;
+              const content = json.choices[0].delta.content || '';
+              chunkCount++;
               
-              // For OpenAI models with schema, we're building a JSON response
-              if (isOpenAIModel && options.schema) {
-                accumulatedJSON += content || '';
-                chunkCount++;
+              // Handle JSON accumulation for OpenAI with schema
+              if (isOpenAIModel && isJsonSchema) {
+                jsonAccumulator += content;
                 
-                // Only yield if we have what appears to be complete JSON
-                if (accumulatedJSON.trim().startsWith('{') && 
-                    accumulatedJSON.trim().endsWith('}') && 
-                    !jsonComplete) {
+                // For OpenAI, we need to accumulate complete JSON before returning
+                if (jsonAccumulator.trim().startsWith('{') && 
+                    jsonAccumulator.trim().endsWith('}')) {
                   try {
                     // Test if it's valid JSON
-                    JSON.parse(accumulatedJSON);
-                    text = accumulatedJSON;
-                    yield text;
-                    jsonComplete = true;
-                  } catch (e) {
+                    JSON.parse(jsonAccumulator);
+                    isValidJson = true;
+                    completeText = jsonAccumulator;
+                    
+                    // For tests and debug, yield the completely accumulated JSON
+                    yield completeText;
+                  } catch (error) {
                     // Not complete JSON yet, continue accumulating
+                    isValidJson = false;
                   }
                 }
               } else {
-                // For regular text responses
-                text += content || '';
-                chunkCount++;
-                yield processResponseContent(text, options);
+                // For non-OpenAI or non-schema requests, stream the text as it comes
+                completeText += content;
+                yield processResponseContent(completeText, options);
               }
             } 
-            // Handle message content format
+            // Handle message content format (non-streaming deltas)
             else if (json.choices?.[0]?.message?.content !== undefined) {
-              const content = json.choices[0].message.content;
-              text += content || '';
+              const content = json.choices[0].message.content || '';
+              completeText += content;
               chunkCount++;
-              yield processResponseContent(text, options);
+              yield processResponseContent(completeText, options);
             }
           } catch (e) {
-            console.error("Error parsing chunk:", e, "Line:", line);
+            console.error("Error parsing JSON chunk:", e);
           }
         }
       }
     }
     
-    // If we've reached the end but haven't yielded any JSON yet (e.g. if the JSON wasn't valid),
-    // do a final yield with whatever we've accumulated
-    if (isOpenAIModel && options.schema && accumulatedJSON && !jsonComplete) {
+    // If we have accumulated JSON but it's not valid yet, try to fix it
+    if (isOpenAIModel && isJsonSchema && jsonAccumulator && !isValidJson) {
+      // Clean up JSON if needed (e.g., if it's missing closing brace)
+      const fixedJson = jsonAccumulator.trim().endsWith(',')
+        ? jsonAccumulator.slice(0, -1) + '}'
+        : jsonAccumulator.endsWith('}')
+          ? jsonAccumulator
+          : jsonAccumulator + '}';
+      
       try {
-        // Try to fix and parse the JSON as a last resort
-        const cleanedJSON = accumulatedJSON.trim();
-        // If it ends with a comma, remove it and add a closing brace
-        const fixedJSON = cleanedJSON.endsWith(',') 
-          ? cleanedJSON.slice(0, -1) + '}'
-          : cleanedJSON.endsWith('}') 
-            ? cleanedJSON 
-            : cleanedJSON + '}';
-            
-        text = fixedJSON;
-        return processResponseContent(text, options);
+        // Check if it's valid after fixing
+        JSON.parse(fixedJson);
+        completeText = fixedJson;
       } catch (e) {
-        // If all else fails, return what we have
-        console.error("Failed to yield valid JSON:", e);
-        return accumulatedJSON;
+        console.error("Failed to fix JSON:", e);
       }
     }
     
     // Ensure the final return has proper, processed content
-    return processResponseContent(text, options);
+    return processResponseContent(completeText, options);
   } catch (error) {
     console.error("AI call failed:", error);
     return JSON.stringify({ 
