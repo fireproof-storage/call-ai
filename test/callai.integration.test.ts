@@ -160,8 +160,8 @@ describe('callAI integration tests', () => {
         tomorrow: {
           type: 'object',
           properties: {
-            high: { type: 'number' },
-            low: { type: 'number' },
+            high_temp: { type: 'number' },
+            low_temp: { type: 'number' },
             conditions: { type: 'string' }
           }
         }
@@ -237,11 +237,11 @@ describe('callAI integration tests', () => {
           expect(typeof data.tomorrow).toBe('object');
           
           // Verify tomorrow object properties
-          expect(data.tomorrow).toHaveProperty('high');
-          expect(data.tomorrow).toHaveProperty('low');
+          expect(data.tomorrow).toHaveProperty('high_temp');
+          expect(data.tomorrow).toHaveProperty('low_temp');
           expect(data.tomorrow).toHaveProperty('conditions');
-          expect(typeof data.tomorrow.high).toBe('number');
-          expect(typeof data.tomorrow.low).toBe('number');
+          expect(typeof data.tomorrow.high_temp).toBe('number');
+          expect(typeof data.tomorrow.low_temp).toBe('number');
           expect(typeof data.tomorrow.conditions).toBe('string');
           
           console.log(`${modelName} streaming test result:`, data);
@@ -305,5 +305,171 @@ Do not include any explanation or text outside of the JSON object.`
         console.log(`${modelName} system message result:`, data);
       }, TIMEOUT); // Increase timeout to 30 seconds for API call
     });
+  });
+
+  // Debug test to compare system message vs json_schema approaches
+  describe('Debug: System message vs JSON Schema comparison', () => {
+    // Define a simple test schema
+    const testSchema: Schema = {
+      name: 'person',
+      properties: {
+        name: { type: 'string' },
+        age: { type: 'number' },
+        email: { type: 'string' }
+      },
+      required: ['name', 'age']
+    };
+
+    // Test with Claude
+    itif(!!haveApiKey)('should compare Claude with system message and json_schema approaches', async () => {
+      const modelId = 'anthropic/claude-3-sonnet';
+      
+      console.log('===== CLAUDE: SYSTEM MESSAGE APPROACH =====');
+      // Use system message approach with explicit system message
+      const systemResult = await callAI(
+        [
+          { 
+            role: 'system', 
+            content: `Please generate structured JSON responses that follow this exact schema:
+{
+  "name": string,
+  "age": number,
+  "email": string
+}
+The name and age fields are required. The email field is optional.
+Do not include any explanation or text outside of the JSON object.`
+          },
+          { 
+            role: 'user', 
+            content: 'Generate contact information for a fictional person using valid JSON.' 
+          }
+        ],
+        {
+          apiKey: process.env.CALLAI_API_KEY,
+          model: modelId
+        }
+      );
+      
+      console.log('Claude system message response:', systemResult);
+      console.log('Response type:', typeof systemResult);
+      
+      // Try to parse the system message approach result
+      try {
+        const content = systemResult as string;
+        const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
+                        content.match(/```\s*([\s\S]*?)\s*```/) || 
+                        [null, content];
+        
+        const jsonContent = jsonMatch[1] || content;
+        const data = JSON.parse(jsonContent);
+        console.log('Claude system message parsed result:', data);
+      } catch (error) {
+        console.error('Error parsing Claude system message response:', error);
+      }
+      
+      console.log('===== CLAUDE: JSON SCHEMA APPROACH =====');
+      // Use json_schema approach
+      const schemaResult = await callAI(
+        'Generate contact information for a fictional person.',
+        {
+          apiKey: process.env.CALLAI_API_KEY,
+          model: modelId,
+          schema: testSchema
+        }
+      );
+      
+      console.log('Claude json_schema response:', schemaResult);
+      console.log('Response type:', typeof schemaResult);
+      
+      // Try to parse the json_schema approach result
+      try {
+        const content = schemaResult as string;
+        const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
+                        content.match(/```\s*([\s\S]*?)\s*```/) || 
+                        [null, content];
+        
+        const jsonContent = jsonMatch[1] || content;
+        const data = JSON.parse(jsonContent);
+        console.log('Claude json_schema parsed result:', data);
+      } catch (error) {
+        console.error('Error parsing Claude json_schema response:', error);
+      }
+    }, TIMEOUT);
+    
+    // Test with GPT-4o
+    itif(!!haveApiKey)('should compare GPT-4o with system message and json_schema approaches', async () => {
+      const modelId = 'openai/gpt-4o';
+      
+      console.log('===== GPT-4o: SYSTEM MESSAGE APPROACH =====');
+      // Use system message approach with explicit system message
+      const systemResult = await callAI(
+        [
+          { 
+            role: 'system', 
+            content: `Please generate structured JSON responses that follow this exact schema:
+{
+  "name": string,
+  "age": number,
+  "email": string
+}
+The name and age fields are required. The email field is optional.
+Do not include any explanation or text outside of the JSON object.`
+          },
+          { 
+            role: 'user', 
+            content: 'Generate contact information for a fictional person using valid JSON.' 
+          }
+        ],
+        {
+          apiKey: process.env.CALLAI_API_KEY,
+          model: modelId
+        }
+      );
+      
+      console.log('GPT-4o system message response:', systemResult);
+      console.log('Response type:', typeof systemResult);
+      
+      // Try to parse the system message approach result
+      try {
+        const content = systemResult as string;
+        const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
+                        content.match(/```\s*([\s\S]*?)\s*```/) || 
+                        [null, content];
+        
+        const jsonContent = jsonMatch[1] || content;
+        const data = JSON.parse(jsonContent);
+        console.log('GPT-4o system message parsed result:', data);
+      } catch (error) {
+        console.error('Error parsing GPT-4o system message response:', error);
+      }
+      
+      console.log('===== GPT-4o: JSON SCHEMA APPROACH =====');
+      // Use json_schema approach
+      const schemaResult = await callAI(
+        'Generate contact information for a fictional person.',
+        {
+          apiKey: process.env.CALLAI_API_KEY,
+          model: modelId,
+          schema: testSchema
+        }
+      );
+      
+      console.log('GPT-4o json_schema response:', schemaResult);
+      console.log('Response type:', typeof schemaResult);
+      
+      // Try to parse the json_schema approach result
+      try {
+        const content = schemaResult as string;
+        const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
+                        content.match(/```\s*([\s\S]*?)\s*```/) || 
+                        [null, content];
+        
+        const jsonContent = jsonMatch[1] || content;
+        const data = JSON.parse(jsonContent);
+        console.log('GPT-4o json_schema parsed result:', data);
+      } catch (error) {
+        console.error('Error parsing GPT-4o json_schema response:', error);
+      }
+    }, TIMEOUT);
   });
 }); 

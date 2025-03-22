@@ -135,11 +135,37 @@ function prepareRequestParams(
       
       messages = [systemMessage, ...messages];
       requestParams.messages = messages;
+      
+      // Debug log for system message approach
+      console.log(`[DEBUG] Using system message approach for ${model}`);
+      console.log(`[DEBUG] System message content: ${systemMessage.content}`);
     }
   }
   
   // For models that support JSON schema format
   if (schema && (!useSystemMessageApproach)) {
+    // Debug log the original schema
+    console.log(`[DEBUG] Using json_schema approach for ${model}`);
+    console.log(`[DEBUG] Original schema:`, JSON.stringify(schema, null, 2));
+    
+    const processedSchema = recursivelyAddAdditionalProperties({
+      type: 'object',
+      properties: schema.properties || {},
+      required: schema.required || Object.keys(schema.properties || {}),
+      additionalProperties: schema.additionalProperties !== undefined 
+        ? schema.additionalProperties 
+        : false,
+      // Copy any additional schema properties (excluding properties we've already handled)
+      ...Object.fromEntries(
+        Object.entries(schema).filter(([key]) => 
+          !['name', 'properties', 'required', 'additionalProperties'].includes(key)
+        )
+      )
+    });
+    
+    // Debug log the processed schema
+    console.log(`[DEBUG] Processed schema:`, JSON.stringify(processedSchema, null, 2));
+    
     requestParams.response_format = {
       type: 'json_schema',
       json_schema: {
@@ -148,22 +174,12 @@ function prepareRequestParams(
         // Add strict mode for better enforcement
         strict: true,
         // Schema definition for OpenAI compatibility
-        schema: recursivelyAddAdditionalProperties({
-          type: 'object',
-          properties: schema.properties || {},
-          required: schema.required || Object.keys(schema.properties || {}),
-          additionalProperties: schema.additionalProperties !== undefined 
-            ? schema.additionalProperties 
-            : false,
-          // Copy any additional schema properties (excluding properties we've already handled)
-          ...Object.fromEntries(
-            Object.entries(schema).filter(([key]) => 
-              !['name', 'properties', 'required', 'additionalProperties'].includes(key)
-            )
-          )
-        })
+        schema: processedSchema
       }
     };
+    
+    // Debug log the final response_format
+    console.log(`[DEBUG] Final response_format:`, JSON.stringify(requestParams.response_format, null, 2));
   }
   
   // Add any other options provided, but exclude internal keys
@@ -174,7 +190,7 @@ function prepareRequestParams(
   });
   
   // Log the full request parameters for debugging
-  console.log('[DEBUG] Full request parameters:', JSON.stringify(requestParams, null, 2));
+  // console.log('[DEBUG] Full request parameters:', JSON.stringify(requestParams, null, 2));
   
   const requestOptions = {
     method: 'POST',
@@ -209,9 +225,9 @@ function processResponseContent(content: string, options: CallAIOptions = {}): s
     // Try to extract JSON from content if it might be wrapped
     // Look for code blocks or JSON objects within the text
     const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
-                     content.match(/```\s*([\s\S]*?)\s*```/) || 
-                     content.match(/\{[\s\S]*\}/) ||
-                     [null, content];
+                   content.match(/```\s*([\s\S]*?)\s*```/) || 
+                   content.match(/\{[\s\S]*\}/) ||
+                   [null, content];
     
     return jsonMatch[1] || content;
   }
@@ -270,8 +286,6 @@ async function* callAIStreaming(
     
     // Detect model type for specialized handling
     const isOpenAIModel = model ? /openai/i.test(model) : false;
-    console.log(`[DEBUG] Streaming with model: ${model}, isOpenAIModel: ${isOpenAIModel}`);
-    console.log(`[DEBUG] Request options:`, JSON.stringify(requestOptions, null, 2));
     
     const response = await fetch(endpoint, requestOptions);
     
@@ -281,94 +295,67 @@ async function* callAIStreaming(
       throw new Error(`API returned error ${response.status}: ${response.statusText}`);
     }
     
-    console.log(`[DEBUG] Response status:`, response.status);
-    console.log(`[DEBUG] Response headers:`, Object.fromEntries([...response.headers.entries()]));
-    
     // Handle streaming response
     const reader = response.body!.getReader();
     const decoder = new TextDecoder();
     let completeText = '';
     let chunkCount = 0;
-    let rawChunkCount = 0;
     
     while (true) {
       const { done, value } = await reader.read();
       if (done) {
-        console.log(`[DEBUG] Reader done, total raw chunks: ${rawChunkCount}, processed chunks: ${chunkCount}`);
         break;
       }
 
-      rawChunkCount++;
       const chunk = decoder.decode(value);
-      console.log(`[DEBUG] Raw chunk #${rawChunkCount}:`, chunk.substring(0, 100) + (chunk.length > 100 ? '...' : ''));
       
       const lines = chunk.split('\n').filter(line => line.trim() !== '');
-      console.log(`[DEBUG] Lines in chunk:`, lines.length);
       
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           // Skip [DONE] marker or OPENROUTER PROCESSING lines
           if (line.includes('[DONE]') || line.includes('OPENROUTER PROCESSING')) {
-            console.log(`[DEBUG] Skipping line:`, line);
             continue;
           }
           
           try {
             const jsonLine = line.replace('data: ', '');
             if (!jsonLine.trim()) {
-              console.log(`[DEBUG] Empty JSON line, skipping`);
               continue;
             }
             
             // Parse the JSON chunk
-            console.log(`[DEBUG] Parsing JSON line:`, jsonLine.substring(0, 100) + (jsonLine.length > 100 ? '...' : ''));
             const json = JSON.parse(jsonLine);
-            
-            // Add detailed error logging
-            if (json.error) {
-              console.log(`[DEBUG] FULL ERROR OBJECT:`, JSON.stringify(json.error, null, 2));
-            }
             
             // Extract content from the delta
             if (json.choices?.[0]?.delta?.content !== undefined) {
               const content = json.choices[0].delta.content || '';
-              console.log(`[DEBUG] Extracted delta content:`, content);
               chunkCount++;
               
               // Treat all models the same - yield as content arrives
               completeText += content;
               const processed = processResponseContent(completeText, options);
-              console.log(`[DEBUG] Yielding processed content:`, processed.substring(0, 100) + (processed.length > 100 ? '...' : ''));
               yield processed;
             } 
             // Handle message content format (non-streaming deltas)
             else if (json.choices?.[0]?.message?.content !== undefined) {
               const content = json.choices[0].message.content || '';
-              console.log(`[DEBUG] Extracted message content:`, content);
               completeText += content;
               chunkCount++;
               const processed = processResponseContent(completeText, options);
-              console.log(`[DEBUG] Yielding processed content:`, processed.substring(0, 100) + (processed.length > 100 ? '...' : ''));
               yield processed;
             }
-            else {
-              console.log(`[DEBUG] No content in JSON:`, JSON.stringify(json).substring(0, 100) + (JSON.stringify(json).length > 100 ? '...' : ''));
-            }
           } catch (e) {
-            console.error(`[DEBUG] Error parsing JSON chunk:`, e, `Line:`, line);
+            console.error(`Error parsing JSON chunk:`, e);
           }
-        }
-        else {
-          console.log(`[DEBUG] Non-data line:`, line);
         }
       }
     }
     
-    console.log(`[DEBUG] Stream complete, final text:`, completeText.substring(0, 100) + (completeText.length > 100 ? '...' : ''));
     // Ensure the final return has proper, processed content
     return processResponseContent(completeText, options);
   } catch (error) {
-    console.error("[DEBUG] AI call failed:", error);
+    console.error("AI call failed:", error);
     return JSON.stringify({ 
       error: String(error), 
       message: "Sorry, I couldn't process that request." 
