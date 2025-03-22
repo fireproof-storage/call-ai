@@ -37,6 +37,10 @@ export interface CallAIOptions {
   endpoint?: string;
   stream?: boolean;
   schema?: Schema | null;
+  /**
+   * Force use of json_schema approach even for models that typically use system message
+   */
+  forceJsonSchema?: boolean;
   [key: string]: any;
 }
 
@@ -88,8 +92,14 @@ function prepareRequestParams(
   const isGPT4TurboModel = options.model ? /gpt-4-turbo/i.test(options.model) : false;
   const isGPT4oModel = options.model ? /gpt-4o/i.test(options.model) : false;
   
+  // Use tool mode for Claude when schema is provided
+  const useToolMode = isClaudeModel && options.schema;
+  
   // Models that should use system message approach for structured output
-  const useSystemMessageApproach = isClaudeModel || isLlama3Model || isDeepSeekModel || isGPT4TurboModel;
+  const useSystemMessageApproach = 
+    isLlama3Model || 
+    isDeepSeekModel || 
+    isGPT4TurboModel;
   
   // Default to appropriate model based on schema and model type
   const model = options.model || (options.schema ? (isClaudeModel ? 'anthropic/claude-3-sonnet' : 'openai/gpt-4o') : 'openrouter/auto');
@@ -113,8 +123,37 @@ function prepareRequestParams(
     messages: messages,
   };
   
+  // For Claude with tool mode
+  if (useToolMode && schema) {
+    console.log(`[DEBUG] Using tool mode for ${model}`);
+    
+    // Process schema for tool use
+    const processedSchema = {
+      type: 'object',
+      properties: schema.properties || {},
+      required: Object.keys(schema.properties || {}), // All fields required for Claude tools
+      additionalProperties: schema.additionalProperties !== undefined 
+        ? schema.additionalProperties 
+        : false,
+    };
+    
+    console.log(`[DEBUG] Tool input schema:`, JSON.stringify(processedSchema, null, 2));
+    
+    // Add tools parameter for Claude
+    requestParams.tools = [{
+      name: schema.name || 'generate_structured_data',
+      description: 'Generate data according to the required schema',
+      input_schema: processedSchema
+    }];
+    
+    // Force Claude to use the tool
+    requestParams.tool_choice = {
+      type: 'tool',
+      name: schema.name || 'generate_structured_data'
+    };
+  }
   // For models that need schema as system message
-  if (schema && (useSystemMessageApproach)) {
+  else if (schema && (useSystemMessageApproach)) {
     // Prepend a system message with schema instructions
     const hasSystemMessage = messages.some(m => m.role === 'system');
     
@@ -141,17 +180,26 @@ function prepareRequestParams(
       console.log(`[DEBUG] System message content: ${systemMessage.content}`);
     }
   }
-  
-  // For models that support JSON schema format
-  if (schema && (!useSystemMessageApproach)) {
+  // For models that support JSON schema format (not using tool mode or system message)
+  else if (schema && (!useSystemMessageApproach)) {
     // Debug log the original schema
     console.log(`[DEBUG] Using json_schema approach for ${model}`);
     console.log(`[DEBUG] Original schema:`, JSON.stringify(schema, null, 2));
     
+    // For Claude, ensure all fields are included in 'required'
+    let requiredFields = schema.required || [];
+    if (isClaudeModel) {
+      // Claude requires ALL properties to be listed in required field
+      requiredFields = Object.keys(schema.properties || {});
+    } else {
+      // For other models, default to all properties if required is not specified
+      requiredFields = schema.required || Object.keys(schema.properties || {});
+    }
+    
     const processedSchema = recursivelyAddAdditionalProperties({
       type: 'object',
       properties: schema.properties || {},
-      required: schema.required || Object.keys(schema.properties || {}),
+      required: requiredFields,
       additionalProperties: schema.additionalProperties !== undefined 
         ? schema.additionalProperties 
         : false,
@@ -184,7 +232,7 @@ function prepareRequestParams(
   
   // Add any other options provided, but exclude internal keys
   Object.entries(options).forEach(([key, value]) => {
-    if (!['apiKey', 'model', 'endpoint', 'stream', 'schema'].includes(key)) {
+    if (!['apiKey', 'model', 'endpoint', 'stream', 'schema', 'forceJsonSchema'].includes(key)) {
       requestParams[key] = value;
     }
   });
@@ -207,9 +255,14 @@ function prepareRequestParams(
 /**
  * Process response content based on model type and extract JSON if needed
  */
-function processResponseContent(content: string, options: CallAIOptions = {}): string {
+function processResponseContent(content: string | any, options: CallAIOptions = {}): string {
+  // For tool use mode with Claude, handle differently
+  if (typeof content === 'object' && content.type === 'tool_use') {
+    return JSON.stringify(content.input);
+  }
+
   if (!content || !options.schema) {
-    return content;
+    return typeof content === 'string' ? content : JSON.stringify(content);
   }
 
   // Detect model types
@@ -218,21 +271,24 @@ function processResponseContent(content: string, options: CallAIOptions = {}): s
   const isLlama3Model = options.model ? /llama-3/i.test(options.model) : false;
   const isDeepSeekModel = options.model ? /deepseek/i.test(options.model) : false;
   
-  // For models that might return formatted text instead of JSON
-  const needsJsonExtraction = isClaudeModel || isGeminiModel || isLlama3Model || isDeepSeekModel;
-  
-  if (needsJsonExtraction) {
-    // Try to extract JSON from content if it might be wrapped
-    // Look for code blocks or JSON objects within the text
-    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
-                   content.match(/```\s*([\s\S]*?)\s*```/) || 
-                   content.match(/\{[\s\S]*\}/) ||
-                   [null, content];
+  // Handle string content
+  if (typeof content === 'string') {
+    // For models that might return formatted text instead of JSON
+    const needsJsonExtraction = isClaudeModel || isGeminiModel || isLlama3Model || isDeepSeekModel;
     
-    return jsonMatch[1] || content;
+    if (needsJsonExtraction) {
+      // Try to extract JSON from content if it might be wrapped
+      // Look for code blocks or JSON objects within the text
+      const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
+                     content.match(/```\s*([\s\S]*?)\s*```/) || 
+                     content.match(/\{[\s\S]*\}/) ||
+                     [null, content];
+      
+      return jsonMatch[1] || content;
+    }
   }
   
-  return content;
+  return typeof content === 'string' ? content : JSON.stringify(content);
 }
 
 /**
@@ -243,7 +299,9 @@ async function callAINonStreaming(
   options: CallAIOptions = {}
 ): Promise<string> {
   try {
-    const { endpoint, requestOptions } = prepareRequestParams(prompt, options);
+    const { endpoint, requestOptions, model } = prepareRequestParams(prompt, options);
+    const isClaudeModel = model ? /claude/i.test(model) : false;
+    const useToolMode = isClaudeModel && options.schema;
     
     const response = await fetch(endpoint, requestOptions);
     const result = await response.json();
@@ -255,6 +313,30 @@ async function callAINonStreaming(
         error: result.error, 
         message: result.error.message || "API returned an error" 
       });
+    }
+    
+    // Handle tool use response differently for Claude
+    if (useToolMode && result.stop_reason === 'tool_use') {
+      console.log(`[DEBUG] Received tool_use response:`, JSON.stringify(result, null, 2));
+      
+      // Extract the tool use content
+      if (result.content && Array.isArray(result.content)) {
+        const toolUseBlock = result.content.find((block: any) => block.type === 'tool_use');
+        if (toolUseBlock) {
+          return JSON.stringify(toolUseBlock.input);
+        }
+      }
+      
+      // Find tool_use in assistant's content blocks
+      if (result.choices && Array.isArray(result.choices)) {
+        const choice = result.choices[0];
+        if (choice.message && Array.isArray(choice.message.content)) {
+          const toolUseBlock = choice.message.content.find((block: any) => block.type === 'tool_use');
+          if (toolUseBlock) {
+            return JSON.stringify(toolUseBlock.input);
+          }
+        }
+      }
     }
     
     if (!result.choices || !result.choices.length) {
@@ -286,6 +368,13 @@ async function* callAIStreaming(
     
     // Detect model type for specialized handling
     const isOpenAIModel = model ? /openai/i.test(model) : false;
+    const isClaudeModel = model ? /claude/i.test(model) : false;
+    const useToolMode = isClaudeModel && options.schema;
+    
+    // Note: Tool mode may not work well with streaming for Claude currently
+    if (useToolMode) {
+      console.log(`[WARN] Tool mode with streaming may not work as expected with Claude. Consider using non-streaming mode.`);
+    }
     
     const response = await fetch(endpoint, requestOptions);
     
@@ -327,6 +416,32 @@ async function* callAIStreaming(
             // Parse the JSON chunk
             const json = JSON.parse(jsonLine);
             
+            // Handle tool use response for Claude
+            if (useToolMode && json.stop_reason === 'tool_use') {
+              // Extract the tool use content
+              if (json.content && Array.isArray(json.content)) {
+                const toolUseBlock = json.content.find((block: any) => block.type === 'tool_use');
+                if (toolUseBlock) {
+                  completeText = JSON.stringify(toolUseBlock.input);
+                  yield completeText;
+                  continue;
+                }
+              }
+              
+              // Find tool_use in assistant's content blocks
+              if (json.choices && Array.isArray(json.choices)) {
+                const choice = json.choices[0];
+                if (choice.message && Array.isArray(choice.message.content)) {
+                  const toolUseBlock = choice.message.content.find((block: any) => block.type === 'tool_use');
+                  if (toolUseBlock) {
+                    completeText = JSON.stringify(toolUseBlock.input);
+                    yield completeText;
+                    continue;
+                  }
+                }
+              }
+            }
+            
             // Extract content from the delta
             if (json.choices?.[0]?.delta?.content !== undefined) {
               const content = json.choices[0].delta.content || '';
@@ -342,6 +457,24 @@ async function* callAIStreaming(
               const content = json.choices[0].message.content || '';
               completeText += content;
               chunkCount++;
+              const processed = processResponseContent(completeText, options);
+              yield processed;
+            }
+            // Handle content blocks for Claude/Anthropic response format
+            else if (json.choices?.[0]?.message?.content && Array.isArray(json.choices[0].message.content)) {
+              const contentBlocks = json.choices[0].message.content;
+              // Find text or tool_use blocks
+              for (const block of contentBlocks) {
+                if (block.type === 'text') {
+                  completeText += block.text || '';
+                  chunkCount++;
+                } else if (useToolMode && block.type === 'tool_use') {
+                  completeText = JSON.stringify(block.input);
+                  chunkCount++;
+                  break; // We found what we need
+                }
+              }
+              
               const processed = processResponseContent(completeText, options);
               yield processed;
             }
@@ -391,9 +524,14 @@ function recursivelyAddAdditionalProperties(schema: any): any {
       Object.keys(result.properties).forEach(key => {
         const prop = result.properties[key];
         
-        // If property is an object or has nested objects, recursively process it
+        // If property is an object or array type, recursively process it
         if (prop && typeof prop === 'object') {
           result.properties[key] = recursivelyAddAdditionalProperties(prop);
+          
+          // For nested objects, ensure they also have all properties in their required field
+          if (prop.type === 'object' && prop.properties) {
+            prop.required = Object.keys(prop.properties);
+          }
         }
       });
     }
@@ -402,6 +540,11 @@ function recursivelyAddAdditionalProperties(schema: any): any {
   // Handle nested objects in arrays
   if (result.type === 'array' && result.items && typeof result.items === 'object') {
     result.items = recursivelyAddAdditionalProperties(result.items);
+    
+    // If array items are objects, ensure they have all properties in required
+    if (result.items.type === 'object' && result.items.properties) {
+      result.items.required = Object.keys(result.items.properties);
+    }
   }
 
   return result;
