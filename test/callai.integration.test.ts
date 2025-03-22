@@ -222,7 +222,7 @@ describe('callAI integration tests', () => {
           // Parse the final result and validate - let any JSON parse errors propagate
           const data = JSON.parse(jsonContent);
           
-          // Verify the structure matches our schema
+          // Verify the structure matches our schema strictly
           expect(data).toHaveProperty('location');
           expect(data).toHaveProperty('current_temp');
           expect(data).toHaveProperty('conditions');
@@ -233,47 +233,14 @@ describe('callAI integration tests', () => {
           expect(typeof data.current_temp).toBe('number');
           expect(typeof data.conditions).toBe('string');
           expect(typeof data.tomorrow).toBe('object');
+          
+          // Verify tomorrow object properties
+          expect(data.tomorrow).toHaveProperty('high');
+          expect(data.tomorrow).toHaveProperty('low');
+          expect(data.tomorrow).toHaveProperty('conditions');
+          expect(typeof data.tomorrow.high).toBe('number');
+          expect(typeof data.tomorrow.low).toBe('number');
           expect(typeof data.tomorrow.conditions).toBe('string');
-          
-          // Verify the structure allows for variations in field names
-          const hasLocation = data.hasOwnProperty('location');
-          expect(hasLocation).toBe(true);
-          
-          // Check for temperature (models might use current_temp, _temp, temperature, etc.)
-          const hasTemp = data.hasOwnProperty('current_temp') || 
-                          data.hasOwnProperty('_temp') || 
-                          data.hasOwnProperty('temperature');
-          expect(hasTemp).toBe(true);
-          
-          // Check for weather conditions
-          const hasConditions = data.hasOwnProperty('conditions') || 
-                               data.hasOwnProperty('weather');
-          expect(hasConditions).toBe(true);
-          
-          // Check for tomorrow forecast
-          const hasTomorrow = data.hasOwnProperty('tomorrow') || 
-                             data.hasOwnProperty('forecast');
-          expect(hasTomorrow).toBe(true);
-          
-          // Get the tomorrow object (or equivalent)
-          const tomorrow = data.tomorrow || data.forecast;
-          expect(typeof tomorrow).toBe('object');
-          
-          // The tomorrow object should have high/low temp and conditions
-          // but field names might vary
-          if (tomorrow) {
-            const hasHigh = tomorrow.hasOwnProperty('high') || 
-                          tomorrow.hasOwnProperty('high_temp');
-            const hasLow = tomorrow.hasOwnProperty('low') || 
-                         tomorrow.hasOwnProperty('low_temp');
-            const hasForecast = tomorrow.hasOwnProperty('conditions') || 
-                              tomorrow.hasOwnProperty('weather');
-                              
-            // Only verify if the tomorrow field exists (as some models might omit it)
-            if (Object.keys(tomorrow).length > 0) {
-              expect(hasHigh || hasLow || hasForecast).toBe(true);
-            }
-          }
           
           console.log(`${modelName} streaming test result:`, data);
         } else {
