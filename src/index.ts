@@ -173,6 +173,9 @@ function prepareRequestParams(
     }
   });
   
+  // Log the full request parameters for debugging
+  console.log('[DEBUG] Full request parameters:', JSON.stringify(requestParams, null, 2));
+  
   const requestOptions = {
     method: 'POST',
     headers: {
