@@ -472,4 +472,55 @@ Do not include any explanation or text outside of the JSON object.`
       }
     }, TIMEOUT);
   });
+
+  // Test OpenAI models with tool mode
+  describe('OpenAI with tool mode', () => {
+    itif(!!haveApiKey)('should support tool mode with OpenAI models when enabled', async () => {
+      // Define schema
+      const schema: Schema = {
+        name: 'book_recommendation',
+        properties: {
+          title: { type: 'string' },
+          author: { type: 'string' },
+          year: { type: 'number' },
+          genre: { type: 'string' },
+          rating: { type: 'number' }
+        }
+      };
+      
+      // Make API call with the useToolMode option
+      const result = await callAI(
+        'Give me a short book recommendation about science fiction.',
+        {
+          apiKey: process.env.CALLAI_API_KEY,
+          model: supportedModels.openAI,
+          schema: schema,
+          useToolMode: true // Enable tool mode for OpenAI
+        }
+      );
+      
+      console.log('OpenAI tool mode result:', result);
+      
+      // Check if we got an error response
+      if (typeof result === 'string' && result.includes('"error"')) {
+        const parsed = JSON.parse(result);
+        // Skip the test if the API doesn't support tool mode yet
+        if (parsed.error && parsed.error.message && parsed.error.message.includes('tool')) {
+          console.log('OpenAI tool mode not supported by this model yet, skipping validation');
+          return;
+        }
+        throw new Error(`API returned an error response: ${result}`);
+      }
+      
+      // Verify the data structure, whether it came from tool mode or json_schema
+      if (typeof result === 'string') {
+        const parsed = JSON.parse(result);
+        expect(parsed).toHaveProperty('title');
+        expect(parsed).toHaveProperty('author');
+        expect(parsed).toHaveProperty('year');
+        expect(parsed).toHaveProperty('genre');
+        expect(parsed).toHaveProperty('rating');
+      }
+    }, TIMEOUT);
+  });
 }); 

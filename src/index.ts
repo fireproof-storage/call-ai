@@ -91,7 +91,7 @@ function prepareRequestParams(
   
   // Models use their optimal schema strategy
   // Claude: Use tool mode when schema is provided
-  const useToolMode = isClaudeModel && options.schema;
+  const useToolMode = isClaudeModel && !!options.schema;
   
   // System message approach for Llama, DeepSeek, and GPT-4 Turbo
   const useSystemMessageApproach = isLlama3Model || isDeepSeekModel || isGPT4TurboModel;
@@ -139,6 +139,7 @@ function prepareRequestParams(
     
     // Add tools parameter for Claude
     requestParams.tools = [{
+      type: 'function',  // Required type field for OpenAI
       name: schema.name || 'generate_structured_data',
       description: 'Generate data according to the required schema',
       input_schema: processedSchema
@@ -146,7 +147,7 @@ function prepareRequestParams(
     
     // Force Claude to use the tool
     requestParams.tool_choice = {
-      type: 'tool',
+      type: 'tool',  // For Claude
       name: schema.name || 'generate_structured_data'
     };
   }
