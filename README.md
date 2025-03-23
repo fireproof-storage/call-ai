@@ -109,15 +109,45 @@ for await (const chunk of generator) {
 
 ## Supported LLM Providers
 
-By default, call-ai uses the OpenRouter API which provides access to multiple LLM models. You can also configure it to use other providers with OpenAI-compatible APIs:
+Call-AI supports all models available through OpenRouter, including:
 
-- [OpenRouter](https://openrouter.ai/) (default)
-- [OpenAI](https://openai.com/)
-- [Anthropic Claude](https://www.anthropic.com/) (via OpenRouter)
-- [Mistral](https://mistral.ai/) (via OpenRouter)
-- Any API with OpenAI-compatible endpoints
+- OpenAI models (GPT-4, GPT-3.5, etc.)
+- Anthropic Claude
+- Gemini
+- Llama 3
+- Mistral
+- And many more
 
-See [llms.txt](./llms.txt) for a full list of compatible models.
+## Choosing a model
+
+Different LLMs have different strengths when working with structured data. Based on our testing, here's a guide to help you choose the right model for your schema needs:
+
+### Schema Complexity Guide
+
+| Model Family | Grade | Simple Flat Schema | Complex Flat Schema | Nested Schema | Best For |
+|--------------|-------|-------------------|---------------------|---------------|----------|
+| OpenAI       | A     | ✅ Excellent      | ✅ Excellent        | ✅ Excellent  | Most reliable for all schema types |
+| Gemini       | A     | ✅ Excellent      | ✅ Excellent        | ✅ Good       | Good all-around performance, especially with flat schemas |
+| Claude       | B     | ✅ Excellent      | ⚠️ Good (occasional JSON errors) | ✅ Good | Simple schemas, robust handling of complex prompts |
+| Llama 3      | C     | ✅ Good           | ✅ Good             | ❌ Poor       | Simpler flat schemas, may struggle with nested structures |
+| Deepseek     | C     | ✅ Good           | ✅ Good             | ❌ Poor       | Basic flat schemas only |
+
+### Schema Structure Recommendations
+
+1. **Flat schemas perform better across all models**. If you need maximum compatibility, avoid deeply nested structures.
+
+2. **Field names matter**. Some models have preferences for certain property naming patterns:
+   - Use simple, common naming patterns like `name`, `type`, `items`, `price` 
+   - Avoid deeply nested object hierarchies (more than 2 levels deep)
+   - Keep array items simple (strings or flat objects)
+
+3. **Model-specific considerations**:
+   - **OpenAI models**: Best overall schema adherence and handle complex nesting well
+   - **Claude models**: Great for simple schemas, occasional JSON formatting issues with complex structures
+   - **Gemini models**: Good general performance, handles array properties well
+   - **Llama/Mistral/Deepseek**: Strong with flat schemas, but often ignore nesting structure and provide their own organization
+
+4. **For mission-critical applications** requiring schema adherence, use OpenAI models or implement fallback mechanisms.
 
 ## Setting API Keys
 

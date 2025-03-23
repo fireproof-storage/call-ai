@@ -126,6 +126,31 @@ try {
 }
 ```
 
+### Schema Structure Recommendations
+
+1. **Flat schemas perform better across all models**. If you need maximum compatibility, avoid deeply nested structures.
+
+2. **Field names matter**. Some models have preferences for certain property naming patterns:
+   - Use simple, common naming patterns like `name`, `type`, `items`, `price` 
+   - Avoid deeply nested object hierarchies (more than 2 levels deep)
+   - Keep array items simple (strings or flat objects)
+
+3. **Model-specific considerations**:
+   - **OpenAI models**: Best overall schema adherence and handle complex nesting well
+   - **Claude models**: Great for simple schemas, occasional JSON formatting issues with complex structures
+   - **Gemini models**: Good general performance, handles array properties well
+   - **Llama/Mistral/Deepseek**: Strong with flat schemas, but often ignore nesting structure and provide their own organization
+
+4. **For mission-critical applications** requiring schema adherence, use OpenAI models or implement fallback mechanisms.
+
+### Models for Structured Outputs
+
+- OpenAI models: Best overall schema adherence and handle complex nesting well
+- Claude models: Great for simple schemas, occasional JSON formatting issues with complex structures
+- Gemini models: Good general performance, handles array properties well
+- Llama/Mistral/Deepseek: Strong with flat schemas, but often ignore nesting structure and provide their own organization
+
+
 ## Specifying a Model
 
 By default, the function uses `openrouter/auto` (automatic model selection). You can specify a different model:
