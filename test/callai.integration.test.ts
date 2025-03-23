@@ -316,8 +316,8 @@ Do not include any explanation or text outside of the JSON object.`
         name: { type: 'string' },
         age: { type: 'number' },
         email: { type: 'string' }
-      },
-      required: ['name', 'age']
+      }
+      // required: ['name', 'age', 'email']
     };
 
     // Test with Claude

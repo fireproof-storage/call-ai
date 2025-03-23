@@ -291,6 +291,17 @@ function chooseSchemaStrategy(model: string | undefined, schema: Schema | null):
     };
   }
   
+  // Check for GPT-4 Turbo models - use system message approach
+  if (/gpt-4-turbo/i.test(resolvedModel)) {
+    return {
+      strategy: 'system_message',
+      model: resolvedModel,
+      prepareRequest: systemMessageStrategy.prepareRequest,
+      processResponse: systemMessageStrategy.processResponse,
+      shouldForceStream: !!systemMessageStrategy.shouldForceStream
+    };
+  }
+  
   // Check for OpenAI models
   if (/openai|gpt/i.test(resolvedModel)) {
     return {
@@ -303,7 +314,7 @@ function chooseSchemaStrategy(model: string | undefined, schema: Schema | null):
   }
   
   // Check for other specific models that need system message approach
-  if (/llama-3|deepseek|gpt-4-turbo/i.test(resolvedModel)) {
+  if (/llama-3|deepseek/i.test(resolvedModel)) {
     return {
       strategy: 'system_message',
       model: resolvedModel,
@@ -365,17 +376,25 @@ async function bufferStreamingResults(
     ...options,
     stream: true
   };
-  
-  // Get streaming generator
-  const generator = callAIStreaming(prompt, streamingOptions);
-  
-  // Buffer all chunks
-  let finalResult = '';
-  for await (const chunk of generator) {
-    finalResult = chunk; // Each chunk contains the full accumulated text
+
+  try {
+    // Get streaming generator
+    const generator = callAIStreaming(prompt, streamingOptions);
+    
+    // Buffer all chunks
+    let finalResult = '';
+    for await (const chunk of generator) {
+      finalResult = chunk; // Each chunk contains the full accumulated text
+    }
+    
+    return finalResult;
+  } catch (error) {
+    console.error("Streaming buffer error:", error);
+    return JSON.stringify({ 
+      error: String(error), 
+      message: "Error while processing streaming response: " + String(error) 
+    });
   }
-  
-  return finalResult;
 }
 
 /**
@@ -571,7 +590,11 @@ async function* callAIStreaming(
     }
     
     // Handle streaming response
-    const reader = response.body!.getReader();
+    if (!response.body) {
+      throw new Error("Response body is undefined - API endpoint may not support streaming");
+    }
+    
+    const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let completeText = '';
     let chunkCount = 0;
@@ -602,8 +625,18 @@ async function* callAIStreaming(
             // Parse the JSON chunk
             const json = JSON.parse(jsonLine);
             
+            // Handle tool use response - Claude with schema cases
+            const isClaudeWithSchema = /claude/i.test(model) && schemaStrategy.strategy === 'tool_mode';
+            
             // Handle tool use response
-            if (schemaStrategy.strategy === 'tool_mode' && json.stop_reason === 'tool_use') {
+            if (isClaudeWithSchema && (json.stop_reason === 'tool_use' || json.type === 'tool_use')) {
+              // First try direct tool use object format
+              if (json.type === 'tool_use') {
+                completeText = schemaStrategy.processResponse(json);
+                yield completeText;
+                continue;
+              }
+              
               // Extract the tool use content
               if (json.content && Array.isArray(json.content)) {
                 const toolUseBlock = json.content.find((block: any) => block.type === 'tool_use');
@@ -619,6 +652,16 @@ async function* callAIStreaming(
                 const choice = json.choices[0];
                 if (choice.message && Array.isArray(choice.message.content)) {
                   const toolUseBlock = choice.message.content.find((block: any) => block.type === 'tool_use');
+                  if (toolUseBlock) {
+                    completeText = schemaStrategy.processResponse(toolUseBlock);
+                    yield completeText;
+                    continue;
+                  }
+                }
+                
+                // Handle case where the tool use is in the delta
+                if (choice.delta && Array.isArray(choice.delta.content)) {
+                  const toolUseBlock = choice.delta.content.find((block: any) => block.type === 'tool_use');
                   if (toolUseBlock) {
                     completeText = schemaStrategy.processResponse(toolUseBlock);
                     yield completeText;
@@ -652,7 +695,7 @@ async function* callAIStreaming(
                 if (block.type === 'text') {
                   completeText += block.text || '';
                   chunkCount++;
-                } else if (schemaStrategy.strategy === 'tool_mode' && block.type === 'tool_use') {
+                } else if (isClaudeWithSchema && block.type === 'tool_use') {
                   completeText = schemaStrategy.processResponse(block);
                   chunkCount++;
                   break; // We found what we need

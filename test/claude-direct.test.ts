@@ -125,14 +125,15 @@ describe('Claude Direct API Tests', () => {
       tool_choice: {
         type: 'tool',
         name: 'book_recommendation'
-      }
+      },
+      stream: true // Enable streaming to avoid timeout issue
     };
     
     console.log('📤 Request payload:', JSON.stringify(toolModeRequestBody, null, 2));
     
     try {
       // Make the API call directly with tool mode
-      console.log('⏳ Sending request to Claude API with tool mode...');
+      console.log('⏳ Sending request to Claude API with tool mode streaming...');
       const startTime = Date.now();
       
       // Create request options
@@ -164,51 +165,91 @@ describe('Claude Direct API Tests', () => {
       console.log(`⏱️ [${Date.now() - startTime}ms] Response status:`, toolModeResponseStatus);
       console.log(`⏱️ [${Date.now() - startTime}ms] Response headers:`, toolModeResponseHeaders);
       
-      // Get the text response
-      console.log(`⏱️ [${Date.now() - startTime}ms] Starting to read response.text()...`);
-      const toolModeResponseText = await readResponseTextWithTimeout(toolModeResponse, 10000);
-      console.log(`⏱️ [${Date.now() - startTime}ms] Finished reading response.text()`);
+      // Verify response structure
+      expect(toolModeResponseStatus).toBe(200);
+      
+      // Handle streaming response
+      console.log(`⏱️ [${Date.now() - startTime}ms] Starting to read streaming response...`);
+      
+      const reader = toolModeResponse.body!.getReader();
+      const decoder = new TextDecoder();
+      let completeText = '';
+      let finalResult = null;
+      let chunkCount = 0;
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          console.log(`⏱️ [${Date.now() - startTime}ms] Stream complete after ${chunkCount} chunks`);
+          break;
+        }
+        
+        const chunk = decoder.decode(value);
+        chunkCount++;
+        
+        if (chunkCount <= 3 || chunkCount % 10 === 0) {
+          console.log(`⏱️ [${Date.now() - startTime}ms] Received chunk #${chunkCount}: ${chunk.length} bytes`);
+        }
+        
+        // Process the stream data (formatted as SSE)
+        const lines = chunk.split('\n').filter(line => line.trim() !== '');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            // Skip [DONE] marker or OPENROUTER PROCESSING lines
+            if (line.includes('[DONE]') || line.includes('OPENROUTER PROCESSING')) {
+              continue;
+            }
+            
+            try {
+              const jsonLine = line.replace('data: ', '');
+              if (!jsonLine.trim()) {
+                continue;
+              }
+              
+              // Parse the JSON chunk
+              const json = JSON.parse(jsonLine) as any;
+              
+              // If we have a complete result, store it
+              if (json.choices[0]?.finish_reason === 'tool_use' || 
+                 (json.choices[0]?.message?.tool_calls && json.choices[0].message.tool_calls.length > 0)) {
+                finalResult = json;
+              }
+              
+              // If we see a tool_use block in the content array, we've found what we need
+              if (json.choices[0]?.message?.content && Array.isArray(json.choices[0].message.content)) {
+                const toolUseBlock = json.choices[0].message.content.find((block: any) => block.type === 'tool_use');
+                if (toolUseBlock) {
+                  completeText = JSON.stringify(toolUseBlock.input);
+                  finalResult = json;
+                }
+              }
+            } catch (e) {
+              console.error(`Error parsing JSON chunk:`, e);
+            }
+          }
+        }
+      }
       
       const endTime = Date.now();
       console.log(`⏱️ Total response time: ${endTime - startTime}ms`);
       
-      // Log only the first 500 characters of the response for preview
-      console.log('📥 Response preview:', toolModeResponseText.substring(0, 500) + '...');
-      console.log(`📥 Response size: ${toolModeResponseText.length} characters`);
-      
-      // Verify response structure
-      expect(toolModeResponseStatus).toBe(200);
-      
-      console.log(`⏱️ [${Date.now() - startTime}ms] Starting to parse JSON...`);
-      const toolModeResult = JSON.parse(toolModeResponseText);
-      console.log(`⏱️ [${Date.now() - startTime}ms] JSON parsing complete`);
-      
-      expect(toolModeResult).toHaveProperty('choices');
-      expect(toolModeResult.choices.length).toBeGreaterThan(0);
-      
-      console.log('📊 Parsed response structure:');
-      console.log(`• id: ${toolModeResult.id || 'N/A'}`);
-      console.log(`• model: ${toolModeResult.model || 'N/A'}`);
-      console.log(`• object: ${toolModeResult.object || 'N/A'}`);
-      
-      if (toolModeResult.usage) {
-        console.log('• usage:', {
-          promptTokens: toolModeResult.usage.prompt_tokens,
-          completionTokens: toolModeResult.usage.completion_tokens,
-          totalTokens: toolModeResult.usage.total_tokens
-        });
+      if (!finalResult) {
+        throw new Error('No complete result received from Claude streaming API');
       }
       
-      // Check for tool calls in the response
-      const choice = toolModeResult.choices[0];
+      // Process the final result
+      const choice = finalResult.choices[0];
       console.log('• choice:', {
         finishReason: choice.finish_reason,
         index: choice.index
       });
       
+      // Extract the book recommendation data
+      let bookData = null;
+      
       if (choice.message && choice.message.tool_calls && choice.message.tool_calls.length > 0) {
         console.log('🛠️ Tool calls found in response');
-        console.log(JSON.stringify(choice.message.tool_calls, null, 2));
         
         // Validate tool call data
         const toolCall = choice.message.tool_calls[0] as ToolCall;
@@ -218,52 +259,42 @@ describe('Claude Direct API Tests', () => {
         
         // Parse the arguments
         console.log(`⏱️ [${Date.now() - startTime}ms] Parsing tool call arguments...`);
-        const args = JSON.parse(toolCall.function.arguments);
-        console.log(`⏱️ [${Date.now() - startTime}ms] Finished parsing tool call arguments`);
-        
-        console.log('📚 Book recommendation:', args);
-        
-        expect(args).toHaveProperty('title');
-        expect(args).toHaveProperty('author');
-        expect(args).toHaveProperty('year');
-        expect(args).toHaveProperty('genre');
-        
-        console.log('✅ Tool mode test passed with valid structured data');
+        bookData = JSON.parse(toolCall.function.arguments);
       } else if (choice.message && Array.isArray(choice.message.content)) {
         // Alternative format sometimes used
         console.log('🔎 Examining content array format...');
-        console.log(`📋 Content array length: ${choice.message.content.length}`);
-        console.log('📋 Content array types:', choice.message.content.map((block: any) => block.type).join(', '));
         
         const toolUseBlock = choice.message.content.find((block: MessageContent) => block.type === 'tool_use');
         
         if (toolUseBlock) {
-          console.log('🛠️ Tool use block found in content array:');
-          console.log(JSON.stringify(toolUseBlock, null, 2));
-          
-          // Validate tool use data
+          console.log('🛠️ Tool use block found in content array');
           expect(toolUseBlock).toHaveProperty('input');
-          
-          const input = toolUseBlock.input;
-          console.log('📚 Book recommendation from tool_use block:', input);
-          
-          expect(input).toHaveProperty('title');
-          expect(input).toHaveProperty('author');
-          expect(input).toHaveProperty('year');
-          expect(input).toHaveProperty('genre');
-          
-          console.log('✅ Tool mode test passed with valid structured data (content array format)');
-        } else {
-          console.log('⚠️ No tool_use block found in content array');
-          console.log('Full message content:', JSON.stringify(choice.message.content, null, 2));
-          console.log('Full choice object:', JSON.stringify(choice, null, 2));
-          throw new Error('No tool use data found in the response');
+          bookData = toolUseBlock.input;
         }
-      } else {
-        console.log('⚠️ Unexpected response format');
-        console.log('Full choice object:', JSON.stringify(choice, null, 2));
-        throw new Error('Unexpected response format from Claude API');
+      } else if (completeText) {
+        // We might have extracted the data directly from a chunk
+        try {
+          bookData = JSON.parse(completeText);
+        } catch (e) {
+          console.error('Failed to parse complete text:', e);
+        }
       }
+      
+      if (!bookData) {
+        console.error('⚠️ Could not extract book data from response');
+        console.error('Final result:', JSON.stringify(finalResult, null, 2));
+        throw new Error('Could not extract structured data from Claude response');
+      }
+      
+      console.log('📚 Book recommendation:', bookData);
+      
+      // Validate the book data
+      expect(bookData).toHaveProperty('title');
+      expect(bookData).toHaveProperty('author');
+      expect(bookData).toHaveProperty('year');
+      expect(bookData).toHaveProperty('genre');
+      
+      console.log('✅ Tool mode streaming test passed with valid structured data');
     } catch (error: unknown) {
       console.error('❌ Tool mode test error:', error);
       console.error(`⏱️ Error occurred at ${new Date().toISOString()}`);
