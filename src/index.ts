@@ -123,8 +123,6 @@ function prepareRequestParams(
   
   // For Claude with tool mode
   if (useToolMode && schema) {
-    console.log(`[DEBUG] Using tool mode for ${model}`);
-    
     // Process schema for tool use
     const processedSchema = {
       type: 'object',
@@ -134,8 +132,6 @@ function prepareRequestParams(
         ? schema.additionalProperties 
         : false,
     };
-    
-    console.log(`[DEBUG] Tool input schema:`, JSON.stringify(processedSchema, null, 2));
     
     // Add tools parameter for Claude
     requestParams.tools = [{
@@ -173,18 +169,10 @@ function prepareRequestParams(
       
       messages = [systemMessage, ...messages];
       requestParams.messages = messages;
-      
-      // Debug log for system message approach
-      console.log(`[DEBUG] Using system message approach for ${model}`);
-      console.log(`[DEBUG] System message content: ${systemMessage.content}`);
     }
   }
   // For models that support JSON schema format (OpenAI and Gemini)
   else if (schema && useJsonSchemaApproach) {
-    // Debug log the original schema
-    console.log(`[DEBUG] Using json_schema approach for ${model}`);
-    console.log(`[DEBUG] Original schema:`, JSON.stringify(schema, null, 2));
-    
     // For Claude, ensure all fields are included in 'required'
     let requiredFields = schema.required || [];
     if (isClaudeModel) {
@@ -210,9 +198,6 @@ function prepareRequestParams(
       )
     });
     
-    // Debug log the processed schema
-    console.log(`[DEBUG] Processed schema:`, JSON.stringify(processedSchema, null, 2));
-    
     requestParams.response_format = {
       type: 'json_schema',
       json_schema: {
@@ -224,9 +209,6 @@ function prepareRequestParams(
         schema: processedSchema
       }
     };
-    
-    // Debug log the final response_format
-    console.log(`[DEBUG] Final response_format:`, JSON.stringify(requestParams.response_format, null, 2));
   }
   
   // Add any other options provided, but exclude internal keys
@@ -235,9 +217,6 @@ function prepareRequestParams(
       requestParams[key] = value;
     }
   });
-  
-  // Log the full request parameters for debugging
-  // console.log('[DEBUG] Full request parameters:', JSON.stringify(requestParams, null, 2));
   
   const requestOptions = {
     method: 'POST',
@@ -303,7 +282,47 @@ async function callAINonStreaming(
     const useToolMode = isClaudeModel && options.schema;
     
     const response = await fetch(endpoint, requestOptions);
-    const result = await response.json();
+    
+    let result;
+    
+    // For Claude, use text() instead of json() to avoid potential hanging
+    if (isClaudeModel) {
+      // Create a timeout wrapper for text() to prevent hanging
+      try {
+        let textResponse: string;
+        const textPromise = response.text();
+        const timeoutPromise = new Promise<string>((_resolve, reject) => {
+          setTimeout(() => {
+            reject(new Error('Text extraction timed out after 5 seconds'));
+          }, 5000);
+        });
+
+        try {
+          textResponse = await Promise.race([textPromise, timeoutPromise]) as string;
+        } catch (textError) {
+          console.error(`Text extraction timed out or failed:`, textError);
+          return JSON.stringify({
+            error: true,
+            message: "Claude response text extraction timed out. This is likely an issue with the Claude API's response format."
+          });
+        }
+
+        try {
+          result = JSON.parse(textResponse);
+        } catch (err) {
+          console.error(`Failed to parse Claude response as JSON:`, err);
+          throw new Error(`Failed to parse Claude response as JSON: ${err}`);
+        }
+      } catch (error) {
+        console.error(`Claude text extraction error:`, error);
+        return JSON.stringify({
+          error: true,
+          message: `Claude API response processing failed: ${error}`
+        });
+      }
+    } else {
+      result = await response.json();
+    }
     
     // Handle error responses
     if (result.error) {
@@ -316,8 +335,6 @@ async function callAINonStreaming(
     
     // Handle tool use response differently for Claude
     if (useToolMode && result.stop_reason === 'tool_use') {
-      console.log(`[DEBUG] Received tool_use response:`, JSON.stringify(result, null, 2));
-      
       // Extract the tool use content
       if (result.content && Array.isArray(result.content)) {
         const toolUseBlock = result.content.find((block: any) => block.type === 'tool_use');
@@ -369,11 +386,6 @@ async function* callAIStreaming(
     const isOpenAIModel = model ? /openai/i.test(model) : false;
     const isClaudeModel = model ? /claude/i.test(model) : false;
     const useToolMode = isClaudeModel && options.schema;
-    
-    // Note: Tool mode may not work well with streaming for Claude currently
-    if (useToolMode) {
-      console.log(`[WARN] Tool mode with streaming may not work as expected with Claude. Consider using non-streaming mode.`);
-    }
     
     const response = await fetch(endpoint, requestOptions);
     
