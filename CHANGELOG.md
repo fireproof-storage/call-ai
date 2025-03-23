@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.0 (2024-06-28)
+
+### Features
+- Added comprehensive multi-model support for structured JSON output
+- Implemented model-specific strategies for different AI providers:
+  - OpenAI/GPT models use native JSON schema support
+  - Claude models use tool mode for structured output
+  - Gemini models with optimized JSON schema handling
+  - System message approach for Llama, DeepSeek and other models
+- Added automatic strategy selection based on model type and schema requirements
+- Improved streaming support with model-specific adaptations
+- Enhanced error handling and response processing for various API formats
+- Added recursive handling of nested properties in schemas
+
 ## 0.4.1 (2024-06-22)
 
 ### Fixes
