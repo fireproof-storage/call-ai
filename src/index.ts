@@ -31,6 +31,32 @@ export interface Schema {
   [key: string]: any;
 }
 
+/**
+ * Strategy interface for handling different model types
+ */
+interface ModelStrategy {
+  name: string;
+  prepareRequest: (schema: Schema | null, messages: Message[]) => any;
+  processResponse: (content: string | any) => string;
+  shouldForceStream?: boolean;
+}
+
+/**
+ * Schema strategies for different model types
+ */
+type SchemaStrategyType = 'json_schema' | 'tool_mode' | 'system_message' | 'none';
+
+/**
+ * Strategy selection result
+ */
+interface SchemaStrategy {
+  strategy: SchemaStrategyType;
+  model: string;
+  prepareRequest: ModelStrategy['prepareRequest'];
+  processResponse: ModelStrategy['processResponse'];
+  shouldForceStream: boolean;
+}
+
 export interface CallAIOptions {
   apiKey?: string;
   model?: string;
@@ -52,77 +78,80 @@ export interface AIResponse {
 }
 
 /**
- * Make an AI API call with the given options
- * @param prompt User prompt as string or an array of message objects
- * @param options Configuration options including optional schema for structured output
- * @returns A Promise that resolves to the complete response string when streaming is disabled,
- *          or an AsyncGenerator that yields partial responses when streaming is enabled
+ * OpenAI/GPT strategy for handling JSON schema
  */
-export function callAI(
-  prompt: string | Message[],
-  options: CallAIOptions = {}
-): Promise<string> | AsyncGenerator<string, string, unknown> {
-  // Handle non-streaming mode (default)
-  if (options.stream !== true) {
-    return callAINonStreaming(prompt, options);
+const openAIStrategy: ModelStrategy = {
+  name: 'openai',
+  prepareRequest: (schema, messages) => {
+    if (!schema) return {};
+    
+    // Process schema for JSON schema approach
+    const requiredFields = schema.required || Object.keys(schema.properties || {});
+    
+    const processedSchema = recursivelyAddAdditionalProperties({
+      type: 'object',
+      properties: schema.properties || {},
+      required: requiredFields,
+      additionalProperties: schema.additionalProperties !== undefined 
+        ? schema.additionalProperties 
+        : false,
+      // Copy any additional schema properties
+      ...Object.fromEntries(
+        Object.entries(schema).filter(([key]) => 
+          !['name', 'properties', 'required', 'additionalProperties'].includes(key)
+        )
+      )
+    });
+    
+    return {
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: schema.name || "result",
+          strict: true,
+          schema: processedSchema
+        }
+      }
+    };
+  },
+  processResponse: (content) => {
+    if (typeof content !== 'string') {
+      return JSON.stringify(content);
+    }
+    return content;
   }
-  
-  // Handle streaming mode
-  return callAIStreaming(prompt, options);
-}
+};
 
 /**
- * Prepare request parameters common to both streaming and non-streaming calls
+ * Gemini strategy for handling JSON schema (similar to OpenAI)
  */
-function prepareRequestParams(
-  prompt: string | Message[],
-  options: CallAIOptions
-): { apiKey: string, model: string, endpoint: string, requestOptions: RequestInit } {
-  const apiKey = options.apiKey || (typeof window !== 'undefined' ? (window as any).CALLAI_API_KEY : null);
-  
-  // Detect model types
-  const isClaudeModel = options.model ? /claude/i.test(options.model) : false;
-  const isGeminiModel = options.model ? /gemini/i.test(options.model) : false;
-  const isLlama3Model = options.model ? /llama-3/i.test(options.model) : false;
-  const isDeepSeekModel = options.model ? /deepseek/i.test(options.model) : false;
-  const isGPT4TurboModel = options.model ? /gpt-4-turbo/i.test(options.model) : false;
-  const isGPT4oModel = options.model ? /gpt-4o/i.test(options.model) : false;
-  const isOpenAIModel = options.model ? /openai|gpt/i.test(options.model) : false;
-  
-  // Models use their optimal schema strategy
-  // Claude: Use tool mode when schema is provided
-  const useToolMode = isClaudeModel && !!options.schema;
-  
-  // System message approach for Llama, DeepSeek, and GPT-4 Turbo
-  const useSystemMessageApproach = isLlama3Model || isDeepSeekModel || isGPT4TurboModel;
-  
-  // JSON Schema approach for OpenAI models (GPT, GPT-4o) and Gemini
-  const useJsonSchemaApproach = (isOpenAIModel || isGeminiModel) && options.schema;
-  
-  // Default to appropriate model based on schema and model type
-  const model = options.model || (options.schema ? (isClaudeModel ? 'anthropic/claude-3-sonnet' : 'openai/gpt-4o') : 'openrouter/auto');
-  
-  const endpoint = options.endpoint || 'https://openrouter.ai/api/v1/chat/completions';
-  const schema = options.schema || null;
-  
-  if (!apiKey) {
-    throw new Error('API key is required. Provide it via options.apiKey or set window.CALLAI_API_KEY');
+const geminiStrategy: ModelStrategy = {
+  name: 'gemini',
+  prepareRequest: openAIStrategy.prepareRequest,
+  processResponse: (content) => {
+    if (typeof content !== 'string') {
+      return JSON.stringify(content);
+    }
+    
+    // Try to extract JSON from content if it might be wrapped
+    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
+                   content.match(/```\s*([\s\S]*?)\s*```/) || 
+                   content.match(/\{[\s\S]*\}/) ||
+                   [null, content];
+    
+    return jsonMatch[1] || content;
   }
-  
-  // Handle both string prompts and message arrays for backward compatibility
-  let messages = Array.isArray(prompt) 
-    ? prompt 
-    : [{ role: 'user', content: prompt }];
-  
-  // Build request parameters
-  const requestParams: any = {
-    model: model,
-    stream: options.stream === true,
-    messages: messages,
-  };
-  
-  // For Claude with tool mode
-  if (useToolMode && schema) {
+};
+
+/**
+ * Claude strategy using tool mode for structured output
+ */
+const claudeStrategy: ModelStrategy = {
+  name: 'anthropic',
+  shouldForceStream: true,
+  prepareRequest: (schema, messages) => {
+    if (!schema) return {};
+    
     // Process schema for tool use
     const processedSchema = {
       type: 'object',
@@ -133,23 +162,48 @@ function prepareRequestParams(
         : false,
     };
     
-    // Add tools parameter for Claude
-    requestParams.tools = [{
-      type: 'function',  // Required type field for OpenAI
-      name: schema.name || 'generate_structured_data',
-      description: 'Generate data according to the required schema',
-      input_schema: processedSchema
-    }];
-    
-    // Force Claude to use the tool
-    requestParams.tool_choice = {
-      type: 'tool',  // For Claude
-      name: schema.name || 'generate_structured_data'
+    return {
+      tools: [{
+        type: 'function',
+        name: schema.name || 'generate_structured_data',
+        description: 'Generate data according to the required schema',
+        input_schema: processedSchema
+      }],
+      tool_choice: {
+        type: 'tool',
+        name: schema.name || 'generate_structured_data'
+      }
     };
+  },
+  processResponse: (content) => {
+    // Handle tool use response
+    if (typeof content === 'object' && content.type === 'tool_use') {
+      return JSON.stringify(content.input);
+    }
+    
+    if (typeof content !== 'string') {
+      return JSON.stringify(content);
+    }
+    
+    // Try to extract JSON from content if it might be wrapped
+    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
+                   content.match(/```\s*([\s\S]*?)\s*```/) || 
+                   content.match(/\{[\s\S]*\}/) ||
+                   [null, content];
+    
+    return jsonMatch[1] || content;
   }
-  // For models that need schema as system message
-  else if (schema && useSystemMessageApproach) {
-    // Prepend a system message with schema instructions
+};
+
+/**
+ * System message approach for other models (Llama, DeepSeek, etc.)
+ */
+const systemMessageStrategy: ModelStrategy = {
+  name: 'system_message',
+  prepareRequest: (schema, messages) => {
+    if (!schema) return { messages };
+    
+    // Check if there's already a system message
     const hasSystemMessage = messages.some(m => m.role === 'system');
     
     if (!hasSystemMessage) {
@@ -167,49 +221,209 @@ function prepareRequestParams(
         content: `Please return your response as JSON following this schema exactly:\n{\n${schemaProperties}\n}\nDo not include any explanation or text outside of the JSON object.`
       };
       
-      messages = [systemMessage, ...messages];
-      requestParams.messages = messages;
+      // Return modified messages array with system message prepended
+      return { messages: [systemMessage, ...messages] };
     }
+    
+    return { messages };
+  },
+  processResponse: (content) => {
+    if (typeof content !== 'string') {
+      return JSON.stringify(content);
+    }
+    
+    // Try to extract JSON from content if it might be wrapped
+    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
+                   content.match(/```\s*([\s\S]*?)\s*```/) || 
+                   content.match(/\{[\s\S]*\}/) ||
+                   [null, content];
+    
+    return jsonMatch[1] || content;
   }
-  // For models that support JSON schema format (OpenAI and Gemini)
-  else if (schema && useJsonSchemaApproach) {
-    // For Claude, ensure all fields are included in 'required'
-    let requiredFields = schema.required || [];
-    if (isClaudeModel) {
-      // Claude requires ALL properties to be listed in required field
-      requiredFields = Object.keys(schema.properties || {});
-    } else {
-      // For other models, default to all properties if required is not specified
-      requiredFields = schema.required || Object.keys(schema.properties || {});
-    }
-    
-    const processedSchema = recursivelyAddAdditionalProperties({
-      type: 'object',
-      properties: schema.properties || {},
-      required: requiredFields,
-      additionalProperties: schema.additionalProperties !== undefined 
-        ? schema.additionalProperties 
-        : false,
-      // Copy any additional schema properties (excluding properties we've already handled)
-      ...Object.fromEntries(
-        Object.entries(schema).filter(([key]) => 
-          !['name', 'properties', 'required', 'additionalProperties'].includes(key)
-        )
-      )
-    });
-    
-    requestParams.response_format = {
-      type: 'json_schema',
-      json_schema: {
-        // Always include name, with default "result" if not provided in schema
-        name: schema.name || "result",
-        // Add strict mode for better enforcement
-        strict: true,
-        // Schema definition for OpenAI compatibility
-        schema: processedSchema
-      }
+};
+
+/**
+ * Default strategy for models without schema
+ */
+const defaultStrategy: ModelStrategy = {
+  name: 'default',
+  prepareRequest: () => ({}),
+  processResponse: (content) => typeof content === 'string' ? content : JSON.stringify(content)
+};
+
+/**
+ * Choose the appropriate schema strategy based on model and schema
+ */
+function chooseSchemaStrategy(model: string | undefined, schema: Schema | null): SchemaStrategy {
+  // Default model if not provided
+  const resolvedModel = model || (schema ? 'openai/gpt-4o' : 'openrouter/auto');
+  
+  // No schema case - use default strategy
+  if (!schema) {
+    return {
+      strategy: 'none',
+      model: resolvedModel,
+      prepareRequest: defaultStrategy.prepareRequest,
+      processResponse: defaultStrategy.processResponse,
+      shouldForceStream: false
     };
   }
+  
+  // Check for Claude models
+  if (/claude/i.test(resolvedModel)) {
+    return {
+      strategy: 'tool_mode',
+      model: resolvedModel,
+      prepareRequest: claudeStrategy.prepareRequest,
+      processResponse: claudeStrategy.processResponse,
+      shouldForceStream: !!claudeStrategy.shouldForceStream
+    };
+  }
+  
+  // Check for Gemini models
+  if (/gemini/i.test(resolvedModel)) {
+    return {
+      strategy: 'json_schema',
+      model: resolvedModel,
+      prepareRequest: geminiStrategy.prepareRequest,
+      processResponse: geminiStrategy.processResponse,
+      shouldForceStream: !!geminiStrategy.shouldForceStream
+    };
+  }
+  
+  // Check for OpenAI models
+  if (/openai|gpt/i.test(resolvedModel)) {
+    return {
+      strategy: 'json_schema',
+      model: resolvedModel,
+      prepareRequest: openAIStrategy.prepareRequest,
+      processResponse: openAIStrategy.processResponse,
+      shouldForceStream: !!openAIStrategy.shouldForceStream
+    };
+  }
+  
+  // Check for other specific models that need system message approach
+  if (/llama-3|deepseek|gpt-4-turbo/i.test(resolvedModel)) {
+    return {
+      strategy: 'system_message',
+      model: resolvedModel,
+      prepareRequest: systemMessageStrategy.prepareRequest,
+      processResponse: systemMessageStrategy.processResponse,
+      shouldForceStream: !!systemMessageStrategy.shouldForceStream
+    };
+  }
+  
+  // Default to system message approach for unknown models with schema
+  return {
+    strategy: 'system_message',
+    model: resolvedModel,
+    prepareRequest: systemMessageStrategy.prepareRequest,
+    processResponse: systemMessageStrategy.processResponse,
+    shouldForceStream: !!systemMessageStrategy.shouldForceStream
+  };
+}
+
+/**
+ * Make an AI API call with the given options
+ * @param prompt User prompt as string or an array of message objects
+ * @param options Configuration options including optional schema for structured output
+ * @returns A Promise that resolves to the complete response string when streaming is disabled,
+ *          or an AsyncGenerator that yields partial responses when streaming is enabled
+ */
+export function callAI(
+  prompt: string | Message[],
+  options: CallAIOptions = {}
+): Promise<string> | AsyncGenerator<string, string, unknown> {
+  // Check if we need to force streaming based on model strategy
+  const schemaStrategy = chooseSchemaStrategy(options.model, options.schema || null);
+  
+  // Handle special case: Claude with tools requires streaming
+  if (!options.stream && schemaStrategy.shouldForceStream) {
+    // Buffer streaming results into a single response
+    return bufferStreamingResults(prompt, options);
+  }
+  
+  // Handle normal non-streaming mode
+  if (options.stream !== true) {
+    return callAINonStreaming(prompt, options);
+  }
+  
+  // Handle streaming mode
+  return callAIStreaming(prompt, options);
+}
+
+/**
+ * Buffer streaming results into a single response for cases where
+ * we need to use streaming internally but the caller requested non-streaming
+ */
+async function bufferStreamingResults(
+  prompt: string | Message[],
+  options: CallAIOptions
+): Promise<string> {
+  // Create a copy of options with streaming enabled
+  const streamingOptions = {
+    ...options,
+    stream: true
+  };
+  
+  // Get streaming generator
+  const generator = callAIStreaming(prompt, streamingOptions);
+  
+  // Buffer all chunks
+  let finalResult = '';
+  for await (const chunk of generator) {
+    finalResult = chunk; // Each chunk contains the full accumulated text
+  }
+  
+  return finalResult;
+}
+
+/**
+ * Prepare request parameters common to both streaming and non-streaming calls
+ */
+function prepareRequestParams(
+  prompt: string | Message[],
+  options: CallAIOptions
+): { apiKey: string, model: string, endpoint: string, requestOptions: RequestInit } {
+  const apiKey = options.apiKey || (typeof window !== 'undefined' ? (window as any).CALLAI_API_KEY : null);
+  const schema = options.schema || null;
+  
+  if (!apiKey) {
+    throw new Error('API key is required. Provide it via options.apiKey or set window.CALLAI_API_KEY');
+  }
+  
+  // Select the appropriate strategy based on model and schema
+  const schemaStrategy = chooseSchemaStrategy(options.model, schema);
+  const model = schemaStrategy.model;
+  
+  const endpoint = options.endpoint || 'https://openrouter.ai/api/v1/chat/completions';
+  
+  // Handle both string prompts and message arrays for backward compatibility
+  const messages: Message[] = Array.isArray(prompt) 
+    ? prompt 
+    : [{ role: 'user', content: prompt }];
+  
+  // Build request parameters
+  const requestParams: any = {
+    model: model,
+    stream: options.stream === true,
+    messages: messages,
+  };
+  
+  // Apply the strategy's request preparation
+  const strategyParams = schemaStrategy.prepareRequest(schema, messages);
+  
+  // If the strategy returns custom messages, use those instead
+  if (strategyParams.messages) {
+    requestParams.messages = strategyParams.messages;
+  }
+  
+  // Add all other strategy parameters
+  Object.entries(strategyParams).forEach(([key, value]) => {
+    if (key !== 'messages') {
+      requestParams[key] = value;
+    }
+  });
   
   // Add any other options provided, but exclude internal keys
   Object.entries(options).forEach(([key, value]) => {
@@ -231,45 +445,6 @@ function prepareRequestParams(
 }
 
 /**
- * Process response content based on model type and extract JSON if needed
- */
-function processResponseContent(content: string | any, options: CallAIOptions = {}): string {
-  // For tool use mode with Claude, handle differently
-  if (typeof content === 'object' && content.type === 'tool_use') {
-    return JSON.stringify(content.input);
-  }
-
-  if (!content || !options.schema) {
-    return typeof content === 'string' ? content : JSON.stringify(content);
-  }
-
-  // Detect model types
-  const isClaudeModel = options.model ? /claude/i.test(options.model) : false;
-  const isGeminiModel = options.model ? /gemini/i.test(options.model) : false;
-  const isLlama3Model = options.model ? /llama-3/i.test(options.model) : false;
-  const isDeepSeekModel = options.model ? /deepseek/i.test(options.model) : false;
-  
-  // Handle string content
-  if (typeof content === 'string') {
-    // For models that might return formatted text instead of JSON
-    const needsJsonExtraction = isClaudeModel || isGeminiModel || isLlama3Model || isDeepSeekModel;
-    
-    if (needsJsonExtraction) {
-      // Try to extract JSON from content if it might be wrapped
-      // Look for code blocks or JSON objects within the text
-      const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
-                     content.match(/```\s*([\s\S]*?)\s*```/) || 
-                     content.match(/\{[\s\S]*\}/) ||
-                     [null, content];
-      
-      return jsonMatch[1] || content;
-    }
-  }
-  
-  return typeof content === 'string' ? content : JSON.stringify(content);
-}
-
-/**
  * Internal implementation for non-streaming API calls
  */
 async function callAINonStreaming(
@@ -278,15 +453,14 @@ async function callAINonStreaming(
 ): Promise<string> {
   try {
     const { endpoint, requestOptions, model } = prepareRequestParams(prompt, options);
-    const isClaudeModel = model ? /claude/i.test(model) : false;
-    const useToolMode = isClaudeModel && options.schema;
+    const schemaStrategy = chooseSchemaStrategy(model, options.schema || null);
     
     const response = await fetch(endpoint, requestOptions);
     
     let result;
     
     // For Claude, use text() instead of json() to avoid potential hanging
-    if (isClaudeModel) {
+    if (/claude/i.test(model)) {
       // Create a timeout wrapper for text() to prevent hanging
       try {
         let textResponse: string;
@@ -333,36 +507,41 @@ async function callAINonStreaming(
       });
     }
     
-    // Handle tool use response differently for Claude
-    if (useToolMode && result.stop_reason === 'tool_use') {
-      // Extract the tool use content
+    // Find tool use content or normal content
+    let content;
+    
+    // Extract tool use content if necessary
+    if (schemaStrategy.strategy === 'tool_mode' && result.stop_reason === 'tool_use') {
+      // Try to find tool_use block in different response formats
       if (result.content && Array.isArray(result.content)) {
         const toolUseBlock = result.content.find((block: any) => block.type === 'tool_use');
         if (toolUseBlock) {
-          return JSON.stringify(toolUseBlock.input);
+          content = toolUseBlock;
         }
       }
       
-      // Find tool_use in assistant's content blocks
-      if (result.choices && Array.isArray(result.choices)) {
+      if (!content && result.choices && Array.isArray(result.choices)) {
         const choice = result.choices[0];
         if (choice.message && Array.isArray(choice.message.content)) {
           const toolUseBlock = choice.message.content.find((block: any) => block.type === 'tool_use');
           if (toolUseBlock) {
-            return JSON.stringify(toolUseBlock.input);
+            content = toolUseBlock;
           }
         }
       }
     }
     
-    if (!result.choices || !result.choices.length) {
-      throw new Error('Invalid response format from API');
+    // If no tool use content was found, use the standard message content
+    if (!content) {
+      if (!result.choices || !result.choices.length) {
+        throw new Error('Invalid response format from API');
+      }
+      
+      content = result.choices[0]?.message?.content || '';
     }
     
-    const content = result.choices[0]?.message?.content || '';
-    
     // Process the content based on model type
-    return processResponseContent(content, options);
+    return schemaStrategy.processResponse(content);
   } catch (error) {
     console.error("AI call failed:", error);
     return JSON.stringify({ 
@@ -381,11 +560,7 @@ async function* callAIStreaming(
 ): AsyncGenerator<string, string, unknown> {
   try {
     const { endpoint, requestOptions, model } = prepareRequestParams(prompt, { ...options, stream: true });
-    
-    // Detect model type for specialized handling
-    const isOpenAIModel = model ? /openai/i.test(model) : false;
-    const isClaudeModel = model ? /claude/i.test(model) : false;
-    const useToolMode = isClaudeModel && options.schema;
+    const schemaStrategy = chooseSchemaStrategy(model, options.schema || null);
     
     const response = await fetch(endpoint, requestOptions);
     
@@ -427,13 +602,13 @@ async function* callAIStreaming(
             // Parse the JSON chunk
             const json = JSON.parse(jsonLine);
             
-            // Handle tool use response for Claude
-            if (useToolMode && json.stop_reason === 'tool_use') {
+            // Handle tool use response
+            if (schemaStrategy.strategy === 'tool_mode' && json.stop_reason === 'tool_use') {
               // Extract the tool use content
               if (json.content && Array.isArray(json.content)) {
                 const toolUseBlock = json.content.find((block: any) => block.type === 'tool_use');
                 if (toolUseBlock) {
-                  completeText = JSON.stringify(toolUseBlock.input);
+                  completeText = schemaStrategy.processResponse(toolUseBlock);
                   yield completeText;
                   continue;
                 }
@@ -445,7 +620,7 @@ async function* callAIStreaming(
                 if (choice.message && Array.isArray(choice.message.content)) {
                   const toolUseBlock = choice.message.content.find((block: any) => block.type === 'tool_use');
                   if (toolUseBlock) {
-                    completeText = JSON.stringify(toolUseBlock.input);
+                    completeText = schemaStrategy.processResponse(toolUseBlock);
                     yield completeText;
                     continue;
                   }
@@ -460,16 +635,14 @@ async function* callAIStreaming(
               
               // Treat all models the same - yield as content arrives
               completeText += content;
-              const processed = processResponseContent(completeText, options);
-              yield processed;
+              yield schemaStrategy.processResponse(completeText);
             } 
             // Handle message content format (non-streaming deltas)
             else if (json.choices?.[0]?.message?.content !== undefined) {
               const content = json.choices[0].message.content || '';
               completeText += content;
               chunkCount++;
-              const processed = processResponseContent(completeText, options);
-              yield processed;
+              yield schemaStrategy.processResponse(completeText);
             }
             // Handle content blocks for Claude/Anthropic response format
             else if (json.choices?.[0]?.message?.content && Array.isArray(json.choices[0].message.content)) {
@@ -479,15 +652,14 @@ async function* callAIStreaming(
                 if (block.type === 'text') {
                   completeText += block.text || '';
                   chunkCount++;
-                } else if (useToolMode && block.type === 'tool_use') {
-                  completeText = JSON.stringify(block.input);
+                } else if (schemaStrategy.strategy === 'tool_mode' && block.type === 'tool_use') {
+                  completeText = schemaStrategy.processResponse(block);
                   chunkCount++;
                   break; // We found what we need
                 }
               }
               
-              const processed = processResponseContent(completeText, options);
-              yield processed;
+              yield schemaStrategy.processResponse(completeText);
             }
           } catch (e) {
             console.error(`Error parsing JSON chunk:`, e);
@@ -497,7 +669,7 @@ async function* callAIStreaming(
     }
     
     // Ensure the final return has proper, processed content
-    return processResponseContent(completeText, options);
+    return schemaStrategy.processResponse(completeText);
   } catch (error) {
     console.error("AI call failed:", error);
     return JSON.stringify({ 
