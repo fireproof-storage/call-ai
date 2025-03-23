@@ -152,11 +152,11 @@ const claudeStrategy: ModelStrategy = {
   prepareRequest: (schema, messages) => {
     if (!schema) return {};
     
-    // Process schema for tool use
+    // Process schema for tool use - format for OpenRouter/Claude
     const processedSchema = {
       type: 'object',
       properties: schema.properties || {},
-      required: Object.keys(schema.properties || {}), // All fields required for Claude tools
+      required: schema.required || Object.keys(schema.properties || {}),
       additionalProperties: schema.additionalProperties !== undefined 
         ? schema.additionalProperties 
         : false,
@@ -165,20 +165,42 @@ const claudeStrategy: ModelStrategy = {
     return {
       tools: [{
         type: 'function',
-        name: schema.name || 'generate_structured_data',
-        description: 'Generate data according to the required schema',
-        input_schema: processedSchema
+        function: {
+          name: schema.name || 'generate_structured_data',
+          description: 'Generate data according to the required schema',
+          parameters: processedSchema
+        }
       }],
       tool_choice: {
-        type: 'tool',
-        name: schema.name || 'generate_structured_data'
+        type: 'function',
+        function: {
+          name: schema.name || 'generate_structured_data'
+        }
       }
     };
   },
   processResponse: (content) => {
     // Handle tool use response
-    if (typeof content === 'object' && content.type === 'tool_use') {
-      return JSON.stringify(content.input);
+    if (typeof content === 'object') {
+      if (content.type === 'tool_use') {
+        return JSON.stringify(content.input);
+      }
+      
+      // Handle newer tool_calls format
+      if (content.tool_calls && Array.isArray(content.tool_calls) && content.tool_calls.length > 0) {
+        const toolCall = content.tool_calls[0];
+        if (toolCall.function && toolCall.function.arguments) {
+          try {
+            // Try to parse as JSON first
+            return toolCall.function.arguments;
+          } catch (e) {
+            // Return as is if not valid JSON
+            return JSON.stringify(toolCall.function.arguments);
+          }
+        }
+      }
+      
+      return JSON.stringify(content);
     }
     
     if (typeof content !== 'string') {
@@ -350,6 +372,7 @@ export function callAI(
   
   // Handle special case: Claude with tools requires streaming
   if (!options.stream && schemaStrategy.shouldForceStream) {
+    console.log(`[callAI] Forcing streaming mode for ${options.model || 'default model'} with schema strategy: ${schemaStrategy.strategy}`);
     // Buffer streaming results into a single response
     return bufferStreamingResults(prompt, options);
   }
@@ -371,6 +394,7 @@ async function bufferStreamingResults(
   prompt: string | Message[],
   options: CallAIOptions
 ): Promise<string> {
+  console.log(`[bufferStreamingResults] Starting buffered streaming for ${options.model || 'default model'}`);
   // Create a copy of options with streaming enabled
   const streamingOptions = {
     ...options,
@@ -383,13 +407,19 @@ async function bufferStreamingResults(
     
     // Buffer all chunks
     let finalResult = '';
+    let chunkCount = 0;
     for await (const chunk of generator) {
       finalResult = chunk; // Each chunk contains the full accumulated text
+      chunkCount++;
+      if (chunkCount % 5 === 0) {
+        console.log(`[bufferStreamingResults] Received ${chunkCount} chunks so far.`);
+      }
     }
     
+    console.log(`[bufferStreamingResults] Completed with ${chunkCount} total chunks.`);
     return finalResult;
   } catch (error) {
-    console.error("Streaming buffer error:", error);
+    console.error("[bufferStreamingResults] Streaming buffer error:", error);
     return JSON.stringify({ 
       error: String(error), 
       message: "Error while processing streaming response: " + String(error) 
@@ -581,6 +611,14 @@ async function* callAIStreaming(
     const { endpoint, requestOptions, model } = prepareRequestParams(prompt, { ...options, stream: true });
     const schemaStrategy = chooseSchemaStrategy(model, options.schema || null);
     
+    console.log(`[callAIStreaming] Starting streaming for model: ${model}, schema strategy: ${schemaStrategy.strategy}`);
+    console.log(`[callAIStreaming] Request options:`, JSON.stringify({
+      model,
+      hasTools: !!requestOptions.body && JSON.parse(requestOptions.body as string).tools !== undefined,
+      endpoint,
+      stream: true
+    }));
+    
     const response = await fetch(endpoint, requestOptions);
     
     if (!response.ok) {
@@ -598,10 +636,12 @@ async function* callAIStreaming(
     const decoder = new TextDecoder();
     let completeText = '';
     let chunkCount = 0;
+    let toolCallsAssembled = '';
     
     while (true) {
       const { done, value } = await reader.read();
       if (done) {
+        console.log(`[callAIStreaming] Stream complete after ${chunkCount} chunks`);
         break;
       }
 
@@ -622,16 +662,63 @@ async function* callAIStreaming(
               continue;
             }
             
+            chunkCount++;
+            if (chunkCount === 1 || chunkCount % 10 === 0) {
+              console.log(`[callAIStreaming] Processing chunk #${chunkCount}`);
+            }
+            
             // Parse the JSON chunk
             const json = JSON.parse(jsonLine);
             
             // Handle tool use response - Claude with schema cases
             const isClaudeWithSchema = /claude/i.test(model) && schemaStrategy.strategy === 'tool_mode';
             
-            // Handle tool use response
+            if (isClaudeWithSchema) {
+              console.log(`[callAIStreaming] Processing Claude model with schema, chunk structure:`, 
+                JSON.stringify({
+                  hasFinishReason: !!json.choices?.[0]?.finish_reason,
+                  finishReason: json.choices?.[0]?.finish_reason,
+                  hasDelta: !!json.choices?.[0]?.delta,
+                  deltaTool: !!json.choices?.[0]?.delta?.tool_calls
+                })
+              );
+              
+              // Claude streaming tool calls - need to assemble arguments
+              if (json.choices && json.choices.length > 0) {
+                const choice = json.choices[0];
+                
+                // Handle finish reason tool_calls
+                if (choice.finish_reason === 'tool_calls') {
+                  console.log(`[callAIStreaming] Found finish_reason=tool_calls, returning assembled tool call`);
+                  try {
+                    // Parse the assembled JSON
+                    completeText = toolCallsAssembled;
+                    yield completeText;
+                    continue;
+                  } catch (e) {
+                    console.error('[callAIStreaming] Error parsing assembled tool call:', e);
+                  }
+                }
+                
+                // Assemble tool_calls arguments from delta
+                if (choice.delta && choice.delta.tool_calls) {
+                  const toolCall = choice.delta.tool_calls[0];
+                  if (toolCall && toolCall.function && toolCall.function.arguments !== undefined) {
+                    toolCallsAssembled += toolCall.function.arguments;
+                    // We don't yield here to avoid partial JSON
+                  }
+                }
+              }
+            }
+            
+            // Handle tool use response - old format
             if (isClaudeWithSchema && (json.stop_reason === 'tool_use' || json.type === 'tool_use')) {
               // First try direct tool use object format
               if (json.type === 'tool_use') {
+                console.log(`[callAIStreaming] Found direct tool_use object:`, JSON.stringify({
+                  toolName: json.name,
+                  inputLength: json.input ? JSON.stringify(json.input).length : 0
+                }));
                 completeText = schemaStrategy.processResponse(json);
                 yield completeText;
                 continue;
@@ -641,6 +728,10 @@ async function* callAIStreaming(
               if (json.content && Array.isArray(json.content)) {
                 const toolUseBlock = json.content.find((block: any) => block.type === 'tool_use');
                 if (toolUseBlock) {
+                  console.log(`[callAIStreaming] Found tool_use block in content array:`, JSON.stringify({
+                    toolName: toolUseBlock.name,
+                    inputLength: toolUseBlock.input ? JSON.stringify(toolUseBlock.input).length : 0
+                  }));
                   completeText = schemaStrategy.processResponse(toolUseBlock);
                   yield completeText;
                   continue;
@@ -653,6 +744,10 @@ async function* callAIStreaming(
                 if (choice.message && Array.isArray(choice.message.content)) {
                   const toolUseBlock = choice.message.content.find((block: any) => block.type === 'tool_use');
                   if (toolUseBlock) {
+                    console.log(`[callAIStreaming] Found tool_use block in message.content:`, JSON.stringify({
+                      toolName: toolUseBlock.name,
+                      inputLength: toolUseBlock.input ? JSON.stringify(toolUseBlock.input).length : 0
+                    }));
                     completeText = schemaStrategy.processResponse(toolUseBlock);
                     yield completeText;
                     continue;
@@ -663,6 +758,10 @@ async function* callAIStreaming(
                 if (choice.delta && Array.isArray(choice.delta.content)) {
                   const toolUseBlock = choice.delta.content.find((block: any) => block.type === 'tool_use');
                   if (toolUseBlock) {
+                    console.log(`[callAIStreaming] Found tool_use block in delta.content:`, JSON.stringify({
+                      toolName: toolUseBlock.name,
+                      inputLength: toolUseBlock.input ? JSON.stringify(toolUseBlock.input).length : 0
+                    }));
                     completeText = schemaStrategy.processResponse(toolUseBlock);
                     yield completeText;
                     continue;
@@ -674,7 +773,6 @@ async function* callAIStreaming(
             // Extract content from the delta
             if (json.choices?.[0]?.delta?.content !== undefined) {
               const content = json.choices[0].delta.content || '';
-              chunkCount++;
               
               // Treat all models the same - yield as content arrives
               completeText += content;
@@ -684,7 +782,6 @@ async function* callAIStreaming(
             else if (json.choices?.[0]?.message?.content !== undefined) {
               const content = json.choices[0].message.content || '';
               completeText += content;
-              chunkCount++;
               yield schemaStrategy.processResponse(completeText);
             }
             // Handle content blocks for Claude/Anthropic response format
@@ -694,10 +791,12 @@ async function* callAIStreaming(
               for (const block of contentBlocks) {
                 if (block.type === 'text') {
                   completeText += block.text || '';
-                  chunkCount++;
                 } else if (isClaudeWithSchema && block.type === 'tool_use') {
+                  console.log(`[callAIStreaming] Found tool_use block in content blocks:`, JSON.stringify({
+                    toolName: block.name,
+                    inputLength: block.input ? JSON.stringify(block.input).length : 0
+                  }));
                   completeText = schemaStrategy.processResponse(block);
-                  chunkCount++;
                   break; // We found what we need
                 }
               }
@@ -705,16 +804,22 @@ async function* callAIStreaming(
               yield schemaStrategy.processResponse(completeText);
             }
           } catch (e) {
-            console.error(`Error parsing JSON chunk:`, e);
+            console.error(`[callAIStreaming] Error parsing JSON chunk:`, e);
           }
         }
       }
     }
     
+    // If we have assembled tool calls but haven't yielded them yet
+    if (toolCallsAssembled && (!completeText || completeText.length === 0)) {
+      console.log(`[callAIStreaming] Returning assembled tool calls at end of stream`);
+      return toolCallsAssembled;
+    }
+    
     // Ensure the final return has proper, processed content
     return schemaStrategy.processResponse(completeText);
   } catch (error) {
-    console.error("AI call failed:", error);
+    console.error("[callAIStreaming] AI call failed:", error);
     return JSON.stringify({ 
       error: String(error), 
       message: "Sorry, I couldn't process that request." 
