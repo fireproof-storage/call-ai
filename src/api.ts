@@ -1,7 +1,7 @@
 /**
  * Core API implementation for call-ai
  */
-import { CallAIOptions, Message } from './types';
+import { CallAIOptions, Message, SchemaStrategy } from './types';
 import { chooseSchemaStrategy } from './strategies';
 
 /**
@@ -61,12 +61,19 @@ async function bufferStreamingResults(
     
     return finalResult;
   } catch (error) {
-    console.error("[bufferStreamingResults] Streaming buffer error:", error);
-    return JSON.stringify({ 
-      error: String(error), 
-      message: "Error while processing streaming response: " + String(error) 
-    });
+    return handleApiError(error, "Streaming buffer error");
   }
+}
+
+/**
+ * Standardized API error handler
+ */
+function handleApiError(error: any, context: string): string {
+  console.error(`[callAI:${context}]:`, error);
+  return JSON.stringify({ 
+    error: String(error), 
+    message: `Sorry, I couldn't process that request: ${String(error)}` 
+  });
 }
 
 /**
@@ -75,7 +82,7 @@ async function bufferStreamingResults(
 function prepareRequestParams(
   prompt: string | Message[],
   options: CallAIOptions
-): { apiKey: string, model: string, endpoint: string, requestOptions: RequestInit } {
+): { apiKey: string, model: string, endpoint: string, requestOptions: RequestInit, schemaStrategy: SchemaStrategy } {
   const apiKey = options.apiKey || (typeof window !== 'undefined' ? (window as any).CALLAI_API_KEY : null);
   const schema = options.schema || null;
   
@@ -132,7 +139,7 @@ function prepareRequestParams(
     body: JSON.stringify(requestParams)
   };
 
-  return { apiKey, model, endpoint, requestOptions };
+  return { apiKey, model, endpoint, requestOptions, schemaStrategy };
 }
 
 /**
@@ -143,8 +150,7 @@ async function callAINonStreaming(
   options: CallAIOptions = {}
 ): Promise<string> {
   try {
-    const { endpoint, requestOptions, model } = prepareRequestParams(prompt, options);
-    const schemaStrategy = chooseSchemaStrategy(model, options.schema || null);
+    const { endpoint, requestOptions, model, schemaStrategy } = prepareRequestParams(prompt, options);
     
     const response = await fetch(endpoint, requestOptions);
     
@@ -152,38 +158,10 @@ async function callAINonStreaming(
     
     // For Claude, use text() instead of json() to avoid potential hanging
     if (/claude/i.test(model)) {
-      // Create a timeout wrapper for text() to prevent hanging
       try {
-        let textResponse: string;
-        const textPromise = response.text();
-        const timeoutPromise = new Promise<string>((_resolve, reject) => {
-          setTimeout(() => {
-            reject(new Error('Text extraction timed out after 5 seconds'));
-          }, 5000);
-        });
-
-        try {
-          textResponse = await Promise.race([textPromise, timeoutPromise]) as string;
-        } catch (textError) {
-          console.error(`Text extraction timed out or failed:`, textError);
-          return JSON.stringify({
-            error: true,
-            message: "Claude response text extraction timed out. This is likely an issue with the Claude API's response format."
-          });
-        }
-
-        try {
-          result = JSON.parse(textResponse);
-        } catch (err) {
-          console.error(`Failed to parse Claude response as JSON:`, err);
-          throw new Error(`Failed to parse Claude response as JSON: ${err}`);
-        }
+        result = await extractClaudeResponse(response);
       } catch (error) {
-        console.error(`Claude text extraction error:`, error);
-        return JSON.stringify({
-          error: true,
-          message: `Claude API response processing failed: ${error}`
-        });
+        return handleApiError(error, "Claude API response processing failed");
       }
     } else {
       result = await response.json();
@@ -198,47 +176,80 @@ async function callAINonStreaming(
       });
     }
     
-    // Find tool use content or normal content
-    let content;
-    
-    // Extract tool use content if necessary
-    if (schemaStrategy.strategy === 'tool_mode' && result.stop_reason === 'tool_use') {
-      // Try to find tool_use block in different response formats
-      if (result.content && Array.isArray(result.content)) {
-        const toolUseBlock = result.content.find((block: any) => block.type === 'tool_use');
-        if (toolUseBlock) {
-          content = toolUseBlock;
-        }
-      }
-      
-      if (!content && result.choices && Array.isArray(result.choices)) {
-        const choice = result.choices[0];
-        if (choice.message && Array.isArray(choice.message.content)) {
-          const toolUseBlock = choice.message.content.find((block: any) => block.type === 'tool_use');
-          if (toolUseBlock) {
-            content = toolUseBlock;
-          }
-        }
-      }
-    }
-    
-    // If no tool use content was found, use the standard message content
-    if (!content) {
-      if (!result.choices || !result.choices.length) {
-        throw new Error('Invalid response format from API');
-      }
-      
-      content = result.choices[0]?.message?.content || '';
-    }
+    // Extract content from the response
+    const content = extractContent(result, schemaStrategy);
     
     // Process the content based on model type
     return schemaStrategy.processResponse(content);
   } catch (error) {
-    console.error("AI call failed:", error);
-    return JSON.stringify({ 
-      error, 
-      message: "Sorry, I couldn't process that request." 
-    });
+    return handleApiError(error, "Non-streaming API call");
+  }
+}
+
+/**
+ * Extract content from API response accounting for different formats
+ */
+function extractContent(result: any, schemaStrategy: SchemaStrategy): any {
+  // Find tool use content or normal content
+  let content;
+  
+  // Extract tool use content if necessary
+  if (schemaStrategy.strategy === 'tool_mode' && result.stop_reason === 'tool_use') {
+    // Try to find tool_use block in different response formats
+    if (result.content && Array.isArray(result.content)) {
+      const toolUseBlock = result.content.find((block: any) => block.type === 'tool_use');
+      if (toolUseBlock) {
+        content = toolUseBlock;
+      }
+    }
+    
+    if (!content && result.choices && Array.isArray(result.choices)) {
+      const choice = result.choices[0];
+      if (choice.message && Array.isArray(choice.message.content)) {
+        const toolUseBlock = choice.message.content.find((block: any) => block.type === 'tool_use');
+        if (toolUseBlock) {
+          content = toolUseBlock;
+        }
+      }
+    }
+  }
+  
+  // If no tool use content was found, use the standard message content
+  if (!content) {
+    if (!result.choices || !result.choices.length) {
+      throw new Error('Invalid response format from API');
+    }
+    
+    content = result.choices[0]?.message?.content || '';
+  }
+  
+  return content;
+}
+
+/**
+ * Extract response from Claude API with timeout handling
+ */
+async function extractClaudeResponse(response: Response): Promise<any> {
+  let textResponse: string;
+  const textPromise = response.text();
+  const timeoutPromise = new Promise<string>((_resolve, reject) => {
+    setTimeout(() => {
+      reject(new Error('Text extraction timed out after 5 seconds'));
+    }, 5000);
+  });
+
+  try {
+    textResponse = await Promise.race([textPromise, timeoutPromise]) as string;
+  } catch (textError) {
+    console.error(`Text extraction timed out or failed:`, textError);
+    throw new Error("Claude response text extraction timed out. This is likely an issue with the Claude API's response format.");
+  }
+
+  try {
+    return JSON.parse(textResponse);
+  } catch (err) {
+    console.error(`Failed to parse Claude response as JSON:`, err);
+    throw new Error(`Failed to parse Claude response as JSON: ${err}`);
   }
 }
 
@@ -250,8 +261,7 @@ async function* callAIStreaming(
   options: CallAIOptions = {}
 ): AsyncGenerator<string, string, unknown> {
   try {
-    const { endpoint, requestOptions, model } = prepareRequestParams(prompt, { ...options, stream: true });
-    const schemaStrategy = chooseSchemaStrategy(model, options.schema || null);
+    const { endpoint, requestOptions, model, schemaStrategy } = prepareRequestParams(prompt, { ...options, stream: true });
     
     const response = await fetch(endpoint, requestOptions);
     
@@ -418,10 +428,6 @@ async function* callAIStreaming(
     // Ensure the final return has proper, processed content
     return schemaStrategy.processResponse(completeText);
   } catch (error) {
-    console.error("[callAIStreaming] AI call failed:", error);
-    return JSON.stringify({ 
-      error: String(error), 
-      message: "Sorry, I couldn't process that request." 
-    });
+    return handleApiError(error, "Streaming API call");
   }
 } 
