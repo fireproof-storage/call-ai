@@ -22,7 +22,8 @@
     "test:integration": "jest --testMatch=\"**/test/integration.test.ts\" --testPathIgnorePatterns=''",
     "prepublishOnly": "npm run build",
     "typecheck": "tsc --noEmit",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\""
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "coverage": "jest --coverage"
   },
   "keywords": [
     "ai",
