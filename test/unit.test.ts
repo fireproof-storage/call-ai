@@ -40,7 +40,7 @@ describe('callAI', () => {
     
     const result = await callAI('Hello, AI') as string;
     const errorObj = JSON.parse(result);
-    expect(errorObj.message).toBe("Sorry, I couldn't process that request.");
+    expect(errorObj.message).toContain("Sorry, I couldn't process that request:");
   });
 
   it('should handle API key requirement for streaming', async () => {
@@ -49,7 +49,7 @@ describe('callAI', () => {
     
     const result = await generator.next();
     const errorObj = JSON.parse(result.value as string);
-    expect(errorObj.message).toBe("Sorry, I couldn't process that request.");
+    expect(errorObj.message).toContain("Sorry, I couldn't process that request:");
   });
 
   it('should make POST request with correct parameters for non-streaming', async () => {
@@ -377,7 +377,7 @@ describe('callAI', () => {
     const result = await callAI('Hello', options) as string;
     
     const errorObj = JSON.parse(result);
-    expect(errorObj.message).toBe("Sorry, I couldn't process that request.");
+    expect(errorObj.message).toContain("Sorry, I couldn't process that request:");
   });
 
   it('should handle errors during API call for streaming', async () => {
@@ -390,7 +390,7 @@ describe('callAI', () => {
     // Parse the JSON error response
     const errorObj = JSON.parse(result.value as string);
     expect(errorObj).toHaveProperty('message');
-    expect(errorObj.message).toBe("Sorry, I couldn't process that request.");
+    expect(errorObj.message).toContain("Sorry, I couldn't process that request:");
     expect(errorObj).toHaveProperty('error');
     expect(result.done).toBe(true);
   });
