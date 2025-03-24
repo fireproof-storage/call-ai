@@ -1,4 +1,4 @@
-import { callAI, Message, Schema } from '../src/index';
+import { callAI, Message, Schema } from "../src/index";
 
 // Mock global fetch
 global.fetch = jest.fn();
@@ -10,115 +10,121 @@ global.TextDecoder = jest.fn().mockImplementation(() => ({
     if (value instanceof Uint8Array) {
       // Convert the Uint8Array to a simple string
       return Array.from(value)
-        .map(byte => String.fromCharCode(byte))
-        .join('');
+        .map((byte) => String.fromCharCode(byte))
+        .join("");
     }
-    return '';
-  })
+    return "";
+  }),
 }));
 
 // Mock ReadableStream
 const mockReader = {
-  read: jest.fn()
+  read: jest.fn(),
 };
 
 const mockResponse = {
   json: jest.fn(),
   body: {
-    getReader: jest.fn().mockReturnValue(mockReader)
-  }
+    getReader: jest.fn().mockReturnValue(mockReader),
+  },
 };
 
-describe('callAI', () => {
+describe("callAI", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
   });
 
-  it('should handle API key requirement for non-streaming', async () => {
-    mockResponse.json.mockResolvedValue({ choices: [{ message: { content: '' } }] });
-    
-    const result = await callAI('Hello, AI') as string;
+  it("should handle API key requirement for non-streaming", async () => {
+    mockResponse.json.mockResolvedValue({
+      choices: [{ message: { content: "" } }],
+    });
+
+    const result = (await callAI("Hello, AI")) as string;
     const errorObj = JSON.parse(result);
-    expect(errorObj.message).toContain("Sorry, I couldn't process that request:");
+    expect(errorObj.message).toContain(
+      "Sorry, I couldn't process that request:",
+    );
   });
 
-  it('should handle API key requirement for streaming', async () => {
+  it("should handle API key requirement for streaming", async () => {
     mockReader.read.mockResolvedValueOnce({ done: true });
-    const generator = callAI('Hello, AI', { stream: true }) as AsyncGenerator;
-    
+    const generator = callAI("Hello, AI", { stream: true }) as AsyncGenerator;
+
     const result = await generator.next();
     const errorObj = JSON.parse(result.value as string);
-    expect(errorObj.message).toContain("Sorry, I couldn't process that request:");
+    expect(errorObj.message).toContain(
+      "Sorry, I couldn't process that request:",
+    );
   });
 
-  it('should make POST request with correct parameters for non-streaming', async () => {
-    const prompt = 'Hello, AI';
+  it("should make POST request with correct parameters for non-streaming", async () => {
+    const prompt = "Hello, AI";
     const options = {
-      apiKey: 'test-api-key',
-      model: 'test-model',
-      temperature: 0.7
+      apiKey: "test-api-key",
+      model: "test-model",
+      temperature: 0.7,
     };
 
     mockResponse.json.mockResolvedValue({
-      choices: [{ message: { content: 'Hello, I am an AI' } }]
+      choices: [{ message: { content: "Hello, I am an AI" } }],
     });
-    
+
     await callAI(prompt, options);
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(global.fetch).toHaveBeenCalledWith(
-      'https://openrouter.ai/api/v1/chat/completions',
+      "https://openrouter.ai/api/v1/chat/completions",
       expect.objectContaining({
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Authorization': 'Bearer test-api-key',
-          'Content-Type': 'application/json'
-        }
-      })
+          Authorization: "Bearer test-api-key",
+          "Content-Type": "application/json",
+        },
+      }),
     );
 
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
-    expect(body.model).toBe('test-model');
-    expect(body.messages).toEqual([{ role: 'user', content: 'Hello, AI' }]);
+    expect(body.model).toBe("test-model");
+    expect(body.messages).toEqual([{ role: "user", content: "Hello, AI" }]);
     expect(body.temperature).toBe(0.7);
     expect(body.stream).toBe(false);
   });
 
-  it('should make POST request with correct parameters for streaming', async () => {
-    const prompt = 'Hello, AI';
+  it("should make POST request with correct parameters for streaming", async () => {
+    const prompt = "Hello, AI";
     const options = {
-      apiKey: 'test-api-key',
-      model: 'test-model',
+      apiKey: "test-api-key",
+      model: "test-model",
       temperature: 0.7,
-      stream: true
+      stream: true,
     };
 
     // Mock successful response to avoid errors
     mockReader.read.mockResolvedValueOnce({ done: true });
-    
+
     const generator = callAI(prompt, options) as AsyncGenerator;
     await generator.next();
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
-    
+
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
-    expect(body.model).toBe('test-model');
-    expect(body.messages).toEqual([{ role: 'user', content: 'Hello, AI' }]);
+    expect(body.model).toBe("test-model");
+    expect(body.messages).toEqual([{ role: "user", content: "Hello, AI" }]);
     expect(body.temperature).toBe(0.7);
     expect(body.stream).toBe(true);
   });
 
-  it('should handle message array for prompt', async () => {
+  it("should handle message array for prompt", async () => {
     const messages: Message[] = [
-      { role: 'system', content: 'You are a helpful assistant' },
-      { role: 'user', content: 'Hello' }
+      { role: "system", content: "You are a helpful assistant" },
+      { role: "user", content: "Hello" },
     ];
-    const options = { apiKey: 'test-api-key', stream: true };
+    const options = { apiKey: "test-api-key", stream: true };
 
     // Mock successful response to avoid errors
     mockReader.read.mockResolvedValueOnce({ done: true });
-    
+
     const generator = callAI(messages, options) as AsyncGenerator;
     await generator.next();
 
@@ -126,61 +132,70 @@ describe('callAI', () => {
     expect(body.messages).toEqual(messages);
   });
 
-  it('should handle schema parameter correctly', async () => {
+  it("should handle schema parameter correctly", async () => {
     const schema: Schema = {
       properties: {
-        name: { type: 'string' },
-        age: { type: 'number' }
+        name: { type: "string" },
+        age: { type: "number" },
       },
-      required: ['name']
+      required: ["name"],
     };
-    
-    const options = { 
-      apiKey: 'test-api-key', 
+
+    const options = {
+      apiKey: "test-api-key",
       stream: true,
-      model: 'openai/gpt-4o',  // Explicitly use OpenAI model to ensure JSON schema is used
-      schema: schema
+      model: "openai/gpt-4o", // Explicitly use OpenAI model to ensure JSON schema is used
+      schema: schema,
     };
-    
+
     // Mock successful response to avoid errors
     mockReader.read.mockResolvedValueOnce({ done: true });
-    
-    const generator = callAI('Get user info', options) as AsyncGenerator;
+
+    const generator = callAI("Get user info", options) as AsyncGenerator;
     await generator.next();
 
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
-    expect(body.response_format.type).toBe('json_schema');
-    expect(body.response_format.json_schema.schema.required).toEqual(['name']);
+    expect(body.response_format.type).toBe("json_schema");
+    expect(body.response_format.json_schema.schema.required).toEqual(["name"]);
   });
 
-  it('should handle schema parameter matching documentation example', async () => {
+  it("should handle schema parameter matching documentation example", async () => {
     const todoSchema: Schema = {
       properties: {
         todos: {
           type: "array",
-          items: { type: "string" }
-        }
-      }
+          items: { type: "string" },
+        },
+      },
     };
-    
-    const options = { 
-      apiKey: 'test-api-key',
-      model: 'openai/gpt-4o',  // Explicitly use OpenAI model
-      schema: todoSchema
+
+    const options = {
+      apiKey: "test-api-key",
+      model: "openai/gpt-4o", // Explicitly use OpenAI model
+      schema: todoSchema,
     };
-    
+
     mockResponse.json.mockResolvedValue({
-      choices: [{ message: { content: '{"todos": ["Learn React basics", "Build a simple app", "Master hooks"]}' } }]
+      choices: [
+        {
+          message: {
+            content:
+              '{"todos": ["Learn React basics", "Build a simple app", "Master hooks"]}',
+          },
+        },
+      ],
     });
-    
-    await callAI('Give me a todo list for learning React', options);
-    
+
+    await callAI("Give me a todo list for learning React", options);
+
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
-    expect(body.response_format.type).toBe('json_schema');
-    expect(body.response_format.json_schema.schema.properties).toEqual(todoSchema.properties);
+    expect(body.response_format.type).toBe("json_schema");
+    expect(body.response_format.json_schema.schema.properties).toEqual(
+      todoSchema.properties,
+    );
   });
 
-  it('should handle aliens schema example', async () => {
+  it("should handle aliens schema example", async () => {
     const alienSchema: Schema = {
       properties: {
         aliens: {
@@ -192,223 +207,242 @@ describe('callAI', () => {
               description: { type: "string" },
               traits: {
                 type: "array",
-                items: { type: "string" }
+                items: { type: "string" },
               },
-              environment: { type: "string" }
-            }
-          }
-        }
-      }
+              environment: { type: "string" },
+            },
+          },
+        },
+      },
     };
-    
+
     const messages: Message[] = [
-      { 
-        role: "user" as const, 
-        content: "Generate 3 unique alien species with unique biological traits, appearance, and preferred environments."
-      }
+      {
+        role: "user" as const,
+        content:
+          "Generate 3 unique alien species with unique biological traits, appearance, and preferred environments.",
+      },
     ];
-    
-    const options = { 
-      apiKey: 'test-api-key',
-      model: 'openai/gpt-4o',  // Use OpenAI model explicitly
+
+    const options = {
+      apiKey: "test-api-key",
+      model: "openai/gpt-4o", // Use OpenAI model explicitly
       stream: true,
-      schema: alienSchema
+      schema: alienSchema,
     };
-    
+
     // Mock successful response
     mockReader.read.mockResolvedValueOnce({ done: true });
-    
+
     const generator = callAI(messages, options) as AsyncGenerator;
     await generator.next();
-    
+
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
-    expect(body.response_format.type).toBe('json_schema');
+    expect(body.response_format.type).toBe("json_schema");
     // The schema is processed with additionalProperties and required fields
     // So we just check that the main structure is preserved
-    expect(body.response_format.json_schema.schema.properties.aliens.type).toBe('array');
-    expect(body.response_format.json_schema.schema.properties.aliens.items.type).toBe('object');
-    expect(body.response_format.json_schema.schema.properties.aliens.items.properties).toEqual(
-      alienSchema.properties.aliens.items.properties
+    expect(body.response_format.json_schema.schema.properties.aliens.type).toBe(
+      "array",
     );
-    expect(body.model).toBe('openai/gpt-4o');
+    expect(
+      body.response_format.json_schema.schema.properties.aliens.items.type,
+    ).toBe("object");
+    expect(
+      body.response_format.json_schema.schema.properties.aliens.items
+        .properties,
+    ).toEqual(alienSchema.properties.aliens.items.properties);
+    expect(body.model).toBe("openai/gpt-4o");
     expect(body.stream).toBe(true);
   });
 
-  it('should handle non-streaming response', async () => {
+  it("should handle non-streaming response", async () => {
     mockResponse.json.mockResolvedValue({
-      choices: [{ message: { content: 'Hello, I am an AI' } }]
+      choices: [{ message: { content: "Hello, I am an AI" } }],
     });
-    
-    const options = { 
-      apiKey: 'test-api-key'
+
+    const options = {
+      apiKey: "test-api-key",
     };
-    
-    const result = await callAI('Hello', options);
-    
-    expect(result).toBe('Hello, I am an AI');
+
+    const result = await callAI("Hello", options);
+
+    expect(result).toBe("Hello, I am an AI");
     expect(mockResponse.json).toHaveBeenCalledTimes(1);
   });
 
-  it('should include schema name property when provided', async () => {
+  it("should include schema name property when provided", async () => {
     const schemaWithName: Schema = {
-      name: 'test_schema',
+      name: "test_schema",
       properties: {
-        result: { type: 'string' }
-      }
+        result: { type: "string" },
+      },
     };
-    
-    const options = { 
-      apiKey: 'test-api-key',
-      model: 'openai/gpt-4o',  // Explicitly use OpenAI model
-      schema: schemaWithName
+
+    const options = {
+      apiKey: "test-api-key",
+      model: "openai/gpt-4o", // Explicitly use OpenAI model
+      schema: schemaWithName,
     };
-    
+
     mockResponse.json.mockResolvedValue({
-      choices: [{ message: { content: '{"result": "Test successful"}' } }]
+      choices: [{ message: { content: '{"result": "Test successful"}' } }],
     });
-    
-    await callAI('Test with schema name', options);
-    
+
+    await callAI("Test with schema name", options);
+
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
-    expect(body.response_format.type).toBe('json_schema');
-    expect(body.response_format.json_schema.name).toBe('test_schema');
+    expect(body.response_format.type).toBe("json_schema");
+    expect(body.response_format.json_schema.name).toBe("test_schema");
   });
 
-  it('should work correctly with schema without name property', async () => {
+  it("should work correctly with schema without name property", async () => {
     const schemaWithoutName: Schema = {
       properties: {
-        result: { type: 'string' }
-      }
+        result: { type: "string" },
+      },
     };
-    
-    const options = { 
-      apiKey: 'test-api-key',
-      model: 'openai/gpt-4o',  // Explicitly use OpenAI model
-      schema: schemaWithoutName
+
+    const options = {
+      apiKey: "test-api-key",
+      model: "openai/gpt-4o", // Explicitly use OpenAI model
+      schema: schemaWithoutName,
     };
-    
+
     mockResponse.json.mockResolvedValue({
-      choices: [{ message: { content: '{"result": "Test successful"}' } }]
+      choices: [{ message: { content: '{"result": "Test successful"}' } }],
     });
-    
-    await callAI('Test without schema name', options);
-    
+
+    await callAI("Test without schema name", options);
+
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
-    expect(body.response_format.type).toBe('json_schema');
-    expect(body.response_format.json_schema.name).toBe('result');
+    expect(body.response_format.type).toBe("json_schema");
+    expect(body.response_format.json_schema.name).toBe("result");
   });
 
   it('should use default name "result" when schema has no name property', async () => {
     const schemaWithoutName: Schema = {
       properties: {
-        data: { type: 'string' }
-      }
+        data: { type: "string" },
+      },
     };
-    
-    const options = { 
-      apiKey: 'test-api-key',
-      model: 'openai/gpt-4o',  // Explicitly use OpenAI model
-      schema: schemaWithoutName
+
+    const options = {
+      apiKey: "test-api-key",
+      model: "openai/gpt-4o", // Explicitly use OpenAI model
+      schema: schemaWithoutName,
     };
-    
+
     mockResponse.json.mockResolvedValue({
-      choices: [{ message: { content: '{"data": "Some content"}' } }]
+      choices: [{ message: { content: '{"data": "Some content"}' } }],
     });
-    
-    await callAI('Generate content with schema', options);
-    
+
+    await callAI("Generate content with schema", options);
+
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
-    expect(body.response_format.type).toBe('json_schema');
-    expect(body.response_format.json_schema.name).toBe('result');
+    expect(body.response_format.type).toBe("json_schema");
+    expect(body.response_format.json_schema.name).toBe("result");
   });
 
-  it('should handle schema with empty properties', async () => {
+  it("should handle schema with empty properties", async () => {
     const emptySchema: Schema = {
-      properties: {}
+      properties: {},
     };
-    
-    const options = { 
-      apiKey: 'test-api-key',
-      model: 'openai/gpt-4o',  // Explicitly use OpenAI model
-      schema: emptySchema
+
+    const options = {
+      apiKey: "test-api-key",
+      model: "openai/gpt-4o", // Explicitly use OpenAI model
+      schema: emptySchema,
     };
-    
+
     mockResponse.json.mockResolvedValue({
-      choices: [{ message: { content: '{}' } }]
+      choices: [{ message: { content: "{}" } }],
     });
-    
-    await callAI('Test with empty schema', options);
-    
+
+    await callAI("Test with empty schema", options);
+
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
-    expect(body.response_format.type).toBe('json_schema');
-    expect(body.response_format.json_schema.name).toBe('result');
+    expect(body.response_format.type).toBe("json_schema");
+    expect(body.response_format.json_schema.name).toBe("result");
     expect(body.response_format.json_schema.schema.properties).toEqual({});
     expect(body.response_format.json_schema.schema.required).toEqual([]);
   });
 
-  it('should respect additionalProperties setting in schema', async () => {
+  it("should respect additionalProperties setting in schema", async () => {
     const schema: Schema = {
       properties: {
-        result: { type: 'string' }
+        result: { type: "string" },
       },
-      additionalProperties: true
+      additionalProperties: true,
     };
-    
-    const options = { 
-      apiKey: 'test-api-key',
-      model: 'openai/gpt-4o',  // Explicitly use OpenAI model
-      schema: schema
+
+    const options = {
+      apiKey: "test-api-key",
+      model: "openai/gpt-4o", // Explicitly use OpenAI model
+      schema: schema,
     };
-    
+
     mockResponse.json.mockResolvedValue({
-      choices: [{ message: { content: '{"result": "Test successful", "extra": "Additional field"}' } }]
+      choices: [
+        {
+          message: {
+            content:
+              '{"result": "Test successful", "extra": "Additional field"}',
+          },
+        },
+      ],
     });
-    
-    await callAI('Test with additionalProperties', options);
-    
+
+    await callAI("Test with additionalProperties", options);
+
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
-    expect(body.response_format.json_schema.schema.additionalProperties).toBe(true);
+    expect(body.response_format.json_schema.schema.additionalProperties).toBe(
+      true,
+    );
   });
 
-  it('should handle errors during API call for non-streaming', async () => {
-    (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
-    
-    const options = { apiKey: 'test-api-key' };
-    const result = await callAI('Hello', options) as string;
-    
+  it("should handle errors during API call for non-streaming", async () => {
+    (global.fetch as jest.Mock).mockRejectedValue(new Error("Network error"));
+
+    const options = { apiKey: "test-api-key" };
+    const result = (await callAI("Hello", options)) as string;
+
     const errorObj = JSON.parse(result);
-    expect(errorObj.message).toContain("Sorry, I couldn't process that request:");
+    expect(errorObj.message).toContain(
+      "Sorry, I couldn't process that request:",
+    );
   });
 
-  it('should handle errors during API call for streaming', async () => {
-    (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
-    
-    const options = { apiKey: 'test-api-key', stream: true };
-    const generator = callAI('Hello', options) as AsyncGenerator;
+  it("should handle errors during API call for streaming", async () => {
+    (global.fetch as jest.Mock).mockRejectedValue(new Error("Network error"));
+
+    const options = { apiKey: "test-api-key", stream: true };
+    const generator = callAI("Hello", options) as AsyncGenerator;
     const result = await generator.next();
-    
+
     // Parse the JSON error response
     const errorObj = JSON.parse(result.value as string);
-    expect(errorObj).toHaveProperty('message');
-    expect(errorObj.message).toContain("Sorry, I couldn't process that request:");
-    expect(errorObj).toHaveProperty('error');
+    expect(errorObj).toHaveProperty("message");
+    expect(errorObj.message).toContain(
+      "Sorry, I couldn't process that request:",
+    );
+    expect(errorObj).toHaveProperty("error");
     expect(result.done).toBe(true);
   });
-  
-  it('should default to streaming mode (false) if not specified', async () => {
-    const options = { apiKey: 'test-api-key' };
-    
+
+  it("should default to streaming mode (false) if not specified", async () => {
+    const options = { apiKey: "test-api-key" };
+
     mockResponse.json.mockResolvedValue({
-      choices: [{ message: { content: 'Hello, I am an AI' } }]
+      choices: [{ message: { content: "Hello, I am an AI" } }],
     });
-    
-    await callAI('Hello', options);
+
+    await callAI("Hello", options);
 
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
     expect(body.stream).toBe(false);
   });
-  
-  it('should include schema property in json_schema', async () => {
+
+  it("should include schema property in json_schema", async () => {
     const schema: Schema = {
       properties: {
         title: { type: "string" },
@@ -421,112 +455,128 @@ describe('callAI', () => {
               title: { type: "string" },
               artist: { type: "string" },
               year: { type: "string" },
-              comment: { type: "string" }
-            }
-          }
-        }
+              comment: { type: "string" },
+            },
+          },
+        },
       },
-      required: ["title", "description", "songs"]
+      required: ["title", "description", "songs"],
     };
-    
-    const options = { 
-      apiKey: 'test-api-key',
+
+    const options = {
+      apiKey: "test-api-key",
       // GPT-4-Turbo uses system message approach by default
-      model: 'openai/gpt-4o',  // Use GPT-4o instead, which uses JSON schema
-      schema: schema
+      model: "openai/gpt-4o", // Use GPT-4o instead, which uses JSON schema
+      schema: schema,
     };
-    
+
     mockResponse.json.mockResolvedValue({
-      choices: [{ message: { content: '{"title":"Healthy Living","description":"A playlist to inspire a healthy lifestyle"}' } }]
+      choices: [
+        {
+          message: {
+            content:
+              '{"title":"Healthy Living","description":"A playlist to inspire a healthy lifestyle"}',
+          },
+        },
+      ],
     });
-    
-    await callAI('Create a themed music playlist', options);
-    
+
+    await callAI("Create a themed music playlist", options);
+
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
-    expect(body.response_format.type).toBe('json_schema');
+    expect(body.response_format.type).toBe("json_schema");
     // Check that schema property exists in json_schema containing the schema definition
     expect(body.response_format.json_schema.schema).toBeDefined();
-    
+
     // Instead of comparing full objects (which now have extra properties), check key structure
     const schemaProperties = body.response_format.json_schema.schema.properties;
-    expect(schemaProperties.title.type).toBe('string');
-    expect(schemaProperties.description.type).toBe('string');
-    expect(schemaProperties.songs.type).toBe('array');
-    expect(schemaProperties.songs.items.type).toBe('object');
-    expect(schemaProperties.songs.items.properties.title.type).toBe('string');
-    expect(schemaProperties.songs.items.properties.artist.type).toBe('string');
-    expect(schemaProperties.songs.items.properties.year.type).toBe('string');
-    expect(schemaProperties.songs.items.properties.comment.type).toBe('string');
-    
+    expect(schemaProperties.title.type).toBe("string");
+    expect(schemaProperties.description.type).toBe("string");
+    expect(schemaProperties.songs.type).toBe("array");
+    expect(schemaProperties.songs.items.type).toBe("object");
+    expect(schemaProperties.songs.items.properties.title.type).toBe("string");
+    expect(schemaProperties.songs.items.properties.artist.type).toBe("string");
+    expect(schemaProperties.songs.items.properties.year.type).toBe("string");
+    expect(schemaProperties.songs.items.properties.comment.type).toBe("string");
+
     // Check that required fields are passed through
-    expect(body.response_format.json_schema.schema.required).toEqual(schema.required);
+    expect(body.response_format.json_schema.schema.required).toEqual(
+      schema.required,
+    );
   });
-  
-  it('should handle streaming with schema for structured output', async () => {
+
+  it("should handle streaming with schema for structured output", async () => {
     const schema: Schema = {
-      name: 'weather',
+      name: "weather",
       properties: {
-        temperature: { type: 'number' },
-        conditions: { type: 'string' }
-      }
+        temperature: { type: "number" },
+        conditions: { type: "string" },
+      },
     };
-    
-    const options = { 
-      apiKey: 'test-api-key', 
-      model: 'openai/gpt-4o',  // Explicitly use OpenAI model
+
+    const options = {
+      apiKey: "test-api-key",
+      model: "openai/gpt-4o", // Explicitly use OpenAI model
       stream: true,
-      schema: schema
+      schema: schema,
     };
-    
+
     // Mock response and reader behavior more comprehensively
     const mockResponseWithBody = {
       ok: true,
       status: 200,
       body: {
         getReader: jest.fn().mockReturnValue({
-          read: jest.fn()
+          read: jest
+            .fn()
             .mockResolvedValueOnce({
               done: false,
-              value: new TextEncoder().encode(`data: {"choices":[{"delta":{"content":"{\\"temp"}}]}\n\n`)
+              value: new TextEncoder().encode(
+                `data: {"choices":[{"delta":{"content":"{\\"temp"}}]}\n\n`,
+              ),
             })
             .mockResolvedValueOnce({
               done: false,
-              value: new TextEncoder().encode(`data: {"choices":[{"delta":{"content":"erature\\": 22, \\"cond"}}]}\n\n`)
+              value: new TextEncoder().encode(
+                `data: {"choices":[{"delta":{"content":"erature\\": 22, \\"cond"}}]}\n\n`,
+              ),
             })
             .mockResolvedValueOnce({
               done: false,
-              value: new TextEncoder().encode(`data: {"choices":[{"delta":{"content":"itions\\": \\"Sunny\\"}"}}]}\n\n`)
+              value: new TextEncoder().encode(
+                `data: {"choices":[{"delta":{"content":"itions\\": \\"Sunny\\"}"}}]}\n\n`,
+              ),
             })
             .mockResolvedValueOnce({
-              done: true
-            })
-        })
-      }
+              done: true,
+            }),
+        }),
+      },
     };
-    
+
     // Override the global.fetch mock for this test
     (global.fetch as jest.Mock).mockResolvedValueOnce(mockResponseWithBody);
-    
-    const generator = callAI('What is the weather?', options) as AsyncGenerator;
-    
+
+    const generator = callAI("What is the weather?", options) as AsyncGenerator;
+
     // Manually iterate and collect
-    let finalValue = '';
+    let finalValue = "";
     let result = await generator.next();
     while (!result.done) {
       finalValue = result.value as string;
       result = await generator.next();
     }
-    
+
     // Verify request format
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
-    expect(body.response_format.type).toBe('json_schema');
-    expect(body.response_format.json_schema.name).toBe('weather');
+    expect(body.response_format.type).toBe("json_schema");
+    expect(body.response_format.json_schema.name).toBe("weather");
     expect(body.stream).toBe(true);
-    
+
     // With our mock, we expect the final value to include the combined chunks
-    expect(finalValue).toContain('temperature');
-    expect(finalValue).toContain('22');
-    expect(finalValue).toContain('conditions');
-    expect(finalValue).toContain('Sunny');
+    expect(finalValue).toContain("temperature");
+    expect(finalValue).toContain("22");
+    expect(finalValue).toContain("conditions");
+    expect(finalValue).toContain("Sunny");
   });
-}); 
+});

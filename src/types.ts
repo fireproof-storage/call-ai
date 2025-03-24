@@ -3,7 +3,7 @@
  */
 
 export type Message = {
-  role: 'user' | 'system' | 'assistant';
+  role: "user" | "system" | "assistant";
   content: string;
 };
 
@@ -44,7 +44,11 @@ export interface ModelStrategy {
 /**
  * Schema strategies for different model types
  */
-export type SchemaStrategyType = 'json_schema' | 'tool_mode' | 'system_message' | 'none';
+export type SchemaStrategyType =
+  | "json_schema"
+  | "tool_mode"
+  | "system_message"
+  | "none";
 
 /**
  * Strategy selection result
@@ -52,8 +56,8 @@ export type SchemaStrategyType = 'json_schema' | 'tool_mode' | 'system_message' 
 export interface SchemaStrategy {
   strategy: SchemaStrategyType;
   model: string;
-  prepareRequest: ModelStrategy['prepareRequest'];
-  processResponse: ModelStrategy['processResponse'];
+  prepareRequest: ModelStrategy["prepareRequest"];
+  processResponse: ModelStrategy["processResponse"];
   shouldForceStream: boolean;
 }
 
@@ -74,4 +78,4 @@ export interface AIResponse {
     totalTokens: number;
   };
   model: string;
-} 
+}

@@ -3,11 +3,11 @@
  */
 
 // Export public types
-export * from './types';
+export * from "./types";
 
 // Export API function
-export { callAI } from './api';
+export { callAI } from "./api";
 
 // Export strategies and utilities for advanced use cases
-export * from './strategies';
-export * from './utils'; 
+export * from "./strategies";
+export * from "./utils";
