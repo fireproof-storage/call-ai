@@ -80,33 +80,33 @@ export interface CallAIOptions {
    * API key for authentication
    */
   apiKey?: string;
-  
+
   /**
    * Model ID to use for the request
    */
   model?: string;
-  
+
   /**
    * API endpoint to send the request to
    */
   endpoint?: string;
-  
+
   /**
    * Whether to stream the response
    */
   stream?: boolean;
-  
+
   /**
    * Schema for structured output
    */
   schema?: Schema | null;
-  
+
   /**
    * Modalities to enable in the response (e.g., ["image", "text"])
    * Used for multimodal models that can generate images
    */
   modalities?: string[];
-  
+
   /**
    * Any additional options to pass to the API
    */
