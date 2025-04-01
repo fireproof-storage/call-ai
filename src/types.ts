@@ -2,9 +2,23 @@
  * Type definitions for call-ai
  */
 
+/**
+ * Content types for multimodal messages
+ */
+export type ContentItem = {
+  type: "text" | "image_url";
+  text?: string;
+  image_url?: {
+    url: string;
+  };
+};
+
+/**
+ * Message type supporting both simple string content and multimodal content
+ */
 export type Message = {
   role: "user" | "system" | "assistant";
-  content: string;
+  content: string | ContentItem[];
 };
 
 export interface Schema {
@@ -62,11 +76,40 @@ export interface SchemaStrategy {
 }
 
 export interface CallAIOptions {
+  /**
+   * API key for authentication
+   */
   apiKey?: string;
+  
+  /**
+   * Model ID to use for the request
+   */
   model?: string;
+  
+  /**
+   * API endpoint to send the request to
+   */
   endpoint?: string;
+  
+  /**
+   * Whether to stream the response
+   */
   stream?: boolean;
+  
+  /**
+   * Schema for structured output
+   */
   schema?: Schema | null;
+  
+  /**
+   * Modalities to enable in the response (e.g., ["image", "text"])
+   * Used for multimodal models that can generate images
+   */
+  modalities?: string[];
+  
+  /**
+   * Any additional options to pass to the API
+   */
   [key: string]: any;
 }
 

@@ -121,7 +121,12 @@ function prepareRequestParams(
     stream: options.stream === true,
     messages: messages,
   };
-
+  
+  // Support for multimodal content (like images)
+  if (options.modalities && options.modalities.length > 0) {
+    requestParams.modalities = options.modalities;
+  }
+  
   // Apply the strategy's request preparation
   const strategyParams = schemaStrategy.prepareRequest(schema, messages);
 

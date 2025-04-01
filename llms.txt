@@ -422,3 +422,42 @@ try {
   console.error("Unexpected error:", e);
 }
 ```
+
+## Image Recognition Example
+
+Call-AI supports image recognition using multimodal models like GPT-4o. You can pass both text and image content to analyze images in the browser:
+
+```javascript
+import { callAI } from 'call-ai';
+
+// Function to analyze an image using GPT-4o
+async function analyzeImage(imageFile, prompt = 'Describe this image in detail') {
+  // Convert the image file to a data URL
+  const dataUrl = await fileToDataUrl(imageFile);
+  
+  const content = [
+    { type: 'text', text: prompt },
+    { type: 'image_url', image_url: { url: dataUrl } }
+  ];
+  
+  // Call the model with the multimodal content
+  const result = await callAI(
+    [{ role: 'user', content }],
+    {
+      model: 'openai/gpt-4o-2024-08-06', // Or 'openai/gpt-4o-latest'
+      apiKey: window.CALLAI_API_KEY,
+    }
+  );
+  
+  return result;
+}
+
+// Helper function to convert File to data URL
+async function fileToDataUrl(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.readAsDataURL(file);
+  });
+}
+```
