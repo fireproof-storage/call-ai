@@ -153,6 +153,8 @@ function prepareRequestParams(
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
+      "HTTP-Referer": "https://vibes.diy",
+      "X-Title": "Vibes",
       "Content-Type": "application/json",
     },
     body: JSON.stringify(requestParams),

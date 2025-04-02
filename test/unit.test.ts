@@ -79,6 +79,8 @@ describe("callAI", () => {
         method: "POST",
         headers: {
           Authorization: "Bearer test-api-key",
+          "HTTP-Referer": "https://vibes.diy",
+          "X-Title": "Vibes",
           "Content-Type": "application/json",
         },
       }),

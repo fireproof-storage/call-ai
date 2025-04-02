@@ -23,7 +23,8 @@
     "prepublishOnly": "npm run build",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "coverage": "jest --coverage"
+    "coverage": "jest --coverage",
+    "check": "npm run typecheck && npm run format && npm run test"
   },
   "keywords": [
     "ai",
