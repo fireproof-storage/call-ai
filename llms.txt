@@ -275,6 +275,7 @@ console.log(response);
 | Model | Best For | Speed vs Quality |
 |-------|----------|------------------|
 | `openrouter/auto` | Default, automatically selects | Adaptive |
+| `google/gemini-2.0-flash-001` | data generation | Fast, good quality |
 | `anthropic/claude-3-haiku` | Cost-effective | Fast, good quality |
 | `openai/gpt-4o` | Best overall quality | Medium speed, highest quality |
 | `anthropic/claude-3-opus` | Complex reasoning | Slower, highest quality |
