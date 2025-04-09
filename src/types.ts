@@ -108,6 +108,12 @@ export interface CallAIOptions {
   modalities?: string[];
 
   /**
+   * Whether to skip retry with fallback model when model errors occur
+   * Useful in testing and cases where retries should be suppressed
+   */
+  skipRetry?: boolean;
+
+  /**
    * Any additional options to pass to the API
    */
   [key: string]: any;

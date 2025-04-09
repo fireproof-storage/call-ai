@@ -27,6 +27,9 @@ const mockResponse = {
   body: {
     getReader: jest.fn().mockReturnValue(mockReader),
   },
+  ok: true, // Ensure response is treated as successful
+  status: 200,
+  statusText: "OK",
 };
 
 describe("callAI", () => {
@@ -264,6 +267,7 @@ describe("callAI", () => {
 
     const options = {
       apiKey: "test-api-key",
+      skipRetry: true, // Prevent fallback retry mechanism for tests
     };
 
     const result = await callAI("Hello", options);

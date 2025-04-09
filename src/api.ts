@@ -83,6 +83,41 @@ function handleApiError(error: any, context: string): string {
 }
 
 /**
+ * Helper to check if an error indicates invalid model and handle fallback
+ */
+async function checkForInvalidModelError(
+  response: Response,
+  model: string,
+  isRetry: boolean,
+  skipRetry: boolean = false,
+): Promise<{ isInvalidModel: boolean; errorData?: any }> {
+  // Skip retry immediately if skipRetry is true
+  if (skipRetry || response.status !== 400 || isRetry) {
+    return { isInvalidModel: false };
+  }
+
+  // Clone the response so we can read the body
+  const clonedResponse = response.clone();
+  try {
+    const errorData = await clonedResponse.json();
+    // Check if the error message indicates an invalid model
+    if (
+      errorData.error &&
+      errorData.error.message &&
+      errorData.error.message.toLowerCase().includes("not a valid model")
+    ) {
+      console.warn(`Model ${model} not valid, retrying with ${FALLBACK_MODEL}`);
+      return { isInvalidModel: true };
+    }
+    return { isInvalidModel: false, errorData };
+  } catch (parseError) {
+    // If we can't parse the response as JSON, continue with original error
+    console.error("Failed to parse error response:", parseError);
+    return { isInvalidModel: false };
+  }
+}
+
+/**
  * Prepare request parameters common to both streaming and non-streaming calls
  */
 function prepareRequestParams(
@@ -182,33 +217,22 @@ async function callAINonStreaming(
 
     // Handle HTTP errors, with potential fallback for invalid model
     if (!response.ok) {
-      // If we get a 400 status and it's not already a retry
-      if (response.status === 400 && !isRetry) {
-        // Clone the response so we can read the body
-        const clonedResponse = response.clone();
-        try {
-          const errorData = await clonedResponse.json();
-          // Check if the error message indicates an invalid model
-          if (
-            errorData.error &&
-            errorData.error.message &&
-            errorData.error.message.toLowerCase().includes("not a valid model")
-          ) {
-            console.warn(
-              `Model ${model} not valid, retrying with ${FALLBACK_MODEL}`,
-            );
-            // Retry with fallback model
-            return callAINonStreaming(
-              prompt,
-              { ...options, model: FALLBACK_MODEL },
-              true,
-            );
-          }
-        } catch (parseError) {
-          // If we can't parse the response as JSON, continue with original error
-          console.error("Failed to parse error response:", parseError);
-        }
+      const { isInvalidModel } = await checkForInvalidModelError(
+        response,
+        model,
+        isRetry,
+        options.skipRetry,
+      );
+
+      if (isInvalidModel) {
+        // Retry with fallback model
+        return callAINonStreaming(
+          prompt,
+          { ...options, model: FALLBACK_MODEL },
+          true,
+        );
       }
+
       throw new Error(`HTTP error! Status: ${response.status}`);
     }
 
@@ -231,6 +255,7 @@ async function callAINonStreaming(
       // If it's a model error and not already a retry, try with fallback
       if (
         !isRetry &&
+        !options.skipRetry &&
         result.error.message &&
         result.error.message.toLowerCase().includes("not a valid model")
       ) {
@@ -351,32 +376,20 @@ async function* callAIStreaming(
     const response = await fetch(endpoint, requestOptions);
 
     if (!response.ok) {
-      // If we get a 400 status and it's not already a retry
-      if (response.status === 400 && !isRetry) {
-        // Clone the response so we can read the body
-        const clonedResponse = response.clone();
-        try {
-          const errorData = await clonedResponse.json();
-          // Check if the error message indicates an invalid model
-          if (
-            errorData.error &&
-            errorData.error.message &&
-            errorData.error.message.toLowerCase().includes("not a valid model")
-          ) {
-            console.warn(
-              `Model ${model} not valid, retrying with ${FALLBACK_MODEL}`,
-            );
-            // Retry with fallback model
-            return yield* callAIStreaming(
-              prompt,
-              { ...options, model: FALLBACK_MODEL },
-              true,
-            );
-          }
-        } catch (parseError) {
-          // If we can't parse the response as JSON, continue with original error
-          console.error("Failed to parse error response:", parseError);
-        }
+      const { isInvalidModel } = await checkForInvalidModelError(
+        response,
+        model,
+        isRetry,
+        options.skipRetry,
+      );
+
+      if (isInvalidModel) {
+        // Retry with fallback model
+        return yield* callAIStreaming(
+          prompt,
+          { ...options, model: FALLBACK_MODEL },
+          true,
+        );
       }
       const errorText = await response.text();
       console.error(
