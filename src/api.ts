@@ -4,6 +4,9 @@
 import { CallAIOptions, Message, SchemaStrategy } from "./types";
 import { chooseSchemaStrategy } from "./strategies";
 
+// Default fallback model when the primary model fails or is unavailable
+const FALLBACK_MODEL = "openrouter/auto";
+
 /**
  * Make an AI API call with the given options
  * @param prompt User prompt as string or an array of message objects
@@ -169,12 +172,43 @@ function prepareRequestParams(
 async function callAINonStreaming(
   prompt: string | Message[],
   options: CallAIOptions = {},
+  isRetry: boolean = false
 ): Promise<string> {
   try {
     const { endpoint, requestOptions, model, schemaStrategy } =
       prepareRequestParams(prompt, options);
 
     const response = await fetch(endpoint, requestOptions);
+
+    // Handle HTTP errors, with potential fallback for invalid model
+    if (!response.ok) {
+      // If we get a 400 status and it's not already a retry
+      if (response.status === 400 && !isRetry) {
+        // Clone the response so we can read the body
+        const clonedResponse = response.clone();
+        try {
+          const errorData = await clonedResponse.json();
+          // Check if the error message indicates an invalid model
+          if (
+            errorData.error &&
+            errorData.error.message &&
+            errorData.error.message.toLowerCase().includes('not a valid model')
+          ) {
+            console.warn(`Model ${model} not valid, retrying with ${FALLBACK_MODEL}`);
+            // Retry with fallback model
+            return callAINonStreaming(
+              prompt, 
+              { ...options, model: FALLBACK_MODEL },
+              true
+            );
+          }
+        } catch (parseError) {
+          // If we can't parse the response as JSON, continue with original error
+          console.error('Failed to parse error response:', parseError);
+        }
+      }
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
 
     let result;
 
@@ -192,6 +226,17 @@ async function callAINonStreaming(
     // Handle error responses
     if (result.error) {
       console.error("API returned an error:", result.error);
+      // If it's a model error and not already a retry, try with fallback
+      if (!isRetry && 
+          result.error.message && 
+          result.error.message.toLowerCase().includes('not a valid model')) {
+        console.warn(`Model ${model} error, retrying with ${FALLBACK_MODEL}`);
+        return callAINonStreaming(
+          prompt, 
+          { ...options, model: FALLBACK_MODEL },
+          true
+        );
+      }
       return JSON.stringify({
         error: result.error,
         message: result.error.message || "API returned an error",
@@ -293,6 +338,7 @@ async function extractClaudeResponse(response: Response): Promise<any> {
 async function* callAIStreaming(
   prompt: string | Message[],
   options: CallAIOptions = {},
+  isRetry: boolean = false
 ): AsyncGenerator<string, string, unknown> {
   try {
     const { endpoint, requestOptions, model, schemaStrategy } =
@@ -301,6 +347,31 @@ async function* callAIStreaming(
     const response = await fetch(endpoint, requestOptions);
 
     if (!response.ok) {
+      // If we get a 400 status and it's not already a retry
+      if (response.status === 400 && !isRetry) {
+        // Clone the response so we can read the body
+        const clonedResponse = response.clone();
+        try {
+          const errorData = await clonedResponse.json();
+          // Check if the error message indicates an invalid model
+          if (
+            errorData.error &&
+            errorData.error.message &&
+            errorData.error.message.toLowerCase().includes('not a valid model')
+          ) {
+            console.warn(`Model ${model} not valid, retrying with ${FALLBACK_MODEL}`);
+            // Retry with fallback model
+            return yield* callAIStreaming(
+              prompt, 
+              { ...options, model: FALLBACK_MODEL },
+              true
+            );
+          }
+        } catch (parseError) {
+          // If we can't parse the response as JSON, continue with original error
+          console.error('Failed to parse error response:', parseError);
+        }
+      }
       const errorText = await response.text();
       console.error(
         `API Error: ${response.status} ${response.statusText}`,
