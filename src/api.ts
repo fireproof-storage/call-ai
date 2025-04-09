@@ -172,7 +172,7 @@ function prepareRequestParams(
 async function callAINonStreaming(
   prompt: string | Message[],
   options: CallAIOptions = {},
-  isRetry: boolean = false
+  isRetry: boolean = false,
 ): Promise<string> {
   try {
     const { endpoint, requestOptions, model, schemaStrategy } =
@@ -192,19 +192,21 @@ async function callAINonStreaming(
           if (
             errorData.error &&
             errorData.error.message &&
-            errorData.error.message.toLowerCase().includes('not a valid model')
+            errorData.error.message.toLowerCase().includes("not a valid model")
           ) {
-            console.warn(`Model ${model} not valid, retrying with ${FALLBACK_MODEL}`);
+            console.warn(
+              `Model ${model} not valid, retrying with ${FALLBACK_MODEL}`,
+            );
             // Retry with fallback model
             return callAINonStreaming(
-              prompt, 
+              prompt,
               { ...options, model: FALLBACK_MODEL },
-              true
+              true,
             );
           }
         } catch (parseError) {
           // If we can't parse the response as JSON, continue with original error
-          console.error('Failed to parse error response:', parseError);
+          console.error("Failed to parse error response:", parseError);
         }
       }
       throw new Error(`HTTP error! Status: ${response.status}`);
@@ -227,14 +229,16 @@ async function callAINonStreaming(
     if (result.error) {
       console.error("API returned an error:", result.error);
       // If it's a model error and not already a retry, try with fallback
-      if (!isRetry && 
-          result.error.message && 
-          result.error.message.toLowerCase().includes('not a valid model')) {
+      if (
+        !isRetry &&
+        result.error.message &&
+        result.error.message.toLowerCase().includes("not a valid model")
+      ) {
         console.warn(`Model ${model} error, retrying with ${FALLBACK_MODEL}`);
         return callAINonStreaming(
-          prompt, 
+          prompt,
           { ...options, model: FALLBACK_MODEL },
-          true
+          true,
         );
       }
       return JSON.stringify({
@@ -338,7 +342,7 @@ async function extractClaudeResponse(response: Response): Promise<any> {
 async function* callAIStreaming(
   prompt: string | Message[],
   options: CallAIOptions = {},
-  isRetry: boolean = false
+  isRetry: boolean = false,
 ): AsyncGenerator<string, string, unknown> {
   try {
     const { endpoint, requestOptions, model, schemaStrategy } =
@@ -357,19 +361,21 @@ async function* callAIStreaming(
           if (
             errorData.error &&
             errorData.error.message &&
-            errorData.error.message.toLowerCase().includes('not a valid model')
+            errorData.error.message.toLowerCase().includes("not a valid model")
           ) {
-            console.warn(`Model ${model} not valid, retrying with ${FALLBACK_MODEL}`);
+            console.warn(
+              `Model ${model} not valid, retrying with ${FALLBACK_MODEL}`,
+            );
             // Retry with fallback model
             return yield* callAIStreaming(
-              prompt, 
+              prompt,
               { ...options, model: FALLBACK_MODEL },
-              true
+              true,
             );
           }
         } catch (parseError) {
           // If we can't parse the response as JSON, continue with original error
-          console.error('Failed to parse error response:', parseError);
+          console.error("Failed to parse error response:", parseError);
         }
       }
       const errorText = await response.text();
