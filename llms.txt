@@ -281,41 +281,45 @@ console.log(response);
 | `anthropic/claude-3-opus` | Complex reasoning | Slower, highest quality |
 | `mistralai/mistral-large` | Open weights alternative | Good balance |
 
-## Aliens Example
+## Automatic Retry Mechanism
+
+Call-AI has a built-in fallback mechanism that automatically retries with `openrouter/auto` if the requested model is invalid or unavailable. This ensures your application remains functional even when specific models experience issues.
+
+If you need to disable this behavior (for example, in test environments), you can use the `skipRetry` option:
+
+```javascript
+const response = await callAI("Your prompt", {
+  model: "your-model-name",
+  skipRetry: true  // Disable automatic fallback
+});
+```
+
+## Items with lists
 
 ```javascript
 import { callAI } from 'call-ai';
 
-// Making the call with message array and schema
 const generator = callAI([
   {
     role: "user",
-    content: "Generate 3 unique alien species with unique biological traits, appearance, and preferred environments. Make them scientifically plausible but creative."
+    content: "Generate 3 JSON records with name, description, tags, and priority (0 is highest, 5 is lowest)."
   }
 ], {
   stream: true,
   schema: {
     properties: {
-      aliens: {
+      records: {
         type: "array",
         items: {
           type: "object",
           properties: {
-            name: {
-              type: "string"
-            },
-            description: {
-              type: "string"
-            },
-            traits: {
+            name: { type: "string" },
+            description: { type: "string" },
+            tags: {
               type: "array",
-              items: {
-                type: "string"
-              }
+              items: { type: "string" }
             },
-            environment: {
-              type: "string"
-            }
+            priority: { type: "integer" }
           }
         }
       }
@@ -323,32 +327,29 @@ const generator = callAI([
   }
 });
 
-// Process the streaming response
 for await (const partialResponse of generator) {
-  console.log(partialResponse); // Will show the JSON being built incrementally
+  console.log(partialResponse);
 }
 
-// After streaming is complete, you can parse the final response
-const alienData = JSON.parse(/*final response*/);
-console.log(alienData.aliens); // Array of alien species
+const recordData = JSON.parse(/* final response */);
+console.log(recordData.records); // Array of records
 ```
 
-## Cyberpunk Fortune Example
+## Items with properties
 
 ```javascript
-const demoData = await callAI("Generate 4 fictional cyberpunk fortune scenarios with name, desire, fear, mood (from: elated, hopeful, neutral, anxious, defeated), and fortune text. Return as structured JSON with these fields.", {
+const demoData = await callAI("Generate 4 items with label, status, priority (low, medium, high, critical), and notes. Return as structured JSON with these fields.", {
   schema: {
     properties: {
-      fortunes: {
+      items: {
         type: "array",
         items: {
           type: "object",
           properties: {
-            name: { type: "string" },
-            desire: { type: "string" },
-            fear: { type: "string" },
-            mood: { type: "string" },
-            fortune: { type: "string" }
+            label: { type: "string" },
+            status: { type: "string" },
+            priority: { type: "string" },
+            notes: { type: "string" }
           }
         }
       }
