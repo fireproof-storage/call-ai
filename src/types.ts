@@ -114,6 +114,11 @@ export interface CallAIOptions {
   skipRetry?: boolean;
 
   /**
+   * Enable raw response logging without any filtering or processing
+   */
+  debug?: boolean;
+
+  /**
    * Any additional options to pass to the API
    */
   [key: string]: any;

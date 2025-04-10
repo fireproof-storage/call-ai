@@ -18,8 +18,9 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "jest",
-    "test:integration": "jest --testMatch=\"**/test/integration.test.ts\" --testPathIgnorePatterns=''",
+    "test": "jest --testPathIgnorePatterns=\".*\\.integration\\.test\\.ts$\"",
+    "test:integration": "jest --testMatch=\"**/*\\.integration\\.test\\.ts\"",
+    "test:all": "jest",
     "prepublishOnly": "npm run build",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",

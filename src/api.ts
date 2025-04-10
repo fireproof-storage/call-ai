@@ -198,6 +198,16 @@ function prepareRequestParams(
     body: JSON.stringify(requestParams),
   };
 
+  // Debug logging for request payload
+  if (options.debug) {
+    console.log(`[callAI-prepareRequest:raw] Endpoint: ${endpoint}`);
+    console.log(`[callAI-prepareRequest:raw] Model: ${model}`);
+    console.log(
+      `[callAI-prepareRequest:raw] Payload:`,
+      JSON.stringify(requestParams),
+    );
+  }
+
   return { apiKey, model, endpoint, requestOptions, schemaStrategy };
 }
 
@@ -247,6 +257,14 @@ async function callAINonStreaming(
       }
     } else {
       result = await response.json();
+    }
+
+    // Debug logging for raw API response
+    if (options.debug) {
+      console.log(
+        `[callAI-nonStreaming:raw] Response:`,
+        JSON.stringify(result),
+      );
     }
 
     // Handle error responses
@@ -417,6 +435,11 @@ async function* callAIStreaming(
     while (true) {
       const { done, value } = await reader.read();
       if (done) {
+        if (options.debug) {
+          console.log(
+            `[callAI-streaming:complete] Stream finished after ${chunkCount} chunks`,
+          );
+        }
         break;
       }
 
@@ -426,6 +449,11 @@ async function* callAIStreaming(
 
       for (const line of lines) {
         if (line.startsWith("data: ")) {
+          // Simple debug logging of raw SSE events with no processing
+          if (options.debug) {
+            console.log(`[callAI:raw] ${line}`);
+          }
+
           // Skip [DONE] marker or OPENROUTER PROCESSING lines
           if (
             line.includes("[DONE]") ||
