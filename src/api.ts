@@ -473,6 +473,18 @@ async function* callAIStreaming(
             // Parse the JSON chunk
             const json = JSON.parse(jsonLine);
 
+            // Check for error in the parsed JSON response
+            if (json.error) {
+              // Use the standard error format as the rest of the library
+              const errorResponse = handleApiError(
+                new Error(`API returned error: ${JSON.stringify(json.error)}`),
+                "Streaming API call error",
+              );
+              yield errorResponse;
+              // After yielding the error, break out of the loop to end streaming
+              break;
+            }
+
             // Handle tool use response - Claude with schema cases
             const isClaudeWithSchema =
               /claude/i.test(model) && schemaStrategy.strategy === "tool_mode";
