@@ -360,13 +360,13 @@ const demoData = await callAI("Generate 4 items with label, status, priority (lo
 
 ## Error Handling
 
-The library uses standard JavaScript error throwing mechanics. All errors are handled through standard JavaScript try/catch blocks:
+Errors are handled through standard JavaScript try/catch blocks:
 
 ```javascript
 import { callAI } from 'call-ai';
 
 try {
-  // Both streaming and non-streaming mode throw errors properly
+
   const response = await callAI("Generate some content", {
     apiKey: "invalid-key" // Invalid or missing API key
   });
@@ -374,7 +374,7 @@ try {
   // If no error was thrown, process the normal response
   console.log(response);
 } catch (error) {
-  // All API errors are now proper Error objects
+  // API errors are standard Error objects
   console.error("API error:", error.message);
 }
 ```
