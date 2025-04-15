@@ -67,19 +67,18 @@ async function bufferStreamingResults(
 
     return finalResult;
   } catch (error) {
-    return handleApiError(error, "Streaming buffer error");
+    handleApiError(error, "Streaming buffer error", options.debug);
   }
 }
 
 /**
  * Standardized API error handler
  */
-function handleApiError(error: any, context: string): string {
-  console.error(`[callAI:${context}]:`, error);
-  return JSON.stringify({
-    error: String(error),
-    message: `Sorry, I couldn't process that request: ${String(error)}`,
-  });
+function handleApiError(error: any, context: string, debug: boolean = false): never {
+  if (debug) {
+    console.error(`[callAI:${context}]:`, error);
+  }
+  throw new Error(`${context}: ${String(error)}`);
 }
 
 /**
@@ -253,7 +252,7 @@ async function callAINonStreaming(
       try {
         result = await extractClaudeResponse(response);
       } catch (error) {
-        return handleApiError(error, "Claude API response processing failed");
+        handleApiError(error, "Claude API response processing failed", options.debug);
       }
     } else {
       result = await response.json();
@@ -296,7 +295,7 @@ async function callAINonStreaming(
     // Process the content based on model type
     return schemaStrategy.processResponse(content);
   } catch (error) {
-    return handleApiError(error, "Non-streaming API call");
+    handleApiError(error, "Non-streaming API call", options.debug);
   }
 }
 
@@ -476,13 +475,13 @@ async function* callAIStreaming(
             // Check for error in the parsed JSON response
             if (json.error) {
               // Use the standard error format as the rest of the library
-              const errorResponse = handleApiError(
+              // We need to throw the error properly
+              handleApiError(
                 new Error(`API returned error: ${JSON.stringify(json.error)}`),
                 "Streaming API call error",
+                options.debug
               );
-              yield errorResponse;
-              // After yielding the error, break out of the loop to end streaming
-              break;
+              // This code is unreachable as handleApiError throws
             }
 
             // Handle tool use response - Claude with schema cases
@@ -623,6 +622,6 @@ async function* callAIStreaming(
     // Ensure the final return has proper, processed content
     return schemaStrategy.processResponse(completeText);
   } catch (error) {
-    return handleApiError(error, "Streaming API call");
+    handleApiError(error, "Streaming API call", options.debug);
   }
 }
