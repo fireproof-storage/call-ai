@@ -1,7 +1,7 @@
 /**
  * Core API implementation for call-ai
  */
-import { CallAIOptions, Message, SchemaStrategy, StreamResponse } from "./types";
+import { CallAIOptions, Message, SchemaStrategy, StreamResponse, ThenableStreamResponse } from "./types";
 import { chooseSchemaStrategy } from "./strategies";
 
 // Import package version for debugging
@@ -16,7 +16,8 @@ const FALLBACK_MODEL = "openrouter/auto";
  * @param prompt User prompt as string or an array of message objects
  * @param options Configuration options including optional schema for structured output
  * @returns A Promise that resolves to the complete response string when streaming is disabled,
- *          or an AsyncGenerator that yields partial responses when streaming is enabled
+ *          or a Promise that resolves to an AsyncGenerator when streaming is enabled. 
+ *          The AsyncGenerator yields partial responses as they arrive.
  */
 export function callAI(
   prompt: string | Message[],
@@ -40,70 +41,210 @@ export function callAI(
   }
 
   // Handle streaming mode - return a Promise that resolves to an AsyncGenerator
-  return (async () => {
+  // but also supports legacy non-awaited usage for backward compatibility
+  const streamPromise = (async () => {
     // Do setup and validation before returning the generator
     const { endpoint, requestOptions, model, schemaStrategy } =
       prepareRequestParams(prompt, { ...options, stream: true });
 
     // Make the fetch request and handle errors before creating the generator
-    const response = await fetch(endpoint, requestOptions);
-
-    // Enhanced error handling with more debugging
-    if (!response.ok) {
-      if (options.debug) {
-        console.error(
-          `[callAI:${PACKAGE_VERSION}] HTTP Error:`,
-          response.status,
-          response.statusText,
-          response.url
-        );
-      }
-
-      // Check if this is an invalid model error
-      const { isInvalidModel, errorData } = await checkForInvalidModelError(
-        response.clone(), // Clone response since we'll need to read body twice
-        model,
-        false,
-        options.skipRetry,
-      );
-
-      if (isInvalidModel && !options.skipRetry) {
-        if (options.debug) {
-          console.log(`[callAI:${PACKAGE_VERSION}] Retrying with fallback model: ${FALLBACK_MODEL}`);
-        }
-        // Retry with fallback model - it will return a promise
-        const result = await callAI(prompt, { ...options, model: FALLBACK_MODEL });
-        return result as StreamResponse;
-      }
-
-      // Get full error text from body
-      const errorText = await response.text();
-      if (options.debug) {
-        console.error(
-          `[callAI:${PACKAGE_VERSION}] Error response body:`,
-          errorText
-        );
-      }
-      
-      // Create a detailed error with status information
-      const errorMessage = `API returned error ${response.status}: ${response.statusText}`;
-      const error = new Error(errorMessage);
-      
-      // Add extra properties for more context
-      (error as any).status = response.status;
-      (error as any).statusText = response.statusText;
-      (error as any).details = errorText;
-      
-      // Ensure this error is thrown and caught properly in the Promise chain
-      if (options.debug) {
-        console.error(`[callAI:${PACKAGE_VERSION}] Throwing error:`, error);
-      }
-      throw error;
+    if (options.debug) {
+      console.log(`[callAI:${PACKAGE_VERSION}] Making fetch request to: ${endpoint}`);
+      console.log(`[callAI:${PACKAGE_VERSION}] With model: ${model}`);
+      console.log(`[callAI:${PACKAGE_VERSION}] Request headers:`, JSON.stringify(requestOptions.headers));
     }
     
+    let response;
+    try {
+      response = await fetch(endpoint, requestOptions);
+      if (options.debug) {
+        console.log(`[callAI:${PACKAGE_VERSION}] Fetch completed with status:`, response.status, response.statusText);
+        
+        // Log all headers
+        console.log(`[callAI:${PACKAGE_VERSION}] Response headers:`);
+        response.headers.forEach((value, name) => {
+          console.log(`[callAI:${PACKAGE_VERSION}]   ${name}: ${value}`);
+        });
+        
+        // Clone response for diagnostic purposes only
+        const diagnosticResponse = response.clone();
+        try {
+          // Try to get the response as text for debugging
+          const responseText = await diagnosticResponse.text();
+          console.log(`[callAI:${PACKAGE_VERSION}] First 500 chars of response body:`, 
+            responseText.substring(0, 500) + (responseText.length > 500 ? '...' : ''));
+        } catch (e) {
+          console.log(`[callAI:${PACKAGE_VERSION}] Could not read response body for diagnostics:`, e);
+        }
+      }
+    } catch (fetchError) {
+      console.error(`[callAI:${PACKAGE_VERSION}] Network error during fetch:`, fetchError);
+      throw fetchError; // Re-throw network errors
+    }
+    
+    // Explicitly check for HTTP error status and log extensively if debug is enabled
+    const contentType = response.headers.get('content-type') || '';
+    
+    if (options.debug) {
+      console.log(`[callAI:${PACKAGE_VERSION}] Response.ok =`, response.ok);
+      console.log(`[callAI:${PACKAGE_VERSION}] Response.status =`, response.status);
+      console.log(`[callAI:${PACKAGE_VERSION}] Response.statusText =`, response.statusText);
+      console.log(`[callAI:${PACKAGE_VERSION}] Response.type =`, response.type);
+      console.log(`[callAI:${PACKAGE_VERSION}] Content-Type =`, contentType);
+    }
+    
+    // Browser-compatible error handling - must check BOTH status code AND content-type
+    // Some browsers will report status 200 for SSE streams even when server returns 400
+    const hasHttpError = !response.ok || response.status >= 400;
+    const hasJsonError = contentType.includes('application/json');
+    
+    if (hasHttpError || hasJsonError) {
+      if (options.debug) {
+        console.log(`[callAI:${PACKAGE_VERSION}] ⚠️ Error detected - HTTP Status: ${response.status}, Content-Type: ${contentType}`);
+      }
+      
+      // Handle the error with fallback model if appropriate
+      if (!options.skipRetry) {
+        const clonedResponse = response.clone();
+        let isInvalidModel = false;
+        
+        try {
+          // Check if this is an invalid model error
+          const modelCheckResult = await checkForInvalidModelError(clonedResponse, model, false, options.skipRetry);
+          isInvalidModel = modelCheckResult.isInvalidModel;
+          
+          if (isInvalidModel) {
+            if (options.debug) {
+              console.log(`[callAI:${PACKAGE_VERSION}] Retrying with fallback model: ${FALLBACK_MODEL}`);
+            }
+            // Retry with fallback model
+            return await callAI(prompt, { ...options, model: FALLBACK_MODEL }) as StreamResponse;
+          }
+        } catch (modelCheckError) {
+          console.error(`[callAI:${PACKAGE_VERSION}] Error during model check:`, modelCheckError);
+          // Continue with normal error handling
+        }
+      }
+      
+      // Extract error details from response
+      try {
+        // Try to get error details from the response body
+        const errorBody = await response.text();
+        if (options.debug) {
+          console.log(`[callAI:${PACKAGE_VERSION}] Error body:`, errorBody);
+        }
+        
+        try {
+          // Try to parse JSON error
+          const errorJson = JSON.parse(errorBody);
+          if (options.debug) {
+            console.log(`[callAI:${PACKAGE_VERSION}] Parsed error:`, errorJson);
+          }
+          
+          // Extract message from OpenRouter error format
+          let errorMessage = '';
+          
+          // Handle common error formats
+          if (errorJson.error && typeof errorJson.error === 'object' && errorJson.error.message) {
+            // OpenRouter/OpenAI format: { error: { message: "..." } }
+            errorMessage = errorJson.error.message;
+          } else if (errorJson.error && typeof errorJson.error === 'string') { 
+            // Simple error format: { error: "..." }
+            errorMessage = errorJson.error;
+          } else if (errorJson.message) {
+            // Generic format: { message: "..." }
+            errorMessage = errorJson.message;
+          } else {
+            // Fallback with status details
+            errorMessage = `API returned ${response.status}: ${response.statusText}`;
+          }
+          
+          // Add status details to error message if not already included
+          if (!errorMessage.includes(response.status.toString())) {
+            errorMessage = `${errorMessage} (Status: ${response.status})`;
+          }
+          
+          if (options.debug) {
+            console.log(`[callAI:${PACKAGE_VERSION}] Extracted error message:`, errorMessage);
+          }
+          
+          // Create error with standard format
+          const error = new Error(errorMessage);
+          
+          // Add useful metadata
+          (error as any).status = response.status;
+          (error as any).statusText = response.statusText;
+          (error as any).details = errorJson;
+          (error as any).contentType = contentType;
+          throw error;
+        } catch (jsonError) {
+          // If JSON parsing fails, extract a useful message from the raw error body
+          if (options.debug) {
+            console.log(`[callAI:${PACKAGE_VERSION}] JSON parse error:`, jsonError);
+          }
+          
+          // Try to extract a useful message even from non-JSON text
+          let errorMessage = '';
+          
+          // Check if it's a plain text error message
+          if (errorBody && errorBody.trim().length > 0) {
+            // Limit length for readability
+            errorMessage = errorBody.length > 100 ? 
+              errorBody.substring(0, 100) + '...' : 
+              errorBody;
+          } else {
+            errorMessage = `API error: ${response.status} ${response.statusText}`;
+          }
+          
+          // Add status details if not already included
+          if (!errorMessage.includes(response.status.toString())) {
+            errorMessage = `${errorMessage} (Status: ${response.status})`;
+          }
+          
+          if (options.debug) {
+            console.log(`[callAI:${PACKAGE_VERSION}] Extracted text error message:`, errorMessage);
+          }
+          
+          const error = new Error(errorMessage);
+          (error as any).status = response.status;
+          (error as any).statusText = response.statusText;
+          (error as any).details = errorBody;
+          (error as any).contentType = contentType;
+          throw error;
+        }
+      } catch (responseError) {
+        if (responseError instanceof Error) {
+          // Re-throw if it's already properly formatted
+          throw responseError;
+        }
+        
+        // Fallback error
+        const error = new Error(`API returned ${response.status}: ${response.statusText}`);
+        (error as any).status = response.status;
+        (error as any).statusText = response.statusText;
+        (error as any).contentType = contentType;
+        throw error;
+      }
+    }  
     // Only if response is OK, create and return the streaming generator
+    if (options.debug) {
+      console.log(`[callAI:${PACKAGE_VERSION}] Response OK, creating streaming generator`);
+    }
     return createStreamingGenerator(response, options, schemaStrategy, model);
   })();
+  
+  // For backward compatibility with v0.6.x where users didn't await the result
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(
+      `[callAI:${PACKAGE_VERSION}] WARNING: Using callAI with streaming without await is deprecated. ` +
+      `Please use 'const generator = await callAI(...)' instead of 'const generator = callAI(...)'. ` +
+      `This backward compatibility will be removed in a future version.`
+    );
+  }
+  
+  // Create a proxy object that acts both as a Promise and an AsyncGenerator for backward compatibility
+  // @ts-ignore - We're deliberately implementing a proxy with dual behavior
+  return createBackwardCompatStreamingProxy(streamPromise);
 }
 
 /**
@@ -136,6 +277,54 @@ async function bufferStreamingResults(
   } catch (error) {
     handleApiError(error, "Streaming buffer error", options.debug);
   }
+}
+
+/**
+ * Standardized API error handler
+ */
+/**
+ * Create a proxy that acts both as a Promise and an AsyncGenerator for backward compatibility
+ * @internal This is for internal use only, not part of public API
+ */
+function createBackwardCompatStreamingProxy(promise: Promise<StreamResponse>): ThenableStreamResponse {
+  // Create a proxy that forwards methods to the Promise or AsyncGenerator as appropriate
+  return new Proxy({} as any, {
+    get(target, prop) {
+      // First check if it's an AsyncGenerator method (needed for for-await)
+      if (prop === 'next' || prop === 'throw' || prop === 'return' || prop === Symbol.asyncIterator) {
+        // Create wrapper functions that await the Promise first
+        if (prop === Symbol.asyncIterator) {
+          return function() {
+            return {
+              // Implement async iterator that gets the generator first
+              async next(value?: unknown) {
+                try {
+                  const generator = await promise;
+                  return generator.next(value);
+                } catch (error) {
+                  // Turn Promise rejection into iterator result with error thrown
+                  return Promise.reject(error);
+                }
+              }
+            };
+          };
+        }
+        
+        // Methods like next, throw, return
+        return async function(value?: unknown) {
+          const generator = await promise;
+          return (generator as any)[prop](value);
+        };
+      }
+      
+      // Then check if it's a Promise method
+      if (prop === 'then' || prop === 'catch' || prop === 'finally') {
+        return promise[prop].bind(promise);
+      }
+      
+      return undefined;
+    }
+  });
 }
 
 /**
@@ -350,7 +539,7 @@ async function callAINonStreaming(
     const response = await fetch(endpoint, requestOptions);
 
     // Handle HTTP errors, with potential fallback for invalid model
-    if (!response.ok) {
+    if (!response.ok || response.status >= 400) {
       const { isInvalidModel } = await checkForInvalidModelError(
         response,
         model,
@@ -510,6 +699,10 @@ async function extractClaudeResponse(response: Response): Promise<any> {
 /**
  * Generator factory function for streaming API calls
  * This is called after the fetch is made and response is validated
+ * 
+ * Note: Even though we checked response.ok before creating this generator,
+ * we need to be prepared for errors that may occur during streaming. Some APIs
+ * return a 200 OK initially but then deliver error information in the stream.
  */
 async function* createStreamingGenerator(
   response: Response,
@@ -517,6 +710,12 @@ async function* createStreamingGenerator(
   schemaStrategy: SchemaStrategy,
   model: string
 ): StreamResponse {
+  if (options.debug) {
+    console.log(`[callAI:${PACKAGE_VERSION}] Starting streaming generator with model: ${model}`);
+    console.log(`[callAI:${PACKAGE_VERSION}] Response status:`, response.status);
+    console.log(`[callAI:${PACKAGE_VERSION}] Response type:`, response.type);
+    console.log(`[callAI:${PACKAGE_VERSION}] Response Content-Type:`, response.headers.get('content-type'));
+  }
   try {
 
     // Handle streaming response
@@ -536,6 +735,7 @@ async function* createStreamingGenerator(
       const { done, value } = await reader.read();
       if (done) {
         if (options.debug) {
+          console.log(`[callAI:${PACKAGE_VERSION}] Stream done=true after ${chunkCount} chunks`);
           console.log(
             `[callAI-streaming:complete v${PACKAGE_VERSION}] Stream finished after ${chunkCount} chunks`,
           );
@@ -543,13 +743,33 @@ async function* createStreamingGenerator(
         break;
       }
 
+      // Increment chunk counter before processing
+      chunkCount++;
       const chunk = decoder.decode(value);
+      if (options.debug) {
+        console.log(`[callAI:${PACKAGE_VERSION}] Raw chunk #${chunkCount} (${chunk.length} bytes):`, 
+          chunk.length > 200 ? chunk.substring(0, 200) + '...' : chunk);
+      }
 
       const lines = chunk.split("\n").filter((line) => line.trim() !== "");
+      if (options.debug) {
+        console.log(`[callAI:${PACKAGE_VERSION}] Chunk #${chunkCount} contains ${lines.length} non-empty lines`);
+      }
 
       for (const line of lines) {
+        if (options.debug) {
+          console.log(`[callAI:${PACKAGE_VERSION}] Processing line:`, line.length > 100 ? line.substring(0, 100) + '...' : line);
+        }
+        
         if (line.startsWith("data: ")) {
-          // Simple debug logging of raw SSE events with no processing
+          let data = line.slice(6);
+
+          if (data === "[DONE]") {
+            if (options.debug) {
+              console.log(`[callAI:${PACKAGE_VERSION}] Received [DONE] marker`);
+            }
+            break;
+          }
           if (options.debug) {
             console.log(`[callAI:raw] ${line}`);
           }
@@ -565,24 +785,46 @@ async function* createStreamingGenerator(
           try {
             const jsonLine = line.replace("data: ", "");
             if (!jsonLine.trim()) {
+              console.log(`[callAI:${PACKAGE_VERSION}] Empty JSON line after data: prefix`);
               continue;
             }
 
-            chunkCount++;
+            console.log(`[callAI:${PACKAGE_VERSION}] JSON line (first 100 chars):`, 
+              jsonLine.length > 100 ? jsonLine.substring(0, 100) + '...' : jsonLine);
 
             // Parse the JSON chunk
-            const json = JSON.parse(jsonLine);
+            let json;
+            try {
+              json = JSON.parse(jsonLine);
+              console.log(`[callAI:${PACKAGE_VERSION}] Parsed JSON:`, 
+                JSON.stringify(json).length > 100 ? 
+                JSON.stringify(json).substring(0, 100) + '...' : 
+                JSON.stringify(json));
+            } catch (parseError) {
+              console.error(`[callAI:${PACKAGE_VERSION}] JSON parse error:`, parseError);
+              console.error(`[callAI:${PACKAGE_VERSION}] Failed to parse:`, jsonLine);
+              continue;
+            }
 
-            // Check for error in the parsed JSON response
-            if (json.error) {
-              // Use the standard error format as the rest of the library
-              // We need to throw the error properly
-              handleApiError(
-                new Error(`API returned error: ${JSON.stringify(json.error)}`),
-                "Streaming API call error",
-                options.debug,
-              );
-              // This code is unreachable as handleApiError throws
+            // Enhanced error detection - check for BOTH error and json.error
+            // Some APIs return 200 OK but then deliver errors in the stream
+            if (json.error || (typeof json === 'object' && 'error' in json)) {
+              console.error(`[callAI:${PACKAGE_VERSION}] Detected error in streaming response:`, json);
+              
+              // Create a detailed error object similar to our HTTP error handling
+              const errorMessage = json.error?.message || 
+                                  json.error?.toString() || 
+                                  JSON.stringify(json.error || json);
+                                  
+              const detailedError = new Error(`API streaming error: ${errorMessage}`);
+              
+              // Add error metadata
+              (detailedError as any).status = json.error?.status || 400;
+              (detailedError as any).statusText = json.error?.type || 'Bad Request';
+              (detailedError as any).details = JSON.stringify(json.error || json);
+              
+              console.error(`[callAI:${PACKAGE_VERSION}] Throwing stream error:`, detailedError);
+              throw detailedError;
             }
 
             // Handle tool use response - Claude with schema cases
