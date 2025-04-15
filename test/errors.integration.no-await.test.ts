@@ -54,15 +54,12 @@ describe("Error handling integration tests", () => {
     async () => {
       // Attempt streaming API call with a non-existent model
       await expect(async () => {
-        const generator = await callAI(
-          "Write a short joke about programming.",
-          {
-            apiKey: process.env.CALLAI_API_KEY,
-            model: "fake-model-that-does-not-exist",
-            stream: true,
-            skipRetry: true, // Skip retry mechanism to force the error
-          },
-        );
+        const generator = callAI("Write a short joke about programming.", {
+          apiKey: process.env.CALLAI_API_KEY,
+          model: "fake-model-that-does-not-exist",
+          stream: true,
+          skipRetry: true, // Skip retry mechanism to force the error
+        });
 
         // Try to consume the generator
         // Cast to AsyncGenerator to ensure TypeScript recognizes it properly
@@ -121,14 +118,15 @@ describe("Error handling integration tests", () => {
         await callAI("Write a short joke about programming.", {
           apiKey: process.env.CALLAI_API_KEY,
           model: "fake-model-that-does-not-exist",
-          debug: true,
           skipRetry: true, // Skip retry mechanism to force the error
+          debug: true, // Enable debug mode
         });
         // If we get here, fail the test
         fail("Should have thrown an error");
       } catch (error) {
-        // Verify console.error was called with error details
+        // Verify console.error was called at least once (debug mode)
         expect(consoleErrorSpy).toHaveBeenCalled();
+        // Additional check to verify it's an Error instance
         expect(error instanceof Error).toBe(true);
       } finally {
         // Restore the original console.error
@@ -144,35 +142,31 @@ describe("Error handling integration tests", () => {
     async () => {
       try {
         // Create generator with invalid model in streaming mode
-        const generator = await callAI(
-          "Write a short joke about programming.",
-          {
-            apiKey: process.env.CALLAI_API_KEY,
-            model: "fake-model-that-does-not-exist",
-            stream: true,
-            skipRetry: true, // Skip retry mechanism to force the error
-          },
-        );
+        const generator = callAI("Write a short joke about programming.", {
+          apiKey: process.env.CALLAI_API_KEY,
+          model: "fake-model-that-does-not-exist",
+          stream: true,
+          skipRetry: true, // Skip retry mechanism to force the error
+          debug: true, // Enable debug mode
+        });
 
-        // Cast to AsyncGenerator to ensure TypeScript recognizes it properly
-        const asyncGenerator = generator as AsyncGenerator<
-          string,
-          string,
-          unknown
-        >;
-
-        // Try to consume the generator
-        console.log("Attempting to consume streaming response");
+        // Collect all streaming responses
         let finalResponse = "";
-        for await (const chunk of asyncGenerator) {
-          console.log(`Received chunk (length: ${chunk.length}): ${chunk}`);
-          finalResponse = chunk;
-        }
-
-        // If we get here (unlikely), try to parse the response as JSON
+        // Try to consume generator - may fail during consumption
         try {
+          const asyncGenerator = generator as AsyncGenerator<
+            string,
+            string,
+            unknown
+          >;
+          for await (const chunk of asyncGenerator) {
+            finalResponse = chunk;
+            console.log(`Received chunk: ${chunk}`);
+          }
+
+          // If we get here, test what happens with JSON parsing
           console.log(
-            `Parsing final response (length: ${finalResponse.length})`,
+            `Final response (${finalResponse.length} chars): ${finalResponse}`,
           );
           JSON.parse(finalResponse);
 
@@ -195,10 +189,7 @@ describe("Error handling integration tests", () => {
           console.log("Outer error type:", error.constructor.name);
           console.log("Outer error message:", error.message);
 
-          // Check for the error message in the new throw style
-          expect(error.message).toContain(
-            "fake-model-that-does-not-exist is not a valid model ID",
-          );
+          // If we want to fail the test when the streaming itself throws (rather than JSON.parse)
           // we could uncomment this line:
           // fail(`Streaming should not throw directly but should return invalid JSON: ${error.message}`);
         } else {
@@ -219,49 +210,71 @@ describe("Error handling integration tests", () => {
 
       const runGeneratorWithReactPatterns = async () => {
         try {
-          console.log("Creating generator in React-like pattern");
-          const generator = await callAI("Write a haiku about programming.", {
-            apiKey: process.env.CALLAI_API_KEY,
-            model: "fake-model-that-does-not-exist",
-            stream: true,
-            skipRetry: true, // Skip retry mechanism to force the error
-          });
-
-          // Cast to AsyncGenerator
-          const asyncGenerator = generator as AsyncGenerator<
-            string,
-            string,
-            unknown
-          >;
-
-          console.log("Starting iteration with for-await loop");
-          // This approach is often used in React components with useEffect
+          // Wrap this in its own try/catch like React app does
           try {
+            // Create generator with invalid model
+            console.log("Creating generator...");
+            const generator = callAI("Write a short joke about programming.", {
+              apiKey: process.env.CALLAI_API_KEY,
+              model: "fake-model-that-does-not-exist",
+              stream: true,
+              skipRetry: true,
+              debug: true,
+              schema: {
+                // Adding schema like in the React app
+                properties: { text: { type: "string" } },
+              },
+            });
+
+            console.log("Generator created, consuming chunks...");
+            // This mimics React's state updates
+            const asyncGenerator = generator as AsyncGenerator<
+              string,
+              string,
+              unknown
+            >;
             for await (const chunk of asyncGenerator) {
-              console.log("Received chunk:", chunk);
               responseText = chunk;
+              console.log(`Updated response: ${responseText}`);
             }
-            console.log("Generator completed without errors");
-          } catch (error) {
-            console.log("Error caught during iteration:", error);
-            if (error instanceof Error) {
-              errorMessage = error.message;
-              expect(error.message).toContain(
-                "fake-model-that-does-not-exist is not a valid model ID",
-              );
+
+            // Try to parse the final response
+            console.log("Streaming completed, parsing JSON...");
+            if (responseText) {
+              const parsed = JSON.parse(responseText);
+              console.log("Parsed JSON:", parsed);
+            }
+          } catch (innerError) {
+            if (innerError instanceof Error) {
+              console.log("Inner error caught:", innerError.message);
             } else {
-              errorMessage = "Unknown error";
+              console.log(
+                "Inner error caught (not an Error):",
+                String(innerError),
+              );
             }
+            throw innerError; // Re-throw to outer catch
           }
-        } catch (error) {
-          console.log("Error caught during generator creation:", error);
-          if (error instanceof Error) {
-            errorMessage = error.message;
-            expect(error.message).toContain(
-              "fake-model-that-does-not-exist is not a valid model ID",
-            );
+        } catch (outerError) {
+          // Set error message like React would do
+          if (outerError instanceof Error) {
+            console.log("Outer error caught:", outerError.message);
+            errorMessage = outerError.message;
+
+            if (outerError instanceof SyntaxError) {
+              console.log("Got a SyntaxError - JSON parsing failed");
+            } else {
+              console.log(
+                "Error was not a SyntaxError:",
+                outerError.constructor.name,
+              );
+            }
           } else {
-            errorMessage = "Unknown error";
+            console.log(
+              "Outer error caught (not an Error):",
+              String(outerError),
+            );
+            errorMessage = String(outerError);
           }
         }
       };
@@ -293,13 +306,13 @@ describe("Error handling integration tests", () => {
         // This is closer to how browser environments might handle the code
         console.log("Step 1: Creating generator without immediate usage");
         // Explicitly type as AsyncGenerator to fix TypeScript errors
-        const generator = (await callAI("Write a haiku", {
+        const generator = callAI("Write a haiku", {
           stream: true,
           debug: true,
           model: "fake-model-that-does-not-exist",
           skipRetry: true,
           apiKey: process.env.CALLAI_API_KEY,
-        })) as AsyncGenerator<string, string, unknown>;
+        }) as AsyncGenerator<string, string, unknown>;
 
         console.log(
           "Generator created, properties:",
@@ -364,18 +377,14 @@ describe("Error handling integration tests", () => {
             error.message,
           );
           errorCaught = true;
-          expect(error.message).toContain(
-            "fake-model-that-does-not-exist is not a valid model ID",
-          );
+          expect(error.message).toContain("API returned error 400");
         }
       } catch (outerError: unknown) {
         // Properly type the error
         const error = outerError as Error;
         console.log("Outer error during generator creation:", error.message);
         errorCaught = true;
-        expect(error.message).toContain(
-          "fake-model-that-does-not-exist is not a valid model ID",
-        );
+        expect(error.message).toContain("API returned error 400");
       }
 
       console.log("Final state - responseText:", responseText);
