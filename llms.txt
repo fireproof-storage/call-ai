@@ -51,8 +51,6 @@ for await (const partialResponse of generator) {
 }
 ```
 
-> **IMPORTANT:** As of v0.7.0, you must use `await` when calling `callAI` with streaming enabled. The non-await pattern is deprecated and will show warnings.
-
 ## JSON Schema Responses
 
 To get structured JSON responses, provide a schema in the options:
@@ -362,12 +360,13 @@ const demoData = await callAI("Generate 4 items with label, status, priority (lo
 
 ## Error Handling
 
-As of v0.7.0, call-ai uses standard JavaScript Error objects for error handling with try/catch blocks:
+Errors are handled through standard JavaScript try/catch blocks:
 
 ```javascript
 import { callAI } from 'call-ai';
 
 try {
+
   const response = await callAI("Generate some content", {
     apiKey: "invalid-key" // Invalid or missing API key
   });
@@ -383,7 +382,7 @@ try {
 }
 ```
 
-For streaming mode, error handling works the same way, but remember to await the call:
+For streaming mode, error handling works the same way:
 
 ```javascript
 import { callAI } from 'call-ai';
@@ -414,7 +413,7 @@ try {
 }
 ```
 
-This approach is idiomatic and consistent with standard JavaScript practices. Errors now provide rich information for better debugging and error handling in your applications.
+This approach is idiomatic and consistent with standard JavaScript practices. Errors provide rich information for better debugging and error handling in your applications.
 
 ## Image Recognition Example
 
