@@ -39,28 +39,32 @@ describe("callAI", () => {
   });
 
   it("should handle API key requirement for non-streaming", async () => {
-    mockResponse.json.mockResolvedValue({
+    // Setting default response for general case
+    mockResponse.json.mockResolvedValueOnce({
       choices: [{ message: { content: "" } }],
     });
 
-    const result = (await callAI("Hello, AI")) as string;
-    const errorObj = JSON.parse(result);
-    expect(errorObj.message).toContain(
-      "Sorry, I couldn't process that request:",
-    );
+    try {
+      await callAI("Hello, AI");
+      // If we get here, the test should fail because an error should have been thrown
+      fail("Expected an error to be thrown");
+    } catch (error) {
+      // Error should be thrown because no API key was provided
+      expect((error as Error).message).toContain("API key is required");
+    }
   });
 
   it("should handle API key requirement for streaming", async () => {
     mockReader.read.mockResolvedValueOnce({ done: true });
-    const generator = (await callAI("Hello, AI", {
-      stream: true,
-    })) as AsyncGenerator<string, string, unknown>;
 
-    const result = await generator.next();
-    const errorObj = JSON.parse(result.value as string);
-    expect(errorObj.message).toContain(
-      "Sorry, I couldn't process that request:",
-    );
+    try {
+      await callAI("Hello, AI", { stream: true });
+      // If we get here, the test should fail because an error should have been thrown
+      fail("Expected an error to be thrown");
+    } catch (error) {
+      // Error should be thrown because no API key was provided
+      expect((error as Error).message).toContain("API key is required");
+    }
   });
 
   it("should make POST request with correct parameters for non-streaming", async () => {
@@ -426,34 +430,29 @@ describe("callAI", () => {
   it("should handle errors during API call for non-streaming", async () => {
     (global.fetch as jest.Mock).mockRejectedValue(new Error("Network error"));
 
-    const options = { apiKey: "test-api-key" };
-    const result = (await callAI("Hello", options)) as string;
-
-    const errorObj = JSON.parse(result);
-    expect(errorObj.message).toContain(
-      "Sorry, I couldn't process that request:",
-    );
+    try {
+      const options = { apiKey: "test-api-key" };
+      await callAI("Hello", options);
+      // If we get here, the test should fail because an error should have been thrown
+      fail("Expected an error to be thrown");
+    } catch (error) {
+      // Error should contain the network error message
+      expect((error as Error).message).toContain("Network error");
+    }
   });
 
   it("should handle errors during API call for streaming", async () => {
     (global.fetch as jest.Mock).mockRejectedValue(new Error("Network error"));
 
-    const options = { apiKey: "test-api-key", stream: true };
-    const generator = (await callAI("Hello", options)) as AsyncGenerator<
-      string,
-      string,
-      unknown
-    >;
-    const result = await generator.next();
-
-    // Parse the JSON error response
-    const errorObj = JSON.parse(result.value as string);
-    expect(errorObj).toHaveProperty("message");
-    expect(errorObj.message).toContain(
-      "Sorry, I couldn't process that request:",
-    );
-    expect(errorObj).toHaveProperty("error");
-    expect(result.done).toBe(true);
+    try {
+      const options = { apiKey: "test-api-key", stream: true };
+      await callAI("Hello", options);
+      // If we get here, the test should fail because an error should have been thrown
+      fail("Expected an error to be thrown");
+    } catch (error) {
+      // Error should contain the network error message
+      expect((error as Error).message).toContain("Network error");
+    }
   });
 
   it("should default to streaming mode (false) if not specified", async () => {
