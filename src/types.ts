@@ -75,7 +75,6 @@ export interface SchemaStrategy {
   shouldForceStream: boolean;
 }
 
-
 /**
  * Return type for streaming API calls
  */
@@ -86,7 +85,8 @@ export type StreamResponse = AsyncGenerator<string, string, unknown>;
  * Internal type for backward compatibility with v0.6.x
  * This type is not exposed in public API documentation
  */
-export type ThenableStreamResponse = AsyncGenerator<string, string, unknown> & Promise<StreamResponse>;
+export type ThenableStreamResponse = AsyncGenerator<string, string, unknown> &
+  Promise<StreamResponse>;
 
 export interface CallAIOptions {
   /**
