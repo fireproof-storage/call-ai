@@ -360,7 +360,7 @@ const demoData = await callAI("Generate 4 items with label, status, priority (lo
 
 ## Error Handling
 
-Starting with version 0.7.0, the library throws proper errors instead of returning JSON strings. This means that all errors are now handled through standard JavaScript try/catch blocks:
+The library uses standard JavaScript error throwing mechanics. All errors are handled through standard JavaScript try/catch blocks:
 
 ```javascript
 import { callAI } from 'call-ai';
@@ -405,7 +405,7 @@ try {
 }
 ```
 
-This change makes error handling more idiomatic and consistent with standard JavaScript practices. You no longer need to parse response strings to check for errors.
+This approach is idiomatic and consistent with standard JavaScript practices. No parsing of response strings is needed to check for errors.
 
 ## Image Recognition Example
 
