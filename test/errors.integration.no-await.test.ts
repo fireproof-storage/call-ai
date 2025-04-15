@@ -63,7 +63,7 @@ describe("Error handling integration tests", () => {
 
         // Try to consume the generator
         // Cast to AsyncGenerator to ensure TypeScript recognizes it properly
-        const asyncGenerator = generator as AsyncGenerator<
+        const asyncGenerator = generator as unknown as AsyncGenerator<
           string,
           string,
           unknown
@@ -154,7 +154,7 @@ describe("Error handling integration tests", () => {
         let finalResponse = "";
         // Try to consume generator - may fail during consumption
         try {
-          const asyncGenerator = generator as AsyncGenerator<
+          const asyncGenerator = generator as unknown as AsyncGenerator<
             string,
             string,
             unknown
@@ -228,7 +228,7 @@ describe("Error handling integration tests", () => {
 
             console.log("Generator created, consuming chunks...");
             // This mimics React's state updates
-            const asyncGenerator = generator as AsyncGenerator<
+            const asyncGenerator = generator as unknown as AsyncGenerator<
               string,
               string,
               unknown
@@ -312,7 +312,7 @@ describe("Error handling integration tests", () => {
           model: "fake-model-that-does-not-exist",
           skipRetry: true,
           apiKey: process.env.CALLAI_API_KEY,
-        }) as AsyncGenerator<string, string, unknown>;
+        }) as unknown as AsyncGenerator<string, string, unknown>;
 
         console.log(
           "Generator created, properties:",

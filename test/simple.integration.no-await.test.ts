@@ -121,7 +121,7 @@ describe("Simple callAI integration tests", () => {
             apiKey: process.env.CALLAI_API_KEY,
             model: modelId.id,
             stream: true,
-          }) as AsyncGenerator<string, string, unknown>;
+          }) as unknown as AsyncGenerator<string, string, unknown>;
 
           // Collect all chunks
           let lastChunk = "";
