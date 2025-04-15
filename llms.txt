@@ -360,36 +360,26 @@ const demoData = await callAI("Generate 4 items with label, status, priority (lo
 
 ## Error Handling
 
-The library provides consistent error handling for both streaming and non-streaming modes:
+Starting with version 0.7.0, the library throws proper errors instead of returning JSON strings. This means that all errors are now handled through standard JavaScript try/catch blocks:
 
 ```javascript
 import { callAI } from 'call-ai';
 
 try {
+  // Both streaming and non-streaming mode throw errors properly
   const response = await callAI("Generate some content", {
     apiKey: "invalid-key" // Invalid or missing API key
   });
   
-  // If there was an error, response will be a JSON string with error details
-  try {
-    const errorObj = JSON.parse(response);
-    if (errorObj.message && errorObj.error) {
-      console.error("API error:", errorObj.message);
-    } else {
-      // Process normal response
-      console.log(response);
-    }
-  } catch {
-    // Not an error JSON, process normal response
-    console.log(response);
-  }
-} catch (e) {
-  // Handle any unexpected errors
-  console.error("Unexpected error:", e);
+  // If no error was thrown, process the normal response
+  console.log(response);
+} catch (error) {
+  // All API errors are now proper Error objects
+  console.error("API error:", error.message);
 }
 ```
 
-For streaming, error handling works similarly:
+For streaming mode, error handling works the same way:
 
 ```javascript
 import { callAI } from 'call-ai';
@@ -400,30 +390,22 @@ try {
     stream: true
   });
   
-  // Consume the generator
+  // Any error during streaming will throw an exception
   let finalResponse = '';
   for await (const chunk of generator) {
     finalResponse = chunk;
+    console.log("Chunk:", chunk);
   }
   
-  // Check if the final response is an error
-  try {
-    const errorObj = JSON.parse(finalResponse);
-    if (errorObj.message && errorObj.error) {
-      console.error("API error:", errorObj.message);
-    } else {
-      // Process final response
-      console.log(finalResponse);
-    }
-  } catch {
-    // Not an error JSON, process normal response
-    console.log(finalResponse);
-  }
-} catch (e) {
-  // Handle any unexpected errors
-  console.error("Unexpected error:", e);
+  // Process the final response
+  console.log("Final response:", finalResponse);
+} catch (error) {
+  // Handle errors with standard try/catch
+  console.error("API error:", error.message);
 }
 ```
+
+This change makes error handling more idiomatic and consistent with standard JavaScript practices. You no longer need to parse response strings to check for errors.
 
 ## Image Recognition Example
 
