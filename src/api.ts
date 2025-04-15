@@ -53,7 +53,6 @@ export function callAI(
     const { endpoint, requestOptions, model, schemaStrategy } =
       prepareRequestParams(prompt, { ...options, stream: true });
 
-    // Make the fetch request and handle errors before creating the generator
     if (options.debug) {
       console.log(
         `[callAI:${PACKAGE_VERSION}] Making fetch request to: ${endpoint}`,
