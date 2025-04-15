@@ -74,7 +74,11 @@ async function bufferStreamingResults(
 /**
  * Standardized API error handler
  */
-function handleApiError(error: any, context: string, debug: boolean = false): never {
+function handleApiError(
+  error: any,
+  context: string,
+  debug: boolean = false,
+): never {
   if (debug) {
     console.error(`[callAI:${context}]:`, error);
   }
@@ -252,7 +256,11 @@ async function callAINonStreaming(
       try {
         result = await extractClaudeResponse(response);
       } catch (error) {
-        handleApiError(error, "Claude API response processing failed", options.debug);
+        handleApiError(
+          error,
+          "Claude API response processing failed",
+          options.debug,
+        );
       }
     } else {
       result = await response.json();
@@ -386,6 +394,8 @@ async function* callAIStreaming(
   options: CallAIOptions = {},
   isRetry: boolean = false,
 ): AsyncGenerator<string, string, unknown> {
+  // Track errors to ensure consistent propagation across environments
+  let streamingError: Error | null = null;
   try {
     const { endpoint, requestOptions, model, schemaStrategy } =
       prepareRequestParams(prompt, { ...options, stream: true });
@@ -413,9 +423,10 @@ async function* callAIStreaming(
         `API Error: ${response.status} ${response.statusText}`,
         errorText,
       );
-      throw new Error(
+      streamingError = new Error(
         `API returned error ${response.status}: ${response.statusText}`,
       );
+      throw streamingError;
     }
 
     // Handle streaming response
@@ -479,7 +490,7 @@ async function* callAIStreaming(
               handleApiError(
                 new Error(`API returned error: ${JSON.stringify(json.error)}`),
                 "Streaming API call error",
-                options.debug
+                options.debug,
               );
               // This code is unreachable as handleApiError throws
             }
@@ -614,6 +625,17 @@ async function* callAIStreaming(
       }
     }
 
+    // Check if we encountered an error earlier but didn't throw it yet
+    // This ensures browser environments will get the error during iteration
+    if (streamingError) {
+      handleApiError(streamingError, "Streaming API call", options.debug);
+    }
+
+    // Final check for errors before returning
+    if (streamingError) {
+      throw streamingError;
+    }
+
     // If we have assembled tool calls but haven't yielded them yet
     if (toolCallsAssembled && (!completeText || completeText.length === 0)) {
       return toolCallsAssembled;
@@ -622,6 +644,7 @@ async function* callAIStreaming(
     // Ensure the final return has proper, processed content
     return schemaStrategy.processResponse(completeText);
   } catch (error) {
+    // Standardize error handling
     handleApiError(error, "Streaming API call", options.debug);
   }
 }
