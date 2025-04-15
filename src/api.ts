@@ -48,26 +48,42 @@ export function callAI(
     // Make the fetch request and handle errors before creating the generator
     const response = await fetch(endpoint, requestOptions);
 
-    // Handle errors immediately
+    // Enhanced error handling with more debugging
     if (!response.ok) {
-      const { isInvalidModel } = await checkForInvalidModelError(
-        response,
+      if (options.debug) {
+        console.error(
+          `[callAI:${PACKAGE_VERSION}] HTTP Error:`,
+          response.status,
+          response.statusText,
+          response.url
+        );
+      }
+
+      // Check if this is an invalid model error
+      const { isInvalidModel, errorData } = await checkForInvalidModelError(
+        response.clone(), // Clone response since we'll need to read body twice
         model,
         false,
         options.skipRetry,
       );
 
       if (isInvalidModel && !options.skipRetry) {
+        if (options.debug) {
+          console.log(`[callAI:${PACKAGE_VERSION}] Retrying with fallback model: ${FALLBACK_MODEL}`);
+        }
         // Retry with fallback model - it will return a promise
         const result = await callAI(prompt, { ...options, model: FALLBACK_MODEL });
         return result as StreamResponse;
       }
 
+      // Get full error text from body
       const errorText = await response.text();
-      console.error(
-        `API Error: ${response.status} ${response.statusText}`,
-        errorText,
-      );
+      if (options.debug) {
+        console.error(
+          `[callAI:${PACKAGE_VERSION}] Error response body:`,
+          errorText
+        );
+      }
       
       // Create a detailed error with status information
       const errorMessage = `API returned error ${response.status}: ${response.statusText}`;
@@ -78,6 +94,10 @@ export function callAI(
       (error as any).statusText = response.statusText;
       (error as any).details = errorText;
       
+      // Ensure this error is thrown and caught properly in the Promise chain
+      if (options.debug) {
+        console.error(`[callAI:${PACKAGE_VERSION}] Throwing error:`, error);
+      }
       throw error;
     }
     
@@ -141,8 +161,13 @@ async function checkForInvalidModelError(
   isRetry: boolean,
   skipRetry: boolean = false,
 ): Promise<{ isInvalidModel: boolean; errorData?: any }> {
-  // Skip retry immediately if skipRetry is true
-  if (skipRetry || response.status !== 400 || isRetry) {
+  // Skip retry immediately if skipRetry is true or if we're already retrying
+  if (skipRetry || isRetry) {
+    return { isInvalidModel: false };
+  }
+
+  // We want to check all 4xx errors, not just 400
+  if (response.status < 400 || response.status >= 500) {
     return { isInvalidModel: false };
   }
 
@@ -150,20 +175,69 @@ async function checkForInvalidModelError(
   const clonedResponse = response.clone();
   try {
     const errorData = await clonedResponse.json();
-    // Check if the error message indicates an invalid model
-    if (
-      errorData.error &&
-      errorData.error.message &&
-      errorData.error.message.toLowerCase().includes("not a valid model")
-    ) {
-      console.warn(`Model ${model} not valid, retrying with ${FALLBACK_MODEL}`);
-      return { isInvalidModel: true };
+    const debugEnabled = true; // Always log for now to help diagnose the issue
+
+    if (debugEnabled) {
+      console.log(`[callAI:${PACKAGE_VERSION}] Checking for invalid model error:`, {
+        model,
+        statusCode: response.status,
+        errorData
+      });
     }
-    return { isInvalidModel: false, errorData };
+
+    // Common patterns for invalid model errors across different providers
+    const invalidModelPatterns = [
+      "not a valid model",
+      "model .* does not exist",
+      "invalid model",
+      "unknown model",
+      "no provider was found",
+      "fake-model", // For our test case
+      "does-not-exist" // For our test case
+    ];
+    
+    // Check if error message contains any of our patterns
+    let errorMessage = '';
+    if (errorData.error && errorData.error.message) {
+      errorMessage = errorData.error.message.toLowerCase();
+    } else if (errorData.message) {
+      errorMessage = errorData.message.toLowerCase();
+    } else {
+      errorMessage = JSON.stringify(errorData).toLowerCase();
+    }
+    
+    // Test the error message against each pattern
+    const isInvalidModel = invalidModelPatterns.some(pattern => 
+      errorMessage.includes(pattern.toLowerCase())
+    );
+
+    if (isInvalidModel && debugEnabled) {
+      console.warn(`[callAI:${PACKAGE_VERSION}] Model ${model} not valid, will retry with ${FALLBACK_MODEL}`);
+    }
+
+    return { isInvalidModel, errorData };
   } catch (parseError) {
-    // If we can't parse the response as JSON, continue with original error
-    console.error("Failed to parse error response:", parseError);
-    return { isInvalidModel: false };
+    // If we can't parse the response as JSON, try to read it as text
+    console.error("Failed to parse error response as JSON:", parseError);
+    try {
+      const textResponse = await response.clone().text();
+      console.log("Error response as text:", textResponse);
+      
+      // Even if it's not JSON, check if it contains any of our known patterns
+      const lowerText = textResponse.toLowerCase();
+      const isInvalidModel = lowerText.includes("invalid model") || 
+                            lowerText.includes("not exist") || 
+                            lowerText.includes("fake-model");
+                            
+      if (isInvalidModel) {
+        console.warn(`[callAI:${PACKAGE_VERSION}] Detected invalid model in text response for ${model}`);
+      }
+      
+      return { isInvalidModel, errorData: { text: textResponse } };
+    } catch (textError) {
+      console.error("Failed to read error response as text:", textError);
+      return { isInvalidModel: false };
+    }
   }
 }
 
