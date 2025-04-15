@@ -52,14 +52,16 @@ describe("Error handling integration tests", () => {
       });
 
       // Try to consume the generator
-      for await (const _ of generator) {
+      // Cast to AsyncGenerator to ensure TypeScript recognizes it properly
+      const asyncGenerator = generator as AsyncGenerator<string, string, unknown>;
+      for await (const _ of asyncGenerator) {
         // This should throw before yielding any chunks
       }
     }).rejects.toThrow();
   }, TIMEOUT);
 
   // Test error message contents
-  itif(!!haveApiKey)("should include model ID in error message", async () => {
+  itif(!!haveApiKey)("should include HTTP status in error message", async () => {
     const fakeModelId = "fake-model-that-does-not-exist";
     
     // Attempt API call with a non-existent model
@@ -74,7 +76,13 @@ describe("Error handling integration tests", () => {
     } catch (error) {
       // Verify error message contains useful information
       expect(error instanceof Error).toBe(true);
-      expect(error.message).toContain(fakeModelId);
+      if (error instanceof Error) {
+        // With the new error handling, we should see the HTTP status code
+        expect(error.message).toContain("HTTP error");
+        expect(error.message).toContain("400"); // Bad Request status code
+      } else {
+        fail("Error is not an Error instance");
+      }
     }
   }, TIMEOUT);
 
@@ -96,6 +104,8 @@ describe("Error handling integration tests", () => {
     } catch (error) {
       // Verify console.error was called at least once (debug mode)
       expect(consoleErrorSpy).toHaveBeenCalled();
+      // Additional check to verify it's an Error instance
+      expect(error instanceof Error).toBe(true);
     } finally {
       // Restore the original console.error
       consoleErrorSpy.mockRestore();
