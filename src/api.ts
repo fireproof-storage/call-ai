@@ -1,8 +1,12 @@
 /**
  * Core API implementation for call-ai
  */
-import { CallAIOptions, Message, SchemaStrategy } from "./types";
+import { CallAIOptions, Message, SchemaStrategy, StreamResponse } from "./types";
 import { chooseSchemaStrategy } from "./strategies";
+
+// Import package version for debugging
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const PACKAGE_VERSION = require('../package.json').version;
 
 // Default fallback model when the primary model fails or is unavailable
 const FALLBACK_MODEL = "openrouter/auto";
@@ -17,7 +21,7 @@ const FALLBACK_MODEL = "openrouter/auto";
 export function callAI(
   prompt: string | Message[],
   options: CallAIOptions = {},
-): Promise<string> | AsyncGenerator<string, string, unknown> {
+): Promise<string | StreamResponse> {
   // Check if we need to force streaming based on model strategy
   const schemaStrategy = chooseSchemaStrategy(
     options.model,
@@ -35,8 +39,51 @@ export function callAI(
     return callAINonStreaming(prompt, options);
   }
 
-  // Handle streaming mode
-  return callAIStreaming(prompt, options);
+  // Handle streaming mode - return a Promise that resolves to an AsyncGenerator
+  return (async () => {
+    // Do setup and validation before returning the generator
+    const { endpoint, requestOptions, model, schemaStrategy } =
+      prepareRequestParams(prompt, { ...options, stream: true });
+
+    // Make the fetch request and handle errors before creating the generator
+    const response = await fetch(endpoint, requestOptions);
+
+    // Handle errors immediately
+    if (!response.ok) {
+      const { isInvalidModel } = await checkForInvalidModelError(
+        response,
+        model,
+        false,
+        options.skipRetry,
+      );
+
+      if (isInvalidModel && !options.skipRetry) {
+        // Retry with fallback model - it will return a promise
+        const result = await callAI(prompt, { ...options, model: FALLBACK_MODEL });
+        return result as StreamResponse;
+      }
+
+      const errorText = await response.text();
+      console.error(
+        `API Error: ${response.status} ${response.statusText}`,
+        errorText,
+      );
+      
+      // Create a detailed error with status information
+      const errorMessage = `API returned error ${response.status}: ${response.statusText}`;
+      const error = new Error(errorMessage);
+      
+      // Add extra properties for more context
+      (error as any).status = response.status;
+      (error as any).statusText = response.statusText;
+      (error as any).details = errorText;
+      
+      throw error;
+    }
+    
+    // Only if response is OK, create and return the streaming generator
+    return createStreamingGenerator(response, options, schemaStrategy, model);
+  })();
 }
 
 /**
@@ -55,7 +102,7 @@ async function bufferStreamingResults(
 
   try {
     // Get streaming generator
-    const generator = callAIStreaming(prompt, streamingOptions);
+    const generator = await callAI(prompt, streamingOptions) as StreamResponse;
 
     // Buffer all chunks
     let finalResult = "";
@@ -387,47 +434,16 @@ async function extractClaudeResponse(response: Response): Promise<any> {
 }
 
 /**
- * Internal implementation for streaming API calls
+ * Generator factory function for streaming API calls
+ * This is called after the fetch is made and response is validated
  */
-async function* callAIStreaming(
-  prompt: string | Message[],
-  options: CallAIOptions = {},
-  isRetry: boolean = false,
-): AsyncGenerator<string, string, unknown> {
-  // Track errors to ensure consistent propagation across environments
-  let streamingError: Error | null = null;
+async function* createStreamingGenerator(
+  response: Response,
+  options: CallAIOptions,
+  schemaStrategy: SchemaStrategy,
+  model: string
+): StreamResponse {
   try {
-    const { endpoint, requestOptions, model, schemaStrategy } =
-      prepareRequestParams(prompt, { ...options, stream: true });
-
-    const response = await fetch(endpoint, requestOptions);
-
-    if (!response.ok) {
-      const { isInvalidModel } = await checkForInvalidModelError(
-        response,
-        model,
-        isRetry,
-        options.skipRetry,
-      );
-
-      if (isInvalidModel) {
-        // Retry with fallback model
-        return yield* callAIStreaming(
-          prompt,
-          { ...options, model: FALLBACK_MODEL },
-          true,
-        );
-      }
-      const errorText = await response.text();
-      console.error(
-        `API Error: ${response.status} ${response.statusText}`,
-        errorText,
-      );
-      streamingError = new Error(
-        `API returned error ${response.status}: ${response.statusText}`,
-      );
-      throw streamingError;
-    }
 
     // Handle streaming response
     if (!response.body) {
@@ -447,7 +463,7 @@ async function* callAIStreaming(
       if (done) {
         if (options.debug) {
           console.log(
-            `[callAI-streaming:complete] Stream finished after ${chunkCount} chunks`,
+            `[callAI-streaming:complete v${PACKAGE_VERSION}] Stream finished after ${chunkCount} chunks`,
           );
         }
         break;
@@ -625,17 +641,10 @@ async function* callAIStreaming(
       }
     }
 
-    // Check if we encountered an error earlier but didn't throw it yet
-    // This ensures browser environments will get the error during iteration
-    if (streamingError) {
-      handleApiError(streamingError, "Streaming API call", options.debug);
-    }
+    // We no longer need special error handling here as errors are thrown immediately
 
-    // Final check for errors before returning
-    if (streamingError) {
-      throw streamingError;
-    }
-
+    // No extra error handling needed here - errors are thrown immediately
+    
     // If we have assembled tool calls but haven't yielded them yet
     if (toolCallsAssembled && (!completeText || completeText.length === 0)) {
       return toolCallsAssembled;

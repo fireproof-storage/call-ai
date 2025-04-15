@@ -75,6 +75,12 @@ export interface SchemaStrategy {
   shouldForceStream: boolean;
 }
 
+
+/**
+ * Return type for streaming API calls
+ */
+export type StreamResponse = AsyncGenerator<string, string, unknown>;
+
 export interface CallAIOptions {
   /**
    * API key for authentication
