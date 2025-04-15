@@ -38,18 +38,20 @@ console.log(response); // Complete response text
 
 ## Streaming Mode
 
-If you prefer to receive the response incrementally as it's generated, set `stream: true`. This returns an AsyncGenerator:
+If you prefer to receive the response incrementally as it's generated, set `stream: true`. This returns an AsyncGenerator which must be awaited:
 
 ```javascript
 import { callAI } from 'call-ai';
 
 // Enable streaming mode explicitly - returns an AsyncGenerator
-const generator = callAI("Write an epic poem", { stream: true });
+const generator = await callAI("Write an epic poem", { stream: true });
 // Process the streaming response
 for await (const partialResponse of generator) {
   console.log(partialResponse); // Updates incrementally
 }
 ```
+
+> **IMPORTANT:** As of v0.7.0, you must use `await` when calling `callAI` with streaming enabled. The non-await pattern is deprecated and will show warnings.
 
 ## JSON Schema Responses
 
@@ -81,7 +83,7 @@ In this example, we're using the `callAI` helper function to get weather data in
 import { callAI } from 'call-ai';
 
 // Get weather data with streaming updates
-const generator = callAI("What's the weather like in Paris today?", {
+const generator = await callAI("What's the weather like in Paris today?", {
   stream: true,
   schema: {
     properties: {
@@ -299,7 +301,7 @@ const response = await callAI("Your prompt", {
 ```javascript
 import { callAI } from 'call-ai';
 
-const generator = callAI([
+const generator = await callAI([
   {
     role: "user",
     content: "Generate 3 JSON records with name, description, tags, and priority (0 is highest, 5 is lowest)."
@@ -360,13 +362,12 @@ const demoData = await callAI("Generate 4 items with label, status, priority (lo
 
 ## Error Handling
 
-Errors are handled through standard JavaScript try/catch blocks:
+As of v0.7.0, call-ai uses standard JavaScript Error objects for error handling with try/catch blocks:
 
 ```javascript
 import { callAI } from 'call-ai';
 
 try {
-
   const response = await callAI("Generate some content", {
     apiKey: "invalid-key" // Invalid or missing API key
   });
@@ -374,18 +375,21 @@ try {
   // If no error was thrown, process the normal response
   console.log(response);
 } catch (error) {
-  // API errors are standard Error objects
+  // API errors are standard Error objects with useful properties
   console.error("API error:", error.message);
+  console.error("Status code:", error.status);
+  console.error("Error type:", error.errorType);
+  console.error("Error details:", error.details);
 }
 ```
 
-For streaming mode, error handling works the same way:
+For streaming mode, error handling works the same way, but remember to await the call:
 
 ```javascript
 import { callAI } from 'call-ai';
 
 try {
-  const generator = callAI("Generate some content", {
+  const generator = await callAI("Generate some content", {
     apiKey: "invalid-key", // Invalid or missing API key
     stream: true
   });
@@ -402,10 +406,15 @@ try {
 } catch (error) {
   // Handle errors with standard try/catch
   console.error("API error:", error.message);
+  console.error("Error properties:", {
+    status: error.status,
+    type: error.errorType,
+    details: error.details
+  });
 }
 ```
 
-This approach is idiomatic and consistent with standard JavaScript practices. No parsing of response strings is needed to check for errors.
+This approach is idiomatic and consistent with standard JavaScript practices. Errors now provide rich information for better debugging and error handling in your applications.
 
 ## Image Recognition Example
 
