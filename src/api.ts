@@ -107,7 +107,8 @@ export function callAI(
     }
 
     // Explicitly check for HTTP error status and log extensively if debug is enabled
-    const contentType = response.headers.get("content-type") || "";
+    // Safe access to headers in case of mock environments
+    const contentType = response?.headers?.get?.("content-type") || "";
 
     if (options.debug) {
       console.log(`[callAI:${PACKAGE_VERSION}] Response.ok =`, response.ok);

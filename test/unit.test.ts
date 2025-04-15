@@ -52,7 +52,9 @@ describe("callAI", () => {
 
   it("should handle API key requirement for streaming", async () => {
     mockReader.read.mockResolvedValueOnce({ done: true });
-    const generator = callAI("Hello, AI", { stream: true }) as AsyncGenerator;
+    const generator = (await callAI("Hello, AI", {
+      stream: true,
+    })) as AsyncGenerator<string, string, unknown>;
 
     const result = await generator.next();
     const errorObj = JSON.parse(result.value as string);
@@ -108,7 +110,11 @@ describe("callAI", () => {
     // Mock successful response to avoid errors
     mockReader.read.mockResolvedValueOnce({ done: true });
 
-    const generator = callAI(prompt, options) as AsyncGenerator;
+    const generator = (await callAI(prompt, options)) as AsyncGenerator<
+      string,
+      string,
+      unknown
+    >;
     await generator.next();
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
@@ -130,7 +136,11 @@ describe("callAI", () => {
     // Mock successful response to avoid errors
     mockReader.read.mockResolvedValueOnce({ done: true });
 
-    const generator = callAI(messages, options) as AsyncGenerator;
+    const generator = (await callAI(messages, options)) as AsyncGenerator<
+      string,
+      string,
+      unknown
+    >;
     await generator.next();
 
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
@@ -156,7 +166,10 @@ describe("callAI", () => {
     // Mock successful response to avoid errors
     mockReader.read.mockResolvedValueOnce({ done: true });
 
-    const generator = callAI("Get user info", options) as AsyncGenerator;
+    const generator = (await callAI(
+      "Get user info",
+      options,
+    )) as AsyncGenerator<string, string, unknown>;
     await generator.next();
 
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
@@ -239,7 +252,11 @@ describe("callAI", () => {
     // Mock successful response
     mockReader.read.mockResolvedValueOnce({ done: true });
 
-    const generator = callAI(messages, options) as AsyncGenerator;
+    const generator = (await callAI(messages, options)) as AsyncGenerator<
+      string,
+      string,
+      unknown
+    >;
     await generator.next();
 
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
@@ -422,7 +439,11 @@ describe("callAI", () => {
     (global.fetch as jest.Mock).mockRejectedValue(new Error("Network error"));
 
     const options = { apiKey: "test-api-key", stream: true };
-    const generator = callAI("Hello", options) as AsyncGenerator;
+    const generator = (await callAI("Hello", options)) as AsyncGenerator<
+      string,
+      string,
+      unknown
+    >;
     const result = await generator.next();
 
     // Parse the JSON error response
@@ -563,7 +584,10 @@ describe("callAI", () => {
     // Override the global.fetch mock for this test
     (global.fetch as jest.Mock).mockResolvedValueOnce(mockResponseWithBody);
 
-    const generator = callAI("What is the weather?", options) as AsyncGenerator;
+    const generator = (await callAI(
+      "What is the weather?",
+      options,
+    )) as AsyncGenerator<string, string, unknown>;
 
     // Manually iterate and collect
     let finalValue = "";
