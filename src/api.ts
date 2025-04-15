@@ -99,10 +99,12 @@ export function callAI(
         }
       }
     } catch (fetchError) {
-      console.error(
-        `[callAI:${PACKAGE_VERSION}] Network error during fetch:`,
-        fetchError,
-      );
+      if (options.debug) {
+        console.error(
+          `[callAI:${PACKAGE_VERSION}] Network error during fetch:`,
+          fetchError,
+        );
+      }
       throw fetchError; // Re-throw network errors
     }
 
@@ -148,6 +150,7 @@ export function callAI(
             model,
             false,
             options.skipRetry,
+            options.debug,
           );
           isInvalidModel = modelCheckResult.isInvalidModel;
 
@@ -299,11 +302,11 @@ export function callAI(
 
   // For backward compatibility with v0.6.x where users didn't await the result
   if (process.env.NODE_ENV !== "production") {
-    console.warn(
-      `[callAI:${PACKAGE_VERSION}] WARNING: Using callAI with streaming without await is deprecated. ` +
-        `Please use 'const generator = await callAI(...)' instead of 'const generator = callAI(...)'. ` +
-        `This backward compatibility will be removed in a future version.`,
-    );
+    if (options.debug) {
+      console.warn(
+        `[callAI:${PACKAGE_VERSION}] No await found - using legacy streaming pattern. This will be removed in a future version and may cause issues with certain models.`,
+      );
+    }
   }
 
   // Create a proxy object that acts both as a Promise and an AsyncGenerator for backward compatibility
@@ -423,6 +426,7 @@ async function checkForInvalidModelError(
   model: string,
   isRetry: boolean,
   skipRetry: boolean = false,
+  debug: boolean = false,
 ): Promise<{ isInvalidModel: boolean; errorData?: any }> {
   // Skip retry immediately if skipRetry is true or if we're already retrying
   if (skipRetry || isRetry) {
@@ -438,9 +442,8 @@ async function checkForInvalidModelError(
   const clonedResponse = response.clone();
   try {
     const errorData = await clonedResponse.json();
-    const debugEnabled = true; // Always log for now to help diagnose the issue
 
-    if (debugEnabled) {
+    if (debug) {
       console.log(
         `[callAI:${PACKAGE_VERSION}] Checking for invalid model error:`,
         {
@@ -477,7 +480,7 @@ async function checkForInvalidModelError(
       errorMessage.includes(pattern.toLowerCase()),
     );
 
-    if (isInvalidModel && debugEnabled) {
+    if (isInvalidModel && debug) {
       console.warn(
         `[callAI:${PACKAGE_VERSION}] Model ${model} not valid, will retry with ${FALLBACK_MODEL}`,
       );
@@ -486,10 +489,14 @@ async function checkForInvalidModelError(
     return { isInvalidModel, errorData };
   } catch (parseError) {
     // If we can't parse the response as JSON, try to read it as text
-    console.error("Failed to parse error response as JSON:", parseError);
+    if (debug) {
+      console.error("Failed to parse error response as JSON:", parseError);
+    }
     try {
       const textResponse = await response.clone().text();
-      console.log("Error response as text:", textResponse);
+      if (debug) {
+        console.log("Error response as text:", textResponse);
+      }
 
       // Even if it's not JSON, check if it contains any of our known patterns
       const lowerText = textResponse.toLowerCase();
@@ -499,14 +506,18 @@ async function checkForInvalidModelError(
         lowerText.includes("fake-model");
 
       if (isInvalidModel) {
-        console.warn(
-          `[callAI:${PACKAGE_VERSION}] Detected invalid model in text response for ${model}`,
-        );
+        if (debug) {
+          console.warn(
+            `[callAI:${PACKAGE_VERSION}] Detected invalid model in text response for ${model}`,
+          );
+        }
       }
 
       return { isInvalidModel, errorData: { text: textResponse } };
     } catch (textError) {
-      console.error("Failed to read error response as text:", textError);
+      if (debug) {
+        console.error("Failed to read error response as text:", textError);
+      }
       return { isInvalidModel: false };
     }
   }
@@ -627,6 +638,7 @@ async function callAINonStreaming(
         model,
         isRetry,
         options.skipRetry,
+        options.debug,
       );
 
       if (isInvalidModel) {
@@ -668,7 +680,9 @@ async function callAINonStreaming(
 
     // Handle error responses
     if (result.error) {
-      console.error("API returned an error:", result.error);
+      if (options.debug) {
+        console.error("API returned an error:", result.error);
+      }
       // If it's a model error and not already a retry, try with fallback
       if (
         !isRetry &&
@@ -676,7 +690,9 @@ async function callAINonStreaming(
         result.error.message &&
         result.error.message.toLowerCase().includes("not a valid model")
       ) {
-        console.warn(`Model ${model} error, retrying with ${FALLBACK_MODEL}`);
+        if (options.debug) {
+          console.warn(`Model ${model} error, retrying with ${FALLBACK_MODEL}`);
+        }
         return callAINonStreaming(
           prompt,
           { ...options, model: FALLBACK_MODEL },
@@ -764,6 +780,7 @@ async function extractClaudeResponse(response: Response): Promise<any> {
       timeoutPromise,
     ])) as string;
   } catch (textError) {
+    // Always log timeout errors
     console.error(`Text extraction timed out or failed:`, textError);
     throw new Error(
       "Claude response text extraction timed out. This is likely an issue with the Claude API's response format.",
@@ -773,6 +790,7 @@ async function extractClaudeResponse(response: Response): Promise<any> {
   try {
     return JSON.parse(textResponse);
   } catch (err) {
+    // Always log JSON parsing errors
     console.error(`Failed to parse Claude response as JSON:`, err);
     throw new Error(`Failed to parse Claude response as JSON: ${err}`);
   }
@@ -883,48 +901,52 @@ async function* createStreamingGenerator(
           try {
             const jsonLine = line.replace("data: ", "");
             if (!jsonLine.trim()) {
-              console.log(
-                `[callAI:${PACKAGE_VERSION}] Empty JSON line after data: prefix`,
-              );
+              if (options.debug) {
+                console.log(
+                  `[callAI:${PACKAGE_VERSION}] Empty JSON line after data: prefix`,
+                );
+              }
               continue;
             }
 
-            console.log(
-              `[callAI:${PACKAGE_VERSION}] JSON line (first 100 chars):`,
-              jsonLine.length > 100
-                ? jsonLine.substring(0, 100) + "..."
-                : jsonLine,
-            );
+            if (options.debug) {
+              console.log(
+                `[callAI:${PACKAGE_VERSION}] JSON line (first 100 chars):`,
+                jsonLine.length > 100
+                  ? jsonLine.substring(0, 100) + "..."
+                  : jsonLine,
+              );
+            }
 
             // Parse the JSON chunk
             let json;
             try {
               json = JSON.parse(jsonLine);
-              console.log(
-                `[callAI:${PACKAGE_VERSION}] Parsed JSON:`,
-                JSON.stringify(json).length > 100
-                  ? JSON.stringify(json).substring(0, 100) + "..."
-                  : JSON.stringify(json),
-              );
+              if (options.debug) {
+                console.log(
+                  `[callAI:${PACKAGE_VERSION}] Parsed JSON:`,
+                  JSON.stringify(json).substring(0, 1000),
+                );
+              }
             } catch (parseError) {
-              console.error(
-                `[callAI:${PACKAGE_VERSION}] JSON parse error:`,
-                parseError,
-              );
-              console.error(
-                `[callAI:${PACKAGE_VERSION}] Failed to parse:`,
-                jsonLine,
-              );
+              if (options.debug) {
+                console.error(
+                  `[callAI:${PACKAGE_VERSION}] JSON parse error:`,
+                  parseError,
+                );
+              }
               continue;
             }
 
             // Enhanced error detection - check for BOTH error and json.error
             // Some APIs return 200 OK but then deliver errors in the stream
             if (json.error || (typeof json === "object" && "error" in json)) {
-              console.error(
-                `[callAI:${PACKAGE_VERSION}] Detected error in streaming response:`,
-                json,
-              );
+              if (options.debug) {
+                console.error(
+                  `[callAI:${PACKAGE_VERSION}] Detected error in streaming response:`,
+                  json,
+                );
+              }
 
               // Create a detailed error object similar to our HTTP error handling
               const errorMessage =
@@ -1075,7 +1097,9 @@ async function* createStreamingGenerator(
               yield schemaStrategy.processResponse(completeText);
             }
           } catch (e) {
-            console.error(`[callAIStreaming] Error parsing JSON chunk:`, e);
+            if (options.debug) {
+              console.error(`[callAIStreaming] Error parsing JSON chunk:`, e);
+            }
           }
         }
       }
