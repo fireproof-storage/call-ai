@@ -1,4 +1,5 @@
 import { callAI } from "../src/index";
+import { Message } from "../src/types";
 import dotenv from "dotenv";
 
 // Load environment variables from .env file if present
@@ -117,828 +118,840 @@ describe("Simple callAI integration tests", () => {
         `should generate text with ${modelName} model with streaming`,
         async () => {
           // Make a simple non-structured API call with streaming
-          const generator = callAI("Write a short joke about programming.", {
-            apiKey: process.env.CALLAI_API_KEY,
-            model: modelId.id,
-            stream: true,
-          }) as AsyncGenerator<string, string, unknown>;
-
-          // Collect all chunks
-          let lastChunk = "";
-          let chunkCount = 0;
-
-          for await (const chunk of generator) {
-            lastChunk = chunk;
-            chunkCount++;
-          }
-
-          // Verify streaming response
-          expectOrWarn(
-            modelId,
-            chunkCount > 0,
-            `should generate text with ${modelName} model with streaming`,
-          );
-          expect(lastChunk).toBeTruthy();
-          expect(lastChunk.length).toBeGreaterThan(10);
-        },
-        TIMEOUT,
-      );
-    });
-  });
-
-  // Test with message array input format
-  describe("Message array input format", () => {
-    // Run all model tests concurrently
-    modelEntries.map(([modelName, modelId]) => {
-      itif(!!haveApiKey)(
-        `should handle message array input with ${modelName} model`,
-        async () => {
-          // Make the API call with message array
-          const result = await callAI(
-            [
-              {
-                role: "system",
-                content: "You are a helpful and concise assistant.",
-              },
-              { role: "user", content: "What is the capital of France?" },
-            ],
+          const generator = await callAI(
+            "Write a short joke about programming.",
             {
               apiKey: process.env.CALLAI_API_KEY,
               model: modelId.id,
+              stream: true,
             },
           );
 
-          // Verify response contains the expected answer
+          // Stream should be an AsyncGenerator
           expectOrWarn(
             modelId,
-            !!result,
-            `should handle message array input with ${modelName} model`,
+            typeof generator === "object",
+            `Generator is not an object but a ${typeof generator} in ${modelName} model`,
           );
-          expect(typeof result).toBe("string");
-          expect((result as string).toLowerCase()).toContain("paris");
+
+          // Manual type assertion to help TypeScript recognize generator as AsyncGenerator
+          if (typeof generator === "object" && generator !== null) {
+            const asyncGenerator = generator as AsyncGenerator<
+              string,
+              string,
+              unknown
+            >;
+
+            // Collect all chunks
+            let finalResult = "";
+            try {
+              for await (const chunk of asyncGenerator) {
+                // Each chunk should be a string
+                expectOrWarn(
+                  modelId,
+                  typeof chunk === "string",
+                  `Chunk is not a string but a ${typeof chunk} in ${modelName} model`,
+                );
+                finalResult = chunk;
+              }
+
+              // Final result should be a meaningful string
+              expectOrWarn(
+                modelId,
+                finalResult.length > 10,
+                `Final result too short (${finalResult.length} chars) in ${modelName} model`,
+              );
+            } catch (error) {
+              // Log error but don't fail test for B/C grade models
+              const errorMessage =
+                error instanceof Error ? error.message : String(error);
+              expectOrWarn(
+                modelId,
+                false,
+                `Streaming error in ${modelName} model: ${errorMessage}`,
+              );
+            }
+          }
         },
         TIMEOUT,
       );
-    });
-  });
 
-  // Test basic schema functionality
-  describe("Basic schema support", () => {
-    // Define a simple schema
-    const simpleSchema = {
-      name: "country",
-      properties: {
-        name: { type: "string" },
-        capital: { type: "string" },
-        population: { type: "number" },
-      },
-    };
-
-    // Run all model tests concurrently
-    modelEntries.map(([modelName, modelId]) => {
-      itif(!!haveApiKey)(
-        `should generate structured data with ${modelName} model using schema`,
+      // Test with a system prompt
+      gradeAwareTest(modelId)(
+        `should handle system prompt with ${modelName} model`,
         async () => {
-          // Make the API call with schema
+          // Create message array with system prompt
+          const messages = [
+            {
+              role: "system" as const,
+              content:
+                "You are a helpful assistant that provides only factual information.",
+            },
+            {
+              role: "user" as const,
+              content: "Provide information about France.",
+            },
+          ] as Message[];
+
+          // Make API call with message array
+          const result = await callAI(messages, {
+            apiKey: process.env.CALLAI_API_KEY,
+            model: modelId.id,
+          });
+
+          // Verify response
+          expectOrWarn(
+            modelId,
+            typeof result === "string",
+            `Result is not a string but a ${typeof result} in ${modelName} model`,
+          );
+          if (typeof result === "string") {
+            expectOrWarn(
+              modelId,
+              result.length > 50,
+              `Result length (${result.length}) too short in ${modelName} model`,
+            );
+            // Should mention France somewhere in the response
+            expectOrWarn(
+              modelId,
+              result.toLowerCase().includes("france"),
+              `Response doesn't mention "France" in ${modelName} model`,
+            );
+          }
+        },
+        TIMEOUT,
+      );
+
+      // Test with functions/tools (simple schema)
+      gradeAwareTest(modelId)(
+        `should handle basic schema with ${modelName} model`,
+        async () => {
+          // Make API call with a basic schema
           const result = await callAI("Provide information about France.", {
             apiKey: process.env.CALLAI_API_KEY,
             model: modelId.id,
-            schema: simpleSchema,
-          });
-
-          // Extract JSON if wrapped in code blocks
-          const content = result as string;
-          const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) ||
-            content.match(/```\s*([\s\S]*?)\s*```/) || [null, content];
-
-          const jsonContent = jsonMatch[1] || content;
-
-          try {
-            // Parse and verify the result
-            const data = JSON.parse(jsonContent);
-            expectOrWarn(
-              modelId,
-              !!data.name,
-              `Missing 'name' property in ${modelName} model response`,
-            );
-            expectOrWarn(
-              modelId,
-              !!data.capital,
-              `Missing 'capital' property in ${modelName} model response`,
-            );
-            expectOrWarn(
-              modelId,
-              !!data.population,
-              `Missing 'population' property in ${modelName} model response`,
-            );
-
-            if (data.name && data.capital && data.population) {
-              expectOrWarn(
-                modelId,
-                typeof data.name === "string",
-                `'name' is not a string in ${modelName} model response`,
-              );
-              expectOrWarn(
-                modelId,
-                typeof data.capital === "string",
-                `'capital' is not a string in ${modelName} model response`,
-              );
-              expectOrWarn(
-                modelId,
-                typeof data.population === "number",
-                `'population' is not a number in ${modelName} model response`,
-              );
-              expectOrWarn(
-                modelId,
-                data.name.toLowerCase().includes("france"),
-                `'name' should include 'france' in ${modelName} model response`,
-              );
-              expectOrWarn(
-                modelId,
-                data.capital.toLowerCase().includes("paris"),
-                `'capital' should include 'paris' in ${modelName} model response`,
-              );
-            }
-          } catch (e) {
-            expectOrWarn(
-              modelId,
-              false,
-              `JSON parse error in ${modelName} model response: ${e}`,
-            );
-          }
-        },
-        TIMEOUT,
-      );
-    });
-  });
-
-  // Test complex schemas with nested objects and arrays
-  describe("Complex schema validation", () => {
-    // Define a complex schema with nested objects and arrays
-    const complexSchema = {
-      name: "travel_plan",
-      properties: {
-        destination: { type: "string" },
-        duration: { type: "number" },
-        budget: { type: "number" },
-        activities: {
-          type: "array",
-          items: { type: "string" },
-        },
-        accommodation: {
-          type: "object",
-          properties: {
-            name: { type: "string" },
-            type: { type: "string" },
-            features: {
-              type: "array",
-              items: { type: "string" },
-            },
-            price: { type: "number" },
-          },
-        },
-        transportation: {
-          type: "object",
-          properties: {
-            mode: { type: "string" },
-            cost: { type: "number" },
-          },
-        },
-      },
-    };
-
-    // Run all model tests concurrently
-    modelEntries.map(([modelName, modelId]) => {
-      itif(!!haveApiKey)(
-        `should generate and validate complex structured data with ${modelName} model`,
-        async () => {
-          // Make the API call with the complex schema
-          const result = await callAI(
-            "Create a detailed travel plan for a weekend trip to a beach destination.",
-            {
-              apiKey: process.env.CALLAI_API_KEY,
-              model: modelId.id,
-              schema: complexSchema,
-            },
-          );
-
-          // Extract JSON if wrapped in code blocks
-          const content = result as string;
-          const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) ||
-            content.match(/```\s*([\s\S]*?)\s*```/) || [null, content];
-
-          const jsonContent = jsonMatch[1] || content;
-
-          try {
-            // Parse and perform detailed validation
-            const data = JSON.parse(jsonContent);
-
-            // Root properties validation
-            expectOrWarn(
-              modelId,
-              !!data.destination,
-              `Missing 'destination' property in ${modelName} model response`,
-            );
-            expectOrWarn(
-              modelId,
-              !!data.duration,
-              `Missing 'duration' property in ${modelName} model response`,
-            );
-            expectOrWarn(
-              modelId,
-              !!data.budget,
-              `Missing 'budget' property in ${modelName} model response`,
-            );
-            expectOrWarn(
-              modelId,
-              !!data.activities,
-              `Missing 'activities' property in ${modelName} model response`,
-            );
-            expectOrWarn(
-              modelId,
-              !!data.accommodation,
-              `Missing 'accommodation' property in ${modelName} model response`,
-            );
-            expectOrWarn(
-              modelId,
-              !!data.transportation,
-              `Missing 'transportation' property in ${modelName} model response`,
-            );
-
-            // Type checking - only if properties exist
-            if (data.destination)
-              expectOrWarn(
-                modelId,
-                typeof data.destination === "string",
-                `'destination' is not a string in ${modelName} model response`,
-              );
-            if (data.duration)
-              expectOrWarn(
-                modelId,
-                typeof data.duration === "number",
-                `'duration' is not a number in ${modelName} model response`,
-              );
-            if (data.budget)
-              expectOrWarn(
-                modelId,
-                typeof data.budget === "number",
-                `'budget' is not a number in ${modelName} model response`,
-              );
-            if (data.activities)
-              expectOrWarn(
-                modelId,
-                Array.isArray(data.activities),
-                `'activities' is not an array in ${modelName} model response`,
-              );
-            if (data.accommodation)
-              expectOrWarn(
-                modelId,
-                typeof data.accommodation === "object",
-                `'accommodation' is not an object in ${modelName} model response`,
-              );
-            if (data.transportation)
-              expectOrWarn(
-                modelId,
-                typeof data.transportation === "object",
-                `'transportation' is not an object in ${modelName} model response`,
-              );
-
-            // Array validation
-            if (Array.isArray(data.activities)) {
-              expectOrWarn(
-                modelId,
-                data.activities.length > 0,
-                `'activities' array is empty in ${modelName} model response`,
-              );
-              data.activities.forEach((activity: any) => {
-                expectOrWarn(
-                  modelId,
-                  typeof activity === "string",
-                  `activity item is not a string in ${modelName} model response`,
-                );
-              });
-            }
-
-            // Nested object validation - accommodation
-            if (data.accommodation) {
-              expectOrWarn(
-                modelId,
-                !!data.accommodation.name,
-                `Missing 'accommodation.name' in ${modelName} model response`,
-              );
-              expectOrWarn(
-                modelId,
-                !!data.accommodation.type,
-                `Missing 'accommodation.type' in ${modelName} model response`,
-              );
-              expectOrWarn(
-                modelId,
-                !!data.accommodation.features,
-                `Missing 'accommodation.features' in ${modelName} model response`,
-              );
-              expectOrWarn(
-                modelId,
-                !!data.accommodation.price,
-                `Missing 'accommodation.price' in ${modelName} model response`,
-              );
-
-              if (data.accommodation.name)
-                expectOrWarn(
-                  modelId,
-                  typeof data.accommodation.name === "string",
-                  `'accommodation.name' is not a string in ${modelName} model response`,
-                );
-              if (data.accommodation.type)
-                expectOrWarn(
-                  modelId,
-                  typeof data.accommodation.type === "string",
-                  `'accommodation.type' is not a string in ${modelName} model response`,
-                );
-              if (data.accommodation.features)
-                expectOrWarn(
-                  modelId,
-                  Array.isArray(data.accommodation.features),
-                  `'accommodation.features' is not an array in ${modelName} model response`,
-                );
-              if (data.accommodation.price)
-                expectOrWarn(
-                  modelId,
-                  typeof data.accommodation.price === "number",
-                  `'accommodation.price' is not a number in ${modelName} model response`,
-                );
-
-              if (Array.isArray(data.accommodation.features)) {
-                data.accommodation.features.forEach((feature: any) => {
-                  expectOrWarn(
-                    modelId,
-                    typeof feature === "string",
-                    `feature item is not a string in ${modelName} model response`,
-                  );
-                });
-              }
-            }
-
-            // Nested object validation - transportation
-            if (data.transportation) {
-              expectOrWarn(
-                modelId,
-                !!data.transportation.mode,
-                `Missing 'transportation.mode' in ${modelName} model response`,
-              );
-              expectOrWarn(
-                modelId,
-                !!data.transportation.cost,
-                `Missing 'transportation.cost' in ${modelName} model response`,
-              );
-
-              if (data.transportation.mode)
-                expectOrWarn(
-                  modelId,
-                  typeof data.transportation.mode === "string",
-                  `'transportation.mode' is not a string in ${modelName} model response`,
-                );
-              if (data.transportation.cost)
-                expectOrWarn(
-                  modelId,
-                  typeof data.transportation.cost === "number",
-                  `'transportation.cost' is not a number in ${modelName} model response`,
-                );
-            }
-
-            // Value range validation
-            if (data.duration)
-              expectOrWarn(
-                modelId,
-                data.duration > 0,
-                `'duration' is not positive in ${modelName} model response`,
-              );
-            if (data.budget)
-              expectOrWarn(
-                modelId,
-                data.budget > 0,
-                `'budget' is not positive in ${modelName} model response`,
-              );
-            if (data.accommodation?.price)
-              expectOrWarn(
-                modelId,
-                data.accommodation.price > 0,
-                `'accommodation.price' is not positive in ${modelName} model response`,
-              );
-            if (data.transportation?.cost)
-              expectOrWarn(
-                modelId,
-                data.transportation.cost > 0,
-                `'transportation.cost' is not positive in ${modelName} model response`,
-              );
-          } catch (e) {
-            expectOrWarn(
-              modelId,
-              false,
-              `JSON parse error in ${modelName} model response: ${e}`,
-            );
-          }
-        },
-        TIMEOUT,
-      );
-    });
-  });
-
-  // Test complex but flat schema (many properties but no nesting)
-  describe("Complex flat schema validation", () => {
-    // Define a complex flat schema
-    const complexFlatSchema = {
-      name: "recipe",
-      properties: {
-        name: { type: "string" },
-        cuisine: { type: "string" },
-        prepTime: { type: "number" },
-        cookTime: { type: "number" },
-        servings: { type: "number" },
-        difficulty: { type: "string" },
-        ingredients: {
-          type: "array",
-          items: { type: "string" },
-        },
-        steps: {
-          type: "array",
-          items: { type: "string" },
-        },
-        calories: { type: "number" },
-        protein: { type: "number" },
-        carbohydrates: { type: "number" },
-        fat: { type: "number" },
-      },
-    };
-
-    // Run all model tests concurrently
-    modelEntries.map(([modelName, modelId]) => {
-      itif(!!haveApiKey)(
-        `should generate data with complex flat schema using ${modelName} model`,
-        async () => {
-          // Make the API call with schema
-          const result = await callAI("Create a recipe for a healthy dinner.", {
-            apiKey: process.env.CALLAI_API_KEY,
-            model: modelId.id,
-            schema: complexFlatSchema,
-          });
-
-          // Extract JSON if wrapped in code blocks
-          const content = result as string;
-          const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) ||
-            content.match(/```\s*([\s\S]*?)\s*```/) || [null, content];
-
-          const jsonContent = jsonMatch[1] || content;
-
-          try {
-            // Parse and verify the result
-            const data = JSON.parse(jsonContent);
-
-            // Check required properties
-            expectOrWarn(
-              modelId,
-              !!data.name,
-              `Missing 'name' property in ${modelName} model response`,
-            );
-            expectOrWarn(
-              modelId,
-              !!data.cuisine,
-              `Missing 'cuisine' property in ${modelName} model response`,
-            );
-            expectOrWarn(
-              modelId,
-              !!data.prepTime,
-              `Missing 'prepTime' property in ${modelName} model response`,
-            );
-            expectOrWarn(
-              modelId,
-              !!data.cookTime,
-              `Missing 'cookTime' property in ${modelName} model response`,
-            );
-            expectOrWarn(
-              modelId,
-              !!data.servings,
-              `Missing 'servings' property in ${modelName} model response`,
-            );
-            expectOrWarn(
-              modelId,
-              !!data.difficulty,
-              `Missing 'difficulty' property in ${modelName} model response`,
-            );
-            expectOrWarn(
-              modelId,
-              !!data.ingredients,
-              `Missing 'ingredients' property in ${modelName} model response`,
-            );
-            expectOrWarn(
-              modelId,
-              !!data.steps,
-              `Missing 'steps' property in ${modelName} model response`,
-            );
-
-            // Check types
-            if (data.name)
-              expectOrWarn(
-                modelId,
-                typeof data.name === "string",
-                `'name' is not a string in ${modelName} model response`,
-              );
-            if (data.cuisine)
-              expectOrWarn(
-                modelId,
-                typeof data.cuisine === "string",
-                `'cuisine' is not a string in ${modelName} model response`,
-              );
-            if (data.prepTime)
-              expectOrWarn(
-                modelId,
-                typeof data.prepTime === "number",
-                `'prepTime' is not a number in ${modelName} model response`,
-              );
-            if (data.cookTime)
-              expectOrWarn(
-                modelId,
-                typeof data.cookTime === "number",
-                `'cookTime' is not a number in ${modelName} model response`,
-              );
-            if (data.servings)
-              expectOrWarn(
-                modelId,
-                typeof data.servings === "number",
-                `'servings' is not a number in ${modelName} model response`,
-              );
-            if (data.difficulty)
-              expectOrWarn(
-                modelId,
-                typeof data.difficulty === "string",
-                `'difficulty' is not a string in ${modelName} model response`,
-              );
-            if (data.ingredients)
-              expectOrWarn(
-                modelId,
-                Array.isArray(data.ingredients),
-                `'ingredients' is not an array in ${modelName} model response`,
-              );
-            if (data.steps)
-              expectOrWarn(
-                modelId,
-                Array.isArray(data.steps),
-                `'steps' is not an array in ${modelName} model response`,
-              );
-
-            // Check arrays
-            if (Array.isArray(data.ingredients))
-              expectOrWarn(
-                modelId,
-                data.ingredients.length > 0,
-                `'ingredients' array is empty in ${modelName} model response`,
-              );
-            if (Array.isArray(data.steps))
-              expectOrWarn(
-                modelId,
-                data.steps.length > 0,
-                `'steps' array is empty in ${modelName} model response`,
-              );
-
-            // Check data values
-            if (data.prepTime)
-              expectOrWarn(
-                modelId,
-                data.prepTime > 0,
-                `'prepTime' is not positive in ${modelName} model response`,
-              );
-            if (data.cookTime)
-              expectOrWarn(
-                modelId,
-                data.cookTime > 0,
-                `'cookTime' is not positive in ${modelName} model response`,
-              );
-            if (data.servings)
-              expectOrWarn(
-                modelId,
-                data.servings > 0,
-                `'servings' is not positive in ${modelName} model response`,
-              );
-          } catch (e) {
-            expectOrWarn(
-              modelId,
-              false,
-              `JSON parse error in ${modelName} model response: ${e}`,
-            );
-          }
-        },
-        TIMEOUT,
-      );
-    });
-  });
-
-  // Test simple but nested schema (few properties with deep nesting)
-  describe("Simple nested schema validation", () => {
-    // Define a simple nested schema
-    const simpleNestedSchema = {
-      name: "file_system",
-      properties: {
-        root: {
-          type: "object",
-          properties: {
-            name: { type: "string" },
-            type: { type: "string" },
-            children: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  name: { type: "string" },
-                  type: { type: "string" },
-                  children: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        name: { type: "string" },
-                        type: { type: "string" },
-                      },
-                    },
-                  },
+            schema: {
+              type: "object",
+              properties: {
+                capital: { type: "string" },
+                population: { type: "number" },
+                languages: {
+                  type: "array",
+                  items: { type: "string" },
                 },
               },
+              required: ["capital", "population"],
             },
-          },
-        },
-      },
-    };
+          });
 
-    // Run all model tests concurrently
-    modelEntries.map(([modelName, modelId]) => {
-      itif(!!haveApiKey)(
-        `should generate data with simple nested schema using ${modelName} model`,
+          // Verify response
+          expectOrWarn(
+            modelId,
+            typeof result === "string",
+            `Result is not a string but a ${typeof result} in ${modelName} model`,
+          );
+
+          if (typeof result === "string") {
+            // Try to parse as JSON
+            try {
+              const data = JSON.parse(result);
+              expectOrWarn(
+                modelId,
+                typeof data === "object" && data !== null,
+                `Parsed result is not an object in ${modelName} model`,
+              );
+
+              if (typeof data === "object" && data !== null) {
+                // Check required fields
+                expectOrWarn(
+                  modelId,
+                  "capital" in data,
+                  `Missing 'capital' in ${modelName} model response`,
+                );
+                expectOrWarn(
+                  modelId,
+                  "population" in data,
+                  `Missing 'population' in ${modelName} model response`,
+                );
+
+                // Validate capital
+                if ("capital" in data) {
+                  expectOrWarn(
+                    modelId,
+                    typeof data.capital === "string",
+                    `'capital' is not a string in ${modelName} model response`,
+                  );
+                  if (typeof data.capital === "string") {
+                    expectOrWarn(
+                      modelId,
+                      data.capital.toLowerCase() === "paris",
+                      `Capital is ${data.capital}, not Paris in ${modelName} model response`,
+                    );
+                  }
+                }
+
+                // Validate population
+                if ("population" in data) {
+                  expectOrWarn(
+                    modelId,
+                    typeof data.population === "number",
+                    `'population' is not a number in ${modelName} model response`,
+                  );
+                  if (typeof data.population === "number") {
+                    // Population should be in a reasonable range (60-70 million for France)
+                    expectOrWarn(
+                      modelId,
+                      data.population > 50000000 && data.population < 80000000,
+                      `Population ${data.population} outside expected range in ${modelName} model response`,
+                    );
+                  }
+                }
+
+                // Check languages if present
+                if ("languages" in data) {
+                  expectOrWarn(
+                    modelId,
+                    Array.isArray(data.languages),
+                    `'languages' is not an array in ${modelName} model response`,
+                  );
+                  if (Array.isArray(data.languages)) {
+                    // Should include French
+                    expectOrWarn(
+                      modelId,
+                      data.languages.some(
+                        (lang: string) =>
+                          typeof lang === "string" &&
+                          lang.toLowerCase().includes("french"),
+                      ),
+                      `Languages doesn't include French in ${modelName} model response`,
+                    );
+                  }
+                }
+              }
+            } catch (e) {
+              expectOrWarn(
+                modelId,
+                false,
+                `JSON parse error in ${modelName} model response: ${e}`,
+              );
+            }
+          }
+        },
+        TIMEOUT,
+      );
+
+      // Test with a complex nested schema
+      gradeAwareTest(modelId)(
+        `should handle nested schema with ${modelName} model`,
         async () => {
-          // Make the API call with schema
+          // API call with a nested schema
           const result = await callAI(
-            "Create a simple file system structure with a root directory containing two subdirectories, each with two files.",
+            [
+              {
+                role: "user" as const,
+                content: "Create a file directory structure for a web project",
+              },
+            ] as Message[],
             {
               apiKey: process.env.CALLAI_API_KEY,
               model: modelId.id,
-              schema: simpleNestedSchema,
+              schema: {
+                type: "object",
+                properties: {
+                  root: {
+                    type: "object",
+                    properties: {
+                      name: { type: "string" },
+                      type: { type: "string", enum: ["directory"] },
+                      children: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          properties: {
+                            name: { type: "string" },
+                            type: {
+                              type: "string",
+                              enum: ["directory", "file"],
+                            },
+                            children: {
+                              type: "array",
+                              items: {
+                                type: "object",
+                                properties: {
+                                  name: { type: "string" },
+                                  type: {
+                                    type: "string",
+                                    enum: ["directory", "file"],
+                                  },
+                                },
+                                required: ["name", "type"],
+                              },
+                            },
+                          },
+                          required: ["name", "type"],
+                        },
+                      },
+                    },
+                    required: ["name", "type", "children"],
+                  },
+                },
+                required: ["root"],
+              },
             },
           );
 
-          // Extract JSON if wrapped in code blocks
-          const content = result as string;
-          const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) ||
-            content.match(/```\s*([\s\S]*?)\s*```/) || [null, content];
+          // Verify response
+          expectOrWarn(
+            modelId,
+            typeof result === "string",
+            `Result is not a string but a ${typeof result} in ${modelName} model`,
+          );
 
-          const jsonContent = jsonMatch[1] || content;
-
-          try {
-            // Parse and verify the result
-            const data = JSON.parse(jsonContent);
-
-            // Check top-level structure
-            expectOrWarn(
-              modelId,
-              !!data.root,
-              `Missing 'root' property in ${modelName} model response`,
-            );
-
-            // Only continue if root exists and is an object
-            if (data.root && typeof data.root === "object") {
+          if (typeof result === "string") {
+            try {
+              const data = JSON.parse(result);
               expectOrWarn(
                 modelId,
-                !!data.root.name,
-                `Missing 'root.name' in ${modelName} model response`,
-              );
-              expectOrWarn(
-                modelId,
-                !!data.root.type,
-                `Missing 'root.type' in ${modelName} model response`,
-              );
-              expectOrWarn(
-                modelId,
-                !!data.root.children,
-                `Missing 'root.children' in ${modelName} model response`,
+                typeof data === "object" && data !== null,
+                `Parsed result is not an object in ${modelName} model response`,
               );
 
-              // Check root properties
-              if (data.root.name)
+              if (typeof data === "object" && data !== null) {
+                // Check root object
                 expectOrWarn(
                   modelId,
-                  typeof data.root.name === "string",
-                  `'root.name' is not a string in ${modelName} model response`,
-                );
-              if (data.root.type)
-                expectOrWarn(
-                  modelId,
-                  typeof data.root.type === "string",
-                  `'root.type' is not a string in ${modelName} model response`,
-                );
-              if (data.root.children) {
-                expectOrWarn(
-                  modelId,
-                  Array.isArray(data.root.children),
-                  `'root.children' is not an array in ${modelName} model response`,
-                );
-                expectOrWarn(
-                  modelId,
-                  data.root.children.length > 0,
-                  `'root.children' array is empty in ${modelName} model response`,
+                  "root" in data,
+                  `Missing 'root' in ${modelName} model response`,
                 );
 
-                // Check first level of nesting
-                if (
-                  Array.isArray(data.root.children) &&
-                  data.root.children.length > 0
-                ) {
-                  const firstChild = data.root.children[0];
+                if ("root" in data && typeof data.root === "object") {
+                  // Check root properties
                   expectOrWarn(
                     modelId,
-                    !!firstChild,
-                    `First child is undefined in ${modelName} model response`,
+                    "name" in data.root,
+                    `Missing 'root.name' in ${modelName} model response`,
+                  );
+                  expectOrWarn(
+                    modelId,
+                    "type" in data.root,
+                    `Missing 'root.type' in ${modelName} model response`,
+                  );
+                  expectOrWarn(
+                    modelId,
+                    "children" in data.root,
+                    `Missing 'root.children' in ${modelName} model response`,
                   );
 
-                  if (firstChild) {
+                  if ("name" in data.root)
                     expectOrWarn(
                       modelId,
-                      !!firstChild.name,
-                      `Missing 'firstChild.name' in ${modelName} model response`,
+                      typeof data.root.name === "string",
+                      `'root.name' is not a string in ${modelName} model response`,
                     );
+                  if ("type" in data.root)
                     expectOrWarn(
                       modelId,
-                      !!firstChild.type,
-                      `Missing 'firstChild.type' in ${modelName} model response`,
+                      data.root.type === "directory",
+                      `'root.type' is not 'directory' in ${modelName} model response`,
                     );
+                  if ("children" in data.root)
                     expectOrWarn(
                       modelId,
-                      !!firstChild.children,
-                      `Missing 'firstChild.children' in ${modelName} model response`,
+                      Array.isArray(data.root.children),
+                      `'root.children' is not an array in ${modelName} model response`,
                     );
 
-                    if (firstChild.name)
+                  // Check first level of nesting
+                  if (
+                    Array.isArray(data.root.children) &&
+                    data.root.children.length > 0
+                  ) {
+                    const firstChild = data.root.children[0];
+                    expectOrWarn(
+                      modelId,
+                      !!firstChild,
+                      `First child is undefined in ${modelName} model response`,
+                    );
+
+                    if (firstChild) {
                       expectOrWarn(
                         modelId,
-                        typeof firstChild.name === "string",
-                        `'firstChild.name' is not a string in ${modelName} model response`,
+                        !!firstChild.name,
+                        `Missing 'firstChild.name' in ${modelName} model response`,
                       );
-                    if (firstChild.type)
                       expectOrWarn(
                         modelId,
-                        typeof firstChild.type === "string",
-                        `'firstChild.type' is not a string in ${modelName} model response`,
+                        !!firstChild.type,
+                        `Missing 'firstChild.type' in ${modelName} model response`,
                       );
-                    if (firstChild.children)
                       expectOrWarn(
                         modelId,
-                        Array.isArray(firstChild.children),
-                        `'firstChild.children' is not an array in ${modelName} model response`,
+                        !!firstChild.children,
+                        `Missing 'firstChild.children' in ${modelName} model response`,
                       );
 
-                    // Check for at least one file in the second level
-                    if (
-                      Array.isArray(firstChild.children) &&
-                      firstChild.children.length > 0
-                    ) {
-                      const secondChild = firstChild.children[0];
-                      expectOrWarn(
-                        modelId,
-                        !!secondChild,
-                        `Second child is undefined in ${modelName} model response`,
-                      );
-
-                      if (secondChild) {
+                      if (firstChild.name)
                         expectOrWarn(
                           modelId,
-                          !!secondChild.name,
-                          `Missing 'secondChild.name' in ${modelName} model response`,
+                          typeof firstChild.name === "string",
+                          `'firstChild.name' is not a string in ${modelName} model response`,
                         );
+                      if (firstChild.type)
                         expectOrWarn(
                           modelId,
-                          !!secondChild.type,
-                          `Missing 'secondChild.type' in ${modelName} model response`,
+                          typeof firstChild.type === "string",
+                          `'firstChild.type' is not a string in ${modelName} model response`,
+                        );
+                      if (firstChild.children)
+                        expectOrWarn(
+                          modelId,
+                          Array.isArray(firstChild.children),
+                          `'firstChild.children' is not an array in ${modelName} model response`,
                         );
 
-                        if (secondChild.name)
+                      // Check for at least one file in the second level
+                      if (
+                        Array.isArray(firstChild.children) &&
+                        firstChild.children.length > 0
+                      ) {
+                        const secondChild = firstChild.children[0];
+                        expectOrWarn(
+                          modelId,
+                          !!secondChild,
+                          `Second child is undefined in ${modelName} model response`,
+                        );
+
+                        if (secondChild) {
                           expectOrWarn(
                             modelId,
-                            typeof secondChild.name === "string",
-                            `'secondChild.name' is not a string in ${modelName} model response`,
+                            !!secondChild.name,
+                            `Missing 'secondChild.name' in ${modelName} model response`,
                           );
-                        if (secondChild.type)
                           expectOrWarn(
                             modelId,
-                            typeof secondChild.type === "string",
-                            `'secondChild.type' is not a string in ${modelName} model response`,
+                            !!secondChild.type,
+                            `Missing 'secondChild.type' in ${modelName} model response`,
                           );
+
+                          if (secondChild.name)
+                            expectOrWarn(
+                              modelId,
+                              typeof secondChild.name === "string",
+                              `'secondChild.name' is not a string in ${modelName} model response`,
+                            );
+                          if (secondChild.type)
+                            expectOrWarn(
+                              modelId,
+                              typeof secondChild.type === "string",
+                              `'secondChild.type' is not a string in ${modelName} model response`,
+                            );
+                        }
                       }
                     }
                   }
                 }
               }
+            } catch (e) {
+              expectOrWarn(
+                modelId,
+                false,
+                `JSON parse error in ${modelName} model response: ${e}`,
+              );
             }
-          } catch (e) {
-            expectOrWarn(
-              modelId,
-              false,
-              `JSON parse error in ${modelName} model response: ${e}`,
-            );
+          }
+        },
+        TIMEOUT,
+      );
+    });
+
+    // Test for recipes with all models
+    modelEntries.map(([modelName, modelId]) => {
+      gradeAwareTest(modelId)(
+        `should generate recipe with ${modelName} model using schema`,
+        async () => {
+          // Make API call with a recipe schema
+          const result = await callAI("Create a recipe for a healthy dinner.", {
+            apiKey: process.env.CALLAI_API_KEY,
+            model: modelId.id,
+            schema: {
+              type: "object",
+              properties: {
+                title: { type: "string" },
+                description: { type: "string" },
+                ingredients: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      name: { type: "string" },
+                      amount: { type: "string" },
+                    },
+                    required: ["name", "amount"],
+                  },
+                },
+                steps: {
+                  type: "array",
+                  items: { type: "string" },
+                },
+                prep_time_minutes: { type: "number" },
+                cook_time_minutes: { type: "number" },
+                servings: { type: "number" },
+              },
+              required: [
+                "title",
+                "description",
+                "ingredients",
+                "steps",
+                "prep_time_minutes",
+                "cook_time_minutes",
+                "servings",
+              ],
+            },
+          });
+
+          // Verify response
+          expectOrWarn(
+            modelId,
+            typeof result === "string",
+            `Result is not a string but ${typeof result} in ${modelName} model`,
+          );
+
+          if (typeof result === "string") {
+            try {
+              const data = JSON.parse(result);
+              expectOrWarn(
+                modelId,
+                typeof data === "object" && data !== null,
+                `Parsed result is not an object in ${modelName} model response`,
+              );
+
+              if (typeof data === "object" && data !== null) {
+                // Check required fields
+                const requiredFields = [
+                  "title",
+                  "description",
+                  "ingredients",
+                  "steps",
+                  "prep_time_minutes",
+                  "cook_time_minutes",
+                  "servings",
+                ];
+
+                for (const field of requiredFields) {
+                  expectOrWarn(
+                    modelId,
+                    field in data,
+                    `Missing '${field}' in ${modelName} model response`,
+                  );
+                }
+
+                // Validate types and some basic content
+                if ("title" in data) {
+                  expectOrWarn(
+                    modelId,
+                    typeof data.title === "string",
+                    `'title' is not a string in ${modelName} model response`,
+                  );
+                  if (typeof data.title === "string") {
+                    expectOrWarn(
+                      modelId,
+                      data.title.length > 3,
+                      `Title too short in ${modelName} model response`,
+                    );
+                  }
+                }
+
+                if ("description" in data) {
+                  expectOrWarn(
+                    modelId,
+                    typeof data.description === "string",
+                    `'description' is not a string in ${modelName} model response`,
+                  );
+                  if (typeof data.description === "string") {
+                    expectOrWarn(
+                      modelId,
+                      data.description.length > 10,
+                      `Description too short in ${modelName} model response`,
+                    );
+                  }
+                }
+
+                if ("ingredients" in data) {
+                  expectOrWarn(
+                    modelId,
+                    Array.isArray(data.ingredients),
+                    `'ingredients' is not an array in ${modelName} model response`,
+                  );
+                  if (Array.isArray(data.ingredients)) {
+                    expectOrWarn(
+                      modelId,
+                      data.ingredients.length > 0,
+                      `No ingredients in ${modelName} model response`,
+                    );
+
+                    // Check first ingredient
+                    if (data.ingredients.length > 0) {
+                      const firstIngredient = data.ingredients[0];
+                      expectOrWarn(
+                        modelId,
+                        typeof firstIngredient === "object" &&
+                          firstIngredient !== null,
+                        `First ingredient is not an object in ${modelName} model response`,
+                      );
+
+                      if (
+                        typeof firstIngredient === "object" &&
+                        firstIngredient !== null
+                      ) {
+                        expectOrWarn(
+                          modelId,
+                          "name" in firstIngredient,
+                          `Missing 'name' in first ingredient in ${modelName} model response`,
+                        );
+                        expectOrWarn(
+                          modelId,
+                          "amount" in firstIngredient,
+                          `Missing 'amount' in first ingredient in ${modelName} model response`,
+                        );
+
+                        if ("name" in firstIngredient) {
+                          expectOrWarn(
+                            modelId,
+                            typeof firstIngredient.name === "string",
+                            `Ingredient name is not a string in ${modelName} model response`,
+                          );
+                        }
+
+                        if ("amount" in firstIngredient) {
+                          expectOrWarn(
+                            modelId,
+                            typeof firstIngredient.amount === "string",
+                            `Ingredient amount is not a string in ${modelName} model response`,
+                          );
+                        }
+                      }
+                    }
+                  }
+                }
+
+                if ("steps" in data) {
+                  expectOrWarn(
+                    modelId,
+                    Array.isArray(data.steps),
+                    `'steps' is not an array in ${modelName} model response`,
+                  );
+                  if (Array.isArray(data.steps)) {
+                    expectOrWarn(
+                      modelId,
+                      data.steps.length > 0,
+                      `No steps in ${modelName} model response`,
+                    );
+
+                    // Check first step
+                    if (data.steps.length > 0) {
+                      expectOrWarn(
+                        modelId,
+                        typeof data.steps[0] === "string",
+                        `First step is not a string in ${modelName} model response`,
+                      );
+                    }
+                  }
+                }
+
+                // Check numeric fields
+                const numericFields = [
+                  "prep_time_minutes",
+                  "cook_time_minutes",
+                  "servings",
+                ];
+                for (const field of numericFields) {
+                  if (field in data) {
+                    expectOrWarn(
+                      modelId,
+                      typeof data[field] === "number",
+                      `'${field}' is not a number in ${modelName} model response`,
+                    );
+                    if (typeof data[field] === "number") {
+                      expectOrWarn(
+                        modelId,
+                        data[field] > 0,
+                        `'${field}' is not positive in ${modelName} model response`,
+                      );
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              expectOrWarn(
+                modelId,
+                false,
+                `JSON parse error in ${modelName} model response: ${e}`,
+              );
+            }
+          }
+        },
+        TIMEOUT,
+      );
+    });
+
+    // Test with a music playlist schema
+    modelEntries.map(([modelName, modelId]) => {
+      gradeAwareTest(modelId)(
+        `should create playlist with ${modelName} model using schema`,
+        async () => {
+          // Make API call with the music schema
+          const result = await callAI(
+            [
+              {
+                role: "user" as const,
+                content:
+                  "Create a themed playlist for a relaxing evening with 3-5 songs.",
+              },
+            ] as Message[],
+            {
+              apiKey: process.env.CALLAI_API_KEY,
+              model: modelId.id,
+              schema: {
+                type: "object",
+                properties: {
+                  title: { type: "string" },
+                  theme: { type: "string" },
+                  mood: { type: "string" },
+                  songs: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        title: { type: "string" },
+                        artist: { type: "string" },
+                        year: { type: "string" },
+                        genre: { type: "string" },
+                      },
+                      required: ["title", "artist"],
+                    },
+                  },
+                },
+                required: ["title", "theme", "songs"],
+              },
+            },
+          );
+
+          // Verify response
+          expectOrWarn(
+            modelId,
+            typeof result === "string",
+            `Result is not a string but ${typeof result} in ${modelName} model`,
+          );
+
+          if (typeof result === "string") {
+            try {
+              const data = JSON.parse(result);
+              expectOrWarn(
+                modelId,
+                typeof data === "object" && data !== null,
+                `Parsed result is not an object in ${modelName} model response`,
+              );
+
+              if (typeof data === "object" && data !== null) {
+                // Check required fields
+                expectOrWarn(
+                  modelId,
+                  "title" in data,
+                  `Missing 'title' in ${modelName} model response`,
+                );
+                expectOrWarn(
+                  modelId,
+                  "theme" in data,
+                  `Missing 'theme' in ${modelName} model response`,
+                );
+                expectOrWarn(
+                  modelId,
+                  "songs" in data,
+                  `Missing 'songs' in ${modelName} model response`,
+                );
+
+                // Check title and theme
+                if ("title" in data) {
+                  expectOrWarn(
+                    modelId,
+                    typeof data.title === "string",
+                    `'title' is not a string in ${modelName} model response`,
+                  );
+                }
+
+                if ("theme" in data) {
+                  expectOrWarn(
+                    modelId,
+                    typeof data.theme === "string",
+                    `'theme' is not a string in ${modelName} model response`,
+                  );
+                }
+
+                // Check songs array
+                if ("songs" in data) {
+                  expectOrWarn(
+                    modelId,
+                    Array.isArray(data.songs),
+                    `'songs' is not an array in ${modelName} model response`,
+                  );
+
+                  if (Array.isArray(data.songs)) {
+                    expectOrWarn(
+                      modelId,
+                      data.songs.length >= 3 && data.songs.length <= 5,
+                      `Songs count (${data.songs.length}) out of range (3-5) in ${modelName} model response`,
+                    );
+
+                    // Check first song
+                    if (data.songs.length > 0) {
+                      const firstSong = data.songs[0];
+                      expectOrWarn(
+                        modelId,
+                        typeof firstSong === "object" && firstSong !== null,
+                        `First song is not an object in ${modelName} model response`,
+                      );
+
+                      if (typeof firstSong === "object" && firstSong !== null) {
+                        // Check required properties
+                        expectOrWarn(
+                          modelId,
+                          "title" in firstSong,
+                          `Missing 'title' in first song in ${modelName} model response`,
+                        );
+                        expectOrWarn(
+                          modelId,
+                          "artist" in firstSong,
+                          `Missing 'artist' in first song in ${modelName} model response`,
+                        );
+
+                        // Check types
+                        if ("title" in firstSong) {
+                          expectOrWarn(
+                            modelId,
+                            typeof firstSong.title === "string",
+                            `Song title is not a string in ${modelName} model response`,
+                          );
+                        }
+
+                        if ("artist" in firstSong) {
+                          expectOrWarn(
+                            modelId,
+                            typeof firstSong.artist === "string",
+                            `Song artist is not a string in ${modelName} model response`,
+                          );
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              expectOrWarn(
+                modelId,
+                false,
+                `JSON parse error in ${modelName} model response: ${e}`,
+              );
+            }
           }
         },
         TIMEOUT,

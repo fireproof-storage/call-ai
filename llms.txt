@@ -38,13 +38,13 @@ console.log(response); // Complete response text
 
 ## Streaming Mode
 
-If you prefer to receive the response incrementally as it's generated, set `stream: true`. This returns an AsyncGenerator:
+If you prefer to receive the response incrementally as it's generated, set `stream: true`. This returns an AsyncGenerator which must be awaited:
 
 ```javascript
 import { callAI } from 'call-ai';
 
 // Enable streaming mode explicitly - returns an AsyncGenerator
-const generator = callAI("Write an epic poem", { stream: true });
+const generator = await callAI("Write an epic poem", { stream: true });
 // Process the streaming response
 for await (const partialResponse of generator) {
   console.log(partialResponse); // Updates incrementally
@@ -81,7 +81,7 @@ In this example, we're using the `callAI` helper function to get weather data in
 import { callAI } from 'call-ai';
 
 // Get weather data with streaming updates
-const generator = callAI("What's the weather like in Paris today?", {
+const generator = await callAI("What's the weather like in Paris today?", {
   stream: true,
   schema: {
     properties: {
@@ -299,7 +299,7 @@ const response = await callAI("Your prompt", {
 ```javascript
 import { callAI } from 'call-ai';
 
-const generator = callAI([
+const generator = await callAI([
   {
     role: "user",
     content: "Generate 3 JSON records with name, description, tags, and priority (0 is highest, 5 is lowest)."
@@ -360,70 +360,60 @@ const demoData = await callAI("Generate 4 items with label, status, priority (lo
 
 ## Error Handling
 
-The library provides consistent error handling for both streaming and non-streaming modes:
+Errors are handled through standard JavaScript try/catch blocks:
 
 ```javascript
 import { callAI } from 'call-ai';
 
 try {
+
   const response = await callAI("Generate some content", {
     apiKey: "invalid-key" // Invalid or missing API key
   });
   
-  // If there was an error, response will be a JSON string with error details
-  try {
-    const errorObj = JSON.parse(response);
-    if (errorObj.message && errorObj.error) {
-      console.error("API error:", errorObj.message);
-    } else {
-      // Process normal response
-      console.log(response);
-    }
-  } catch {
-    // Not an error JSON, process normal response
-    console.log(response);
-  }
-} catch (e) {
-  // Handle any unexpected errors
-  console.error("Unexpected error:", e);
+  // If no error was thrown, process the normal response
+  console.log(response);
+} catch (error) {
+  // API errors are standard Error objects with useful properties
+  console.error("API error:", error.message);
+  console.error("Status code:", error.status);
+  console.error("Error type:", error.errorType);
+  console.error("Error details:", error.details);
 }
 ```
 
-For streaming, error handling works similarly:
+For streaming mode, error handling works the same way:
 
 ```javascript
 import { callAI } from 'call-ai';
 
 try {
-  const generator = callAI("Generate some content", {
+  const generator = await callAI("Generate some content", {
     apiKey: "invalid-key", // Invalid or missing API key
     stream: true
   });
   
-  // Consume the generator
+  // Any error during streaming will throw an exception
   let finalResponse = '';
   for await (const chunk of generator) {
     finalResponse = chunk;
+    console.log("Chunk:", chunk);
   }
   
-  // Check if the final response is an error
-  try {
-    const errorObj = JSON.parse(finalResponse);
-    if (errorObj.message && errorObj.error) {
-      console.error("API error:", errorObj.message);
-    } else {
-      // Process final response
-      console.log(finalResponse);
-    }
-  } catch {
-    // Not an error JSON, process normal response
-    console.log(finalResponse);
-  }
-} catch (e) {
-  // Handle any unexpected errors
-  console.error("Unexpected error:", e);
+  // Process the final response
+  console.log("Final response:", finalResponse);
+} catch (error) {
+  // Handle errors with standard try/catch
+  console.error("API error:", error.message);
+  console.error("Error properties:", {
+    status: error.status,
+    type: error.errorType,
+    details: error.details
+  });
 }
 ```
+
+This approach is idiomatic and consistent with standard JavaScript practices. Errors provide rich information for better debugging and error handling in your applications.
 
 ## Image Recognition Example
 
