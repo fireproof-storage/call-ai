@@ -29,13 +29,21 @@ export async function imageGen(
     console.log(`[imageGen:${PACKAGE_VERSION}] Using model: ${model}`);
   }
 
+  // Get custom image API URL if set
+  const customImgUrl = 
+    options.imgUrl || 
+    (typeof window !== "undefined" ? (window as any).CALLAI_IMG_URL : null) || 
+    (typeof process !== "undefined" && process.env ? process.env.CALLAI_IMG_URL : null);
+
   try {
     // Handle image generation
     if (!options.images || options.images.length === 0) {
       // Simple image generation with text prompt
-      // Ensure we have a fully qualified URL by prepending document.location.origin
-      const baseUrl = typeof document !== 'undefined' ? document.location.origin : '';
-      const generateEndpoint = `${baseUrl}/api/openai-image/generate`;
+      // Use custom URL if provided, otherwise build from document.location.origin
+      const baseUrl = customImgUrl || (typeof document !== 'undefined' ? document.location.origin : '');
+      const generateEndpoint = customImgUrl 
+        ? `${baseUrl}/generate` 
+        : `${baseUrl}/api/openai-image/generate`;
       
       const response = await fetch(generateEndpoint, {
         method: "POST",
@@ -62,24 +70,24 @@ export async function imageGen(
     } else {
       // Image editing with multiple input images
       const formData = new FormData();
-      formData.append("prompt", prompt);
       formData.append("model", model);
+      formData.append("prompt", prompt);
       
-      // Add image files to the form data
-      if (Array.isArray(options.images)) {
-        options.images.forEach(image => {
-          formData.append("image[]", image);
-        });
-      }
+      // Add each image to the form data
+      options.images.forEach((image, index) => {
+        formData.append(`image_${index}`, image);
+      });
       
       // Add optional parameters if provided
       if (options.size) formData.append("size", options.size);
       if (options.quality) formData.append("quality", options.quality);
       if (options.style) formData.append("style", options.style);
 
-      // Ensure we have a fully qualified URL by prepending document.location.origin
-      const baseUrl = typeof document !== 'undefined' ? document.location.origin : '';
-      const editEndpoint = `${baseUrl}/api/openai-image/edit`;
+      // Use custom URL if provided, otherwise build from document.location.origin
+      const baseUrl = customImgUrl || (typeof document !== 'undefined' ? document.location.origin : '');
+      const editEndpoint = customImgUrl 
+        ? `${baseUrl}/edit` 
+        : `${baseUrl}/api/openai-image/edit`;
       
       const response = await fetch(editEndpoint, {
         method: "POST",

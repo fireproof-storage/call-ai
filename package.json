@@ -1,6 +1,6 @@
 {
   "name": "call-ai",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "Lightweight library for making AI API calls with streaming support",
   "main": "dist/index.js",
   "browser": "dist/index.js",

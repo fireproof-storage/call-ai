@@ -119,7 +119,32 @@ The image generation functionality uses two custom API endpoints:
 - `{document.location.origin}/api/openai-image/generate`: For simple image generation with a text prompt
 - `{document.location.origin}/api/openai-image/edit`: For editing/combining multiple images with a text prompt
 
-The implementation automatically prepends `document.location.origin` to these endpoints to ensure fully qualified URLs. This means the API will work from any origin where the application is hosted, not just at the root path.
+By default, the implementation automatically prepends `document.location.origin` to these endpoints to ensure fully qualified URLs. This means the API will work from any origin where the application is hosted, not just at the root path.
+
+### Custom API Endpoints
+
+You can customize the base URL for the image generation API in three ways:
+
+1. **Via options parameter:**
+   ```javascript
+   const response = await imageGen('Your prompt', {
+     imgUrl: 'https://your-custom-endpoint.com'
+   });
+   ```
+
+2. **Via browser global variable:**
+   ```javascript
+   window.CALLAI_IMG_URL = 'https://your-custom-endpoint.com';
+   const response = await imageGen('Your prompt');
+   ```
+
+3. **Via Node.js environment variable:**
+   ```javascript
+   process.env.CALLAI_IMG_URL = 'https://your-custom-endpoint.com';
+   const response = await imageGen('Your prompt');
+   ```
+
+When using a custom endpoint, the API paths will be simplified to `/generate` and `/edit` instead of the default `/api/openai-image/generate` and `/api/openai-image/edit`.
 
 These endpoints return base64-encoded image data that can be directly used in HTML `<img>` tags or saved as files. All API calls use proper async/await patterns for consistent error handling across the library.
 
