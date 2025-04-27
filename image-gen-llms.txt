@@ -121,24 +121,24 @@ The image generation functionality uses two custom API endpoints:
 
 By default, the implementation automatically prepends `document.location.origin` to these endpoints to ensure fully qualified URLs. This means the API will work from any origin where the application is hosted, not just at the root path.
 
-### Custom API Endpoints
+### Custom Origin
 
-You can customize the base URL for the image generation API using the `CALLAI_IMG_URL` environment variable:
+You can customize the origin for the image generation API using the `CALLAI_IMG_URL` environment variable. This is useful when you need to point to a different server while keeping the same API paths:
 
 ```javascript
 // In browser
-window.CALLAI_IMG_URL = 'https://your-custom-api.com/api/openai-image';
+window.CALLAI_IMG_URL = 'https://your-custom-server.com';
 
 // In Node.js
-process.env.CALLAI_IMG_URL = 'https://your-custom-api.com/api/openai-image';
+process.env.CALLAI_IMG_URL = 'https://your-custom-server.com';
 
 // Or via options
 const response = await imageGen('Your prompt', {
-  imgUrl: 'https://your-custom-api.com/api/openai-image'
+  imgUrl: 'https://your-custom-server.com'
 });
 ```
 
-The API will append `/generate` or `/edit` to this base URL.
+The API will use the same paths (`/api/openai-image/generate` and `/api/openai-image/edit`) but with your custom origin instead of `document.location.origin`.
 
 These endpoints return base64-encoded image data that can be directly used in HTML `<img>` tags or saved as files. All API calls use proper async/await patterns for consistent error handling across the library.
 
