@@ -123,28 +123,22 @@ By default, the implementation automatically prepends `document.location.origin`
 
 ### Custom API Endpoints
 
-You can customize the base URL for the image generation API in three ways:
+You can customize the base URL for the image generation API using the `CALLAI_IMG_URL` environment variable:
 
-1. **Via options parameter:**
-   ```javascript
-   const response = await imageGen('Your prompt', {
-     imgUrl: 'https://your-custom-endpoint.com'
-   });
-   ```
+```javascript
+// In browser
+window.CALLAI_IMG_URL = 'https://your-custom-api.com/api/openai-image';
 
-2. **Via browser global variable:**
-   ```javascript
-   window.CALLAI_IMG_URL = 'https://your-custom-endpoint.com';
-   const response = await imageGen('Your prompt');
-   ```
+// In Node.js
+process.env.CALLAI_IMG_URL = 'https://your-custom-api.com/api/openai-image';
 
-3. **Via Node.js environment variable:**
-   ```javascript
-   process.env.CALLAI_IMG_URL = 'https://your-custom-endpoint.com';
-   const response = await imageGen('Your prompt');
-   ```
+// Or via options
+const response = await imageGen('Your prompt', {
+  imgUrl: 'https://your-custom-api.com/api/openai-image'
+});
+```
 
-When using a custom endpoint, the API paths will be simplified to `/generate` and `/edit` instead of the default `/api/openai-image/generate` and `/api/openai-image/edit`.
+The API will append `/generate` or `/edit` to this base URL.
 
 These endpoints return base64-encoded image data that can be directly used in HTML `<img>` tags or saved as files. All API calls use proper async/await patterns for consistent error handling across the library.
 

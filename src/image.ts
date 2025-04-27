@@ -30,7 +30,7 @@ export async function imageGen(
   }
 
   // Get custom image API URL if set
-  const customImgUrl = 
+  const imgUrl = 
     options.imgUrl || 
     (typeof window !== "undefined" ? (window as any).CALLAI_IMG_URL : null) || 
     (typeof process !== "undefined" && process.env ? process.env.CALLAI_IMG_URL : null);
@@ -39,11 +39,9 @@ export async function imageGen(
     // Handle image generation
     if (!options.images || options.images.length === 0) {
       // Simple image generation with text prompt
-      // Use custom URL if provided, otherwise build from document.location.origin
-      const baseUrl = customImgUrl || (typeof document !== 'undefined' ? document.location.origin : '');
-      const generateEndpoint = customImgUrl 
-        ? `${baseUrl}/generate` 
-        : `${baseUrl}/api/openai-image/generate`;
+      // Get base URL and build endpoint
+      const baseUrl = imgUrl || (typeof document !== 'undefined' ? document.location.origin : '');
+      const generateEndpoint = `${baseUrl}${imgUrl ? '/generate' : '/api/openai-image/generate'}`;
       
       const response = await fetch(generateEndpoint, {
         method: "POST",
@@ -83,11 +81,9 @@ export async function imageGen(
       if (options.quality) formData.append("quality", options.quality);
       if (options.style) formData.append("style", options.style);
 
-      // Use custom URL if provided, otherwise build from document.location.origin
-      const baseUrl = customImgUrl || (typeof document !== 'undefined' ? document.location.origin : '');
-      const editEndpoint = customImgUrl 
-        ? `${baseUrl}/edit` 
-        : `${baseUrl}/api/openai-image/edit`;
+      // Get base URL and build endpoint
+      const baseUrl = imgUrl || (typeof document !== 'undefined' ? document.location.origin : '');
+      const editEndpoint = `${baseUrl}${imgUrl ? '/edit' : '/api/openai-image/edit'}`;
       
       const response = await fetch(editEndpoint, {
         method: "POST",
