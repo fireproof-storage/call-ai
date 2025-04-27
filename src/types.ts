@@ -196,6 +196,12 @@ export interface ImageGenOptions {
   images?: File[];
 
   /**
+   * Custom base URL for the image generation API
+   * Can also be set via window.CALLAI_IMG_URL or process.env.CALLAI_IMG_URL
+   */
+  imgUrl?: string;
+
+  /**
    * Enable debug logging
    */
   debug?: boolean;
