@@ -33,7 +33,11 @@ export async function imageGen(
     // Handle image generation
     if (!options.images || options.images.length === 0) {
       // Simple image generation with text prompt
-      const response = await fetch("/api/openai-image/generate", {
+      // Ensure we have a fully qualified URL by prepending document.location.origin
+      const baseUrl = typeof document !== 'undefined' ? document.location.origin : '';
+      const generateEndpoint = `${baseUrl}/api/openai-image/generate`;
+      
+      const response = await fetch(generateEndpoint, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${apiKey}`,
@@ -73,7 +77,11 @@ export async function imageGen(
       if (options.quality) formData.append("quality", options.quality);
       if (options.style) formData.append("style", options.style);
 
-      const response = await fetch("/api/openai-image/edit", {
+      // Ensure we have a fully qualified URL by prepending document.location.origin
+      const baseUrl = typeof document !== 'undefined' ? document.location.origin : '';
+      const editEndpoint = `${baseUrl}/api/openai-image/edit`;
+      
+      const response = await fetch(editEndpoint, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${apiKey}`,

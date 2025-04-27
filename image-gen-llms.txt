@@ -116,8 +116,10 @@ interface ImageResponse {
 
 The image generation functionality uses two custom API endpoints:
 
-- `/api/openai-image/generate`: For simple image generation with a text prompt
-- `/api/openai-image/edit`: For editing/combining multiple images with a text prompt
+- `{document.location.origin}/api/openai-image/generate`: For simple image generation with a text prompt
+- `{document.location.origin}/api/openai-image/edit`: For editing/combining multiple images with a text prompt
+
+The implementation automatically prepends `document.location.origin` to these endpoints to ensure fully qualified URLs. This means the API will work from any origin where the application is hosted, not just at the root path.
 
 These endpoints return base64-encoded image data that can be directly used in HTML `<img>` tags or saved as files. All API calls use proper async/await patterns for consistent error handling across the library.
 

@@ -3,9 +3,13 @@ import dotenv from "dotenv";
 // Import jest fetch mock
 import "jest-fetch-mock";
 
+// Add type declaration for Node.js require
+// @ts-ignore - using require for jest-fetch-mock
+const fetchMock = require('jest-fetch-mock');
+
 // Configure fetch mock
-global.fetchMock = require('jest-fetch-mock');
-global.fetch = global.fetchMock;
+global.fetch = fetchMock;
+fetchMock.enableMocks();
 
 // Load environment variables from .env file if present
 dotenv.config();
@@ -58,7 +62,7 @@ describe("Image Generation Integration Tests", () => {
     // Verify the request was made correctly
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/openai-image/generate",
+      expect.stringMatching(/.*\/api\/openai-image\/generate$/),
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
@@ -70,7 +74,8 @@ describe("Image Generation Integration Tests", () => {
     );
     
     // Verify request body content
-    const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    const mockCall = fetchMock.mock.calls[0];
+    const requestBody = JSON.parse(mockCall[1].body as string);
     expect(requestBody.prompt).toBe(testPrompt);
     expect(requestBody.model).toBe("gpt-image-1");
     
@@ -110,7 +115,7 @@ describe("Image Generation Integration Tests", () => {
     // Verify the request was made correctly
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/openai-image/edit",
+      expect.stringMatching(/.*\/api\/openai-image\/edit$/),
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
