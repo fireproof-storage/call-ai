@@ -146,3 +146,62 @@ export interface AIResponse {
   };
   model: string;
 }
+
+/**
+ * Response from image generation API
+ */
+export interface ImageResponse {
+  created: number;
+  data: {
+    b64_json: string;
+    url?: string;
+    revised_prompt?: string;
+  }[];
+}
+
+/**
+ * Options for image generation
+ */
+export interface ImageGenOptions {
+  /**
+   * API key for authentication
+   * Defaults to "VIBES_DIY"
+   */
+  apiKey?: string;
+
+  /**
+   * Model to use for image generation
+   * Defaults to "gpt-image-1"
+   */
+  model?: string;
+
+  /**
+   * Size of the generated image
+   */
+  size?: string;
+
+  /**
+   * Quality of the generated image
+   */
+  quality?: string;
+
+  /**
+   * Style of the generated image
+   */
+  style?: string;
+
+  /**
+   * For image editing: array of File objects to be edited
+   */
+  images?: File[];
+
+  /**
+   * Enable debug logging
+   */
+  debug?: boolean;
+}
+
+/**
+ * @deprecated Use ImageGenOptions instead
+ */
+export interface ImageEditOptions extends ImageGenOptions {}
