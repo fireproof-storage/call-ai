@@ -550,8 +550,15 @@ function prepareRequestParams(
   const schemaStrategy = chooseSchemaStrategy(options.model, schema);
   const model = schemaStrategy.model;
 
-  const endpoint =
-    options.endpoint || "https://openrouter.ai/api/v1/chat/completions";
+  // Get custom chat API origin if set
+  const customChatOrigin = 
+    options.chatUrl || 
+    (typeof window !== "undefined" ? (window as any).CALLAI_CHAT_URL : null) || 
+    (typeof process !== "undefined" && process.env ? process.env.CALLAI_CHAT_URL : null);
+    
+  // Use custom origin or default OpenRouter URL
+  const endpoint = options.endpoint || 
+    (customChatOrigin ? `${customChatOrigin}/api/v1/chat/completions` : "https://openrouter.ai/api/v1/chat/completions");
 
   // Handle both string prompts and message arrays for backward compatibility
   const messages: Message[] = Array.isArray(prompt)

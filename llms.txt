@@ -252,7 +252,9 @@ for await (const chunk of generator) {
 
 ## Custom Endpoints
 
-You can specify a custom endpoint for any OpenAI-compatible API:
+You can specify a custom endpoint for any OpenAI-compatible API in several ways:
+
+### Option 1: Using the endpoint parameter
 
 ```javascript
 import { callAI } from 'call-ai';
@@ -269,6 +271,25 @@ const response = await callAI(
 
 console.log(response);
 ```
+
+### Option 2: Using CALLAI_CHAT_URL environment variable
+
+You can also set a custom origin for the chat API using the `CALLAI_CHAT_URL` environment variable. The library will automatically append `/api/v1/chat/completions` to the origin.
+
+```javascript
+// In browser
+window.CALLAI_CHAT_URL = 'https://your-custom-server.com';
+
+// In Node.js
+process.env.CALLAI_CHAT_URL = 'https://your-custom-server.com';
+
+// Or via options
+const response = await callAI("Your prompt", {
+  chatUrl: 'https://your-custom-server.com'
+});
+```
+
+This is useful when you need to point to a different server while keeping the standard API path structure.
 
 ## Recommended Models
 

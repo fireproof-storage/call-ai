@@ -105,6 +105,12 @@ export interface CallAIOptions {
   endpoint?: string;
 
   /**
+   * Custom origin for chat API
+   * Can also be set via window.CALLAI_CHAT_URL or process.env.CALLAI_CHAT_URL
+   */
+  chatUrl?: string;
+
+  /**
    * Whether to stream the response
    */
   stream?: boolean;
