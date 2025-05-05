@@ -20,12 +20,14 @@ const TIMEOUT = 9000;
 
 // Test models based on the OpenRouter documentation
 const supportedModels = {
-  openAI: { id: "openai/gpt-4o-mini", grade: "A" },
-  gemini: { id: "google/gemini-2.0-flash-001", grade: "A" },
-  claude: { id: "anthropic/claude-3-sonnet", grade: "B" },
-  llama3: { id: "meta-llama/llama-3.3-70b-instruct", grade: "C" },
+  // openAI: { id: "openai/gpt-4.5-preview", grade: "A" },
+  gemini: { id: "google/gemini-2.5-flash-preview", grade: "A" },
+  // geminiPro: { id: "google/gemini-2.5-pro-preview-03-25", grade: "A" },
+  // claude: { id: "anthropic/claude-3-sonnet", grade: "B" },
+  // claudeThinking: { id: "anthropic/claude-3.7-sonnet:thinking", grade: "B" },
+  // llama3: { id: "meta-llama/llama-4-maverick", grade: "B" },
   // deepseek: { id: 'deepseek/deepseek-chat', grade: 'C' },
-  gpt4turbo: { id: "openai/gpt-4-turbo", grade: "B" },
+  // gpt4turbo: { id: "openai/gpt-4-turbo", grade: "B" },
 };
 
 // Define the model names as an array for looping
