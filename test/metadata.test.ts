@@ -36,7 +36,7 @@ const mockResponse = {
     get: jest.fn((name) => {
       if (name === "content-type") return "application/json";
       return null;
-    }),
+    }) as jest.Mock,
     forEach: jest.fn(),
   },
   clone: jest.fn(function () {
@@ -88,6 +88,59 @@ describe("getMeta", () => {
     
     // The raw response should be available
     expect(meta?.rawResponse).toBeDefined();
+  });
+
+  it("should return metadata for streaming responses", async () => {
+    // Set up streaming response chunks
+    mockReader.read
+      .mockResolvedValueOnce({
+        done: false,
+        value: new TextEncoder().encode(
+          'data: {"choices":[{"delta":{"content":"Hello"},"index":0}]}\n\n'
+        ),
+      })
+      .mockResolvedValueOnce({
+        done: false,
+        value: new TextEncoder().encode(
+          'data: {"choices":[{"delta":{"content":", world"},"index":0}]}\n\n'
+        ),
+      })
+      .mockResolvedValueOnce({
+        done: true,
+      });
+
+    // Override the content-type header for streaming
+    mockResponse.headers.get.mockImplementation((name) => {
+      if (name === "content-type") return "text/event-stream";
+      return null;
+    });
+
+    const options = {
+      apiKey: "test-api-key",
+      model: "openai/gpt-4o",
+      stream: true,
+    };
+
+    // Call the API with streaming enabled
+    const streamResponse = await callAI("Hello", options);
+    
+    // Get metadata from the stream response BEFORE consuming the stream
+    const meta = getMeta(streamResponse);
+    
+    // Verify the metadata is attached to the streaming response
+    expect(meta).toBeDefined();
+    expect(meta?.model).toBe("openai/gpt-4o");
+    expect(meta?.rawResponse).toBeDefined();
+    expect(meta?.timing?.startTime).toBeDefined();
+    
+    // Now consume the stream
+    let finalContent = "";
+    for await (const chunk of streamResponse) {
+      finalContent = chunk;
+    }
+    
+    // Verify the timing.endTime is set after consuming the stream
+    expect(meta?.timing?.endTime).toBeDefined();
   });
 
   it("should return undefined if no metadata is associated with response", () => {
