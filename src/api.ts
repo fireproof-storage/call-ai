@@ -32,9 +32,11 @@ function boxString(str: string): object {
  * @param response A response from callAI, either string or AsyncGenerator
  * @returns The metadata object if available, undefined otherwise
  */
-export function getMeta(response: string | StreamResponse): ResponseMeta | undefined {
+export function getMeta(
+  response: string | StreamResponse,
+): ResponseMeta | undefined {
   // For strings, we need to use our mapping since primitives can't be WeakMap keys
-  if (typeof response === 'string') {
+  if (typeof response === "string") {
     // Check if we have a boxed version of this string
     const boxed = stringResponseMap.get(response);
     if (boxed) {
@@ -42,7 +44,7 @@ export function getMeta(response: string | StreamResponse): ResponseMeta | undef
     }
     return undefined;
   }
-  
+
   // For AsyncGenerators and other objects, directly use the WeakMap
   return responseMetadata.get(response);
 }
@@ -588,14 +590,19 @@ function prepareRequestParams(
   const model = schemaStrategy.model;
 
   // Get custom chat API origin if set
-  const customChatOrigin = 
-    options.chatUrl || 
-    (typeof window !== "undefined" ? (window as any).CALLAI_CHAT_URL : null) || 
-    (typeof process !== "undefined" && process.env ? process.env.CALLAI_CHAT_URL : null);
-    
+  const customChatOrigin =
+    options.chatUrl ||
+    (typeof window !== "undefined" ? (window as any).CALLAI_CHAT_URL : null) ||
+    (typeof process !== "undefined" && process.env
+      ? process.env.CALLAI_CHAT_URL
+      : null);
+
   // Use custom origin or default OpenRouter URL
-  const endpoint = options.endpoint || 
-    (customChatOrigin ? `${customChatOrigin}/api/v1/chat/completions` : "https://openrouter.ai/api/v1/chat/completions");
+  const endpoint =
+    options.endpoint ||
+    (customChatOrigin
+      ? `${customChatOrigin}/api/v1/chat/completions`
+      : "https://openrouter.ai/api/v1/chat/completions");
 
   // Handle both string prompts and message arrays for backward compatibility
   const messages: Message[] = Array.isArray(prompt)
@@ -671,10 +678,10 @@ async function callAINonStreaming(
   try {
     // Start timing for metadata
     const startTime = Date.now();
-    
+
     // Create metadata object
     const meta: ResponseMeta = {
-      model: options.model || 'unknown',
+      model: options.model || "unknown",
       timing: {
         startTime: startTime,
       },
@@ -683,6 +690,10 @@ async function callAINonStreaming(
       prepareRequestParams(prompt, options);
 
     const response = await fetch(endpoint, requestOptions);
+    
+    // Save the raw response in the metadata
+    meta.rawResponse = typeof response.clone === 'function' ? 
+      response.clone() : response;
 
     // Handle HTTP errors, with potential fallback for invalid model
     if (!response.ok || response.status >= 400) {
@@ -766,13 +777,13 @@ async function callAINonStreaming(
       meta.usage = {
         promptTokens: result.usage.prompt_tokens,
         completionTokens: result.usage.completion_tokens,
-        totalTokens: result.usage.total_tokens
+        totalTokens: result.usage.total_tokens,
       };
     }
-    
+
     // Update model info
     meta.model = model;
-    
+
     // Update timing info
     if (meta.timing) {
       meta.timing.endTime = Date.now();
@@ -781,11 +792,11 @@ async function callAINonStreaming(
 
     // Process the content based on model type
     const processedContent = schemaStrategy.processResponse(content);
-    
+
     // Box the string for WeakMap storage
     const boxed = boxString(processedContent);
     responseMetadata.set(boxed, meta);
-    
+
     return processedContent;
   } catch (error) {
     handleApiError(error, "Non-streaming API call", options.debug);
@@ -892,7 +903,8 @@ async function* createStreamingGenerator(
   const meta: ResponseMeta = {
     model,
     // Safely handle response cloning - some mocks might not implement clone
-    rawResponse: typeof response.clone === 'function' ? response.clone() : response,
+    rawResponse:
+      typeof response.clone === "function" ? response.clone() : response,
     timing: {
       startTime: startTime,
     },
@@ -1199,43 +1211,43 @@ async function* createStreamingGenerator(
     // If we have assembled tool calls but haven't yielded them yet
     if (toolCallsAssembled && (!completeText || completeText.length === 0)) {
       const result = toolCallsAssembled;
-      
+
       // Update metadata with completion timing
       const endTime = Date.now();
       if (meta.timing) {
         meta.timing.endTime = endTime;
         meta.timing.duration = endTime - meta.timing.startTime;
       }
-      
+
       // If result is a string, we need to box it for the WeakMap
-      if (typeof result === 'string') {
+      if (typeof result === "string") {
         const boxed = boxString(result);
         responseMetadata.set(boxed, meta);
       } else {
         responseMetadata.set(result, meta);
       }
-      
+
       return result;
     }
 
     // Ensure the final return has proper, processed content
     const finalResult = schemaStrategy.processResponse(completeText);
-    
+
     // Update metadata with completion timing
     const endTime = Date.now();
     if (meta.timing) {
       meta.timing.endTime = endTime;
       meta.timing.duration = endTime - meta.timing.startTime;
     }
-    
+
     // If finalResult is a string, we need to box it for the WeakMap
-    if (typeof finalResult === 'string') {
+    if (typeof finalResult === "string") {
       const boxed = boxString(finalResult);
       responseMetadata.set(boxed, meta);
     } else {
       responseMetadata.set(finalResult, meta);
     }
-    
+
     return finalResult;
   } catch (error) {
     // Standardize error handling

@@ -30,12 +30,12 @@ export interface ResponseMeta {
    * The model used for the response
    */
   model: string;
-  
+
   /**
    * The original raw API response object
    */
   rawResponse?: Response;
-  
+
   /**
    * Token usage information if available
    */
@@ -44,7 +44,7 @@ export interface ResponseMeta {
     completionTokens?: number;
     totalTokens?: number;
   };
-  
+
   /**
    * Timing information about the request
    */
@@ -53,7 +53,7 @@ export interface ResponseMeta {
     endTime?: number;
     duration?: number;
   };
-  
+
   /**
    * Additional model-specific information
    */

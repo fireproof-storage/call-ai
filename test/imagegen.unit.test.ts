@@ -8,10 +8,11 @@ const mockImageResponse = {
   created: Date.now(),
   data: [
     {
-      b64_json: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", // 1x1 px transparent PNG
-      revised_prompt: "Generated image based on prompt"
-    }
-  ]
+      b64_json:
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", // 1x1 px transparent PNG
+      revised_prompt: "Generated image based on prompt",
+    },
+  ],
 };
 
 describe("imageGen", () => {
@@ -21,16 +22,17 @@ describe("imageGen", () => {
       ok: true,
       status: 200,
       statusText: "OK",
-      json: jest.fn().mockResolvedValue(mockImageResponse)
+      json: jest.fn().mockResolvedValue(mockImageResponse),
     });
   });
 
   it("should make POST request with correct parameters for image generation", async () => {
-    const prompt = "A children's book drawing of a veterinarian using a stethoscope to listen to the heartbeat of a baby otter.";
+    const prompt =
+      "A children's book drawing of a veterinarian using a stethoscope to listen to the heartbeat of a baby otter.";
     const options = {
       apiKey: "VIBES_DIY",
       model: "gpt-image-1",
-      debug: true
+      debug: true,
     };
 
     const result = await imageGen(prompt, options);
@@ -42,17 +44,20 @@ describe("imageGen", () => {
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
-          "Authorization": "Bearer VIBES_DIY",
-          "Content-Type": "application/json"
-        })
-      })
+          Authorization: "Bearer VIBES_DIY",
+          "Content-Type": "application/json",
+        }),
+      }),
     );
 
     // Check request body
-    const requestBody = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    const requestBody = JSON.parse(
+      (global.fetch as jest.Mock).mock.calls[0][1].body,
+    );
     expect(requestBody).toEqual({
       model: "gpt-image-1",
-      prompt: "A children's book drawing of a veterinarian using a stethoscope to listen to the heartbeat of a baby otter."
+      prompt:
+        "A children's book drawing of a veterinarian using a stethoscope to listen to the heartbeat of a baby otter.",
     });
 
     // Check response structure
@@ -62,20 +67,20 @@ describe("imageGen", () => {
 
   it("should make POST request with correct parameters for image editing", async () => {
     const prompt = "Create a lovely gift basket with these four items in it";
-    
+
     // Mock implementation for File objects
     const mockImageBlob = new Blob(["fake image data"], { type: "image/png" });
     const mockFiles = [
       new File([mockImageBlob], "image1.png", { type: "image/png" }),
-      new File([mockImageBlob], "image2.png", { type: "image/png" })
+      new File([mockImageBlob], "image2.png", { type: "image/png" }),
     ];
-    
+
     const options = {
       apiKey: "VIBES_DIY",
       model: "gpt-image-1",
       images: mockFiles,
       size: "1024x1024",
-      debug: true
+      debug: true,
     };
 
     const result = await imageGen(prompt, options);
@@ -87,10 +92,10 @@ describe("imageGen", () => {
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
-          "Authorization": "Bearer VIBES_DIY"
+          Authorization: "Bearer VIBES_DIY",
         }),
-        body: expect.any(FormData)
-      })
+        body: expect.any(FormData),
+      }),
     );
 
     // Check response structure
@@ -104,11 +109,13 @@ describe("imageGen", () => {
       ok: false,
       status: 400,
       statusText: "Bad Request",
-      text: jest.fn().mockResolvedValue(JSON.stringify({ error: "Invalid prompt" }))
+      text: jest
+        .fn()
+        .mockResolvedValue(JSON.stringify({ error: "Invalid prompt" })),
     });
 
     const prompt = "This prompt will cause an error";
-    
+
     try {
       await imageGen(prompt, { apiKey: "VIBES_DIY" });
       fail("Expected the image generation to throw an error");
@@ -124,17 +131,21 @@ describe("imageGen", () => {
       ok: false,
       status: 400,
       statusText: "Bad Request",
-      text: jest.fn().mockResolvedValue(JSON.stringify({ error: "Invalid image format" }))
+      text: jest
+        .fn()
+        .mockResolvedValue(JSON.stringify({ error: "Invalid image format" })),
     });
 
     const prompt = "This will trigger an error";
     const mockImageBlob = new Blob(["fake image data"], { type: "image/png" });
-    const mockFiles = [new File([mockImageBlob], "invalid.png", { type: "image/png" })];
-    
+    const mockFiles = [
+      new File([mockImageBlob], "invalid.png", { type: "image/png" }),
+    ];
+
     try {
-      await imageGen(prompt, { 
+      await imageGen(prompt, {
         apiKey: "VIBES_DIY",
-        images: mockFiles
+        images: mockFiles,
       });
       fail("Expected the image editing to throw an error");
     } catch (error) {
