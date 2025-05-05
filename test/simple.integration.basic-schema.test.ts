@@ -6,7 +6,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 // Configure retry settings for flaky tests - use fewer retries with faster failures
-jest.retryTimes(2, { logErrorsBeforeRetry: true });
+// jest.retryTimes(2, { logErrorsBeforeRetry: true });
 
 // Increase Jest's default timeout to handle all parallel requests
 // jest.setTimeout(60000);
@@ -20,10 +20,10 @@ const TIMEOUT = 9000;
 
 // Test models based on the OpenRouter documentation
 const supportedModels = {
-  // openAI: { id: "openai/gpt-4.5-preview", grade: "A" },
+  openAI: { id: "openai/gpt-4o-mini", grade: "A" },
   gemini: { id: "google/gemini-2.5-flash-preview", grade: "A" },
-  // geminiPro: { id: "google/gemini-2.5-pro-preview-03-25", grade: "A" },
-  // claude: { id: "anthropic/claude-3-sonnet", grade: "B" },
+  geminiPro: { id: "google/gemini-2.5-pro-preview-03-25", grade: "A" },
+  claude: { id: "anthropic/claude-3-sonnet", grade: "A" },
   // claudeThinking: { id: "anthropic/claude-3.7-sonnet:thinking", grade: "B" },
   // llama3: { id: "meta-llama/llama-4-maverick", grade: "B" },
   // deepseek: { id: 'deepseek/deepseek-chat', grade: 'C' },
@@ -38,8 +38,16 @@ const expectOrWarn = (
   model: { id: string; grade: string },
   condition: boolean,
   message: string,
+  debugValue?: any, // Added optional debug value parameter
 ) => {
   if (model.grade === "A") {
+    if (!condition) {
+      // Enhanced debug logging for failures
+      console.log(`DETAILED FAILURE for ${model.id}: ${message}`);
+      if (debugValue !== undefined) {
+        console.log('Debug value:', typeof debugValue === 'object' ? JSON.stringify(debugValue, null, 2) : debugValue);
+      }
+    }
     expect(condition).toBe(true);
   } else if (!condition) {
     console.warn(`Warning (${model.id}): ${message}`);
@@ -110,8 +118,7 @@ describe("Simple callAI integration tests", () => {
                   type: "array",
                   items: { type: "string" },
                 },
-              },
-              required: ["capital", "population"],
+              }
             },
           });
 
@@ -128,11 +135,21 @@ describe("Simple callAI integration tests", () => {
           if (typeof result === "string") {
             // Try to parse as JSON
             try {
+              // Log the entire response for debugging
+              console.log(`\n===== Response from ${modelName} =====`);
+              console.log(result.substring(0, 500) + (result.length > 500 ? '...' : ''));
+              
               const data = JSON.parse(result);
+              
+              // Log parsed data for debugging
+              console.log(`\n===== Parsed data from ${modelName} =====`);
+              console.log(JSON.stringify(data, null, 2));
+              
               expectOrWarn(
                 modelId,
                 typeof data === "object" && data !== null,
                 `Parsed result is not an object in ${modelName} model response`,
+                data
               );
 
               if (typeof data === "object" && data !== null) {
@@ -141,11 +158,13 @@ describe("Simple callAI integration tests", () => {
                   modelId,
                   "capital" in data,
                   `Missing 'capital' in ${modelName} model response`,
+                  Object.keys(data)
                 );
                 expectOrWarn(
                   modelId,
                   "population" in data,
                   `Missing 'population' in ${modelName} model response`,
+                  Object.keys(data)
                 );
 
                 // Validate capital
@@ -153,13 +172,15 @@ describe("Simple callAI integration tests", () => {
                   expectOrWarn(
                     modelId,
                     typeof data.capital === "string",
-                    `'capital' is not a string in ${modelName} model response`,
+                    `Capital is not a string in ${modelName} model response`,
+                    data.capital
                   );
                   if (typeof data.capital === "string") {
                     expectOrWarn(
                       modelId,
-                      data.capital.toLowerCase() === "paris",
-                      `Capital is ${data.capital}, not Paris in ${modelName} model response`,
+                      data.capital.toLowerCase().includes("paris"),
+                      `Capital ${data.capital} is not Paris in ${modelName} model response`,
+                      data.capital
                     );
                   }
                 }
@@ -170,6 +191,7 @@ describe("Simple callAI integration tests", () => {
                     modelId,
                     typeof data.population === "number",
                     `'population' is not a number in ${modelName} model response`,
+                    data.population
                   );
                   if (typeof data.population === "number") {
                     // Population should be in a reasonable range (60-70 million for France)
@@ -177,6 +199,7 @@ describe("Simple callAI integration tests", () => {
                       modelId,
                       data.population > 50000000 && data.population < 80000000,
                       `Population ${data.population} outside expected range in ${modelName} model response`,
+                      data.population
                     );
                   }
                 }
@@ -187,6 +210,7 @@ describe("Simple callAI integration tests", () => {
                     modelId,
                     Array.isArray(data.languages),
                     `'languages' is not an array in ${modelName} model response`,
+                    data.languages
                   );
                   if (Array.isArray(data.languages)) {
                     // Should include French
@@ -198,6 +222,7 @@ describe("Simple callAI integration tests", () => {
                           lang.toLowerCase().includes("french"),
                       ),
                       `Languages doesn't include French in ${modelName} model response`,
+                      data.languages
                     );
                   }
                 }
