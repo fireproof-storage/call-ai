@@ -20,10 +20,10 @@ const TIMEOUT = 9000;
 
 // Test models based on the OpenRouter documentation
 const supportedModels = {
-  // openAI: { id: "openai/gpt-4.5-preview", grade: "A" },
+  openAI: { id: "openai/gpt-4o-mini", grade: "A" },
   gemini: { id: "google/gemini-2.5-flash-preview", grade: "A" },
-  // geminiPro: { id: "google/gemini-2.5-pro-preview-03-25", grade: "A" },
-  // claude: { id: "anthropic/claude-3-sonnet", grade: "B" },
+  geminiPro: { id: "google/gemini-2.5-pro-preview-03-25", grade: "A" },
+  // claude: { id: "anthropic/claude-3-sonnet", grade: "A" },
   // claudeThinking: { id: "anthropic/claude-3.7-sonnet:thinking", grade: "B" },
   // llama3: { id: "meta-llama/llama-4-maverick", grade: "B" },
   // deepseek: { id: 'deepseek/deepseek-chat', grade: 'C' },
@@ -126,11 +126,11 @@ describe("Simple callAI integration tests", () => {
                         year: { type: "string" },
                         genre: { type: "string" },
                       },
-                      required: ["title", "artist"],
+                      required: ["title", "artist", "year", "genre"],
                     },
                   },
                 },
-                required: ["title", "theme", "songs"],
+                required: ["title", "theme", "mood", "songs"],
               },
             },
           );
