@@ -106,7 +106,7 @@ describe("Simple callAI integration tests", () => {
         `should handle basic schema with ${modelName} model`,
         async () => {
           // Make API call with a basic schema
-          const result = await callAI("Provide information about France.", {
+          const result = await callAI("Provide information about France. Population should be expressed in millions (e.g., 67.5 for 67.5 million people).", {
             apiKey: process.env.CALLAI_API_KEY,
             model: modelId.id,
             schema: {
@@ -195,10 +195,12 @@ describe("Simple callAI integration tests", () => {
                   );
                   if (typeof data.population === "number") {
                     // Population should be in a reasonable range (60-70 million for France)
+                    // Check if number is already in millions (under 100) or in absolute (over 1 million)
+                    const populationInMillions = data.population < 1000 ? data.population : data.population / 1000000;
                     expectOrWarn(
                       modelId,
-                      data.population > 50000000 && data.population < 80000000,
-                      `Population ${data.population} outside expected range in ${modelName} model response`,
+                      populationInMillions >= 60 && populationInMillions <= 70,
+                      `Population ${data.population} (${populationInMillions.toFixed(2)}M) outside expected range in ${modelName} model response`,
                       data.population
                     );
                   }
