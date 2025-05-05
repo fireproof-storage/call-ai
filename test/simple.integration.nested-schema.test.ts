@@ -162,6 +162,16 @@ describe("Simple callAI integration tests", () => {
             typeof result === "string",
             `Result is not a string but a ${typeof result} in ${modelName} model`,
           );
+          
+          // Verify metadata
+          expectOrWarn(modelId, !!resultMeta, `Metadata should be defined for ${modelName} model`);
+          if (resultMeta) {
+            expectOrWarn(modelId, !!resultMeta.model, `Model should be defined in metadata for ${modelName}`);
+            expectOrWarn(modelId, !!resultMeta.timing, `Timing should be defined in metadata for ${modelName}`);
+            expectOrWarn(modelId, !!resultMeta.timing?.startTime, `Start time should be defined in metadata for ${modelName}`);
+            expectOrWarn(modelId, !!resultMeta.timing?.endTime, `End time should be defined in metadata for ${modelName}`);
+            expectOrWarn(modelId, !!resultMeta.usage, `Usage should be defined in metadata for ${modelName}`);
+          }
 
           if (typeof result === "string") {
             try {

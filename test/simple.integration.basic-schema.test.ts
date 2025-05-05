@@ -124,7 +124,7 @@ describe("Simple callAI integration tests", () => {
             typeof result === "string",
             `Result is not a string but a ${typeof result} in ${modelName} model`,
           );
-
+          
           if (typeof result === "string") {
             // Try to parse as JSON
             try {
