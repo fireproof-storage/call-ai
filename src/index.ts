@@ -5,8 +5,8 @@
 // Export public types
 export * from "./types";
 
-// Export API function
-export { callAI } from "./api";
+// Export API functions
+export { callAI, getMeta } from "./api";
 
 // Export image generation function
 export { imageGen } from "./image";

@@ -4,11 +4,48 @@
 import {
   CallAIOptions,
   Message,
+  ResponseMeta,
   SchemaStrategy,
   StreamResponse,
   ThenableStreamResponse,
 } from "./types";
 import { chooseSchemaStrategy } from "./strategies";
+
+// WeakMap to store metadata for responses without modifying the response objects
+const responseMetadata = new WeakMap<object, ResponseMeta>();
+
+// Store for string responses - we need to box strings since WeakMap keys must be objects
+const stringResponseMap = new Map<string, object>();
+
+/**
+ * Helper to box a string so it can be used with WeakMap
+ * @internal
+ */
+function boxString(str: string): object {
+  const boxed = new String(str);
+  stringResponseMap.set(str, boxed);
+  return boxed;
+}
+
+/**
+ * Retrieve metadata associated with a response from callAI()
+ * @param response A response from callAI, either string or AsyncGenerator
+ * @returns The metadata object if available, undefined otherwise
+ */
+export function getMeta(response: string | StreamResponse): ResponseMeta | undefined {
+  // For strings, we need to use our mapping since primitives can't be WeakMap keys
+  if (typeof response === 'string') {
+    // Check if we have a boxed version of this string
+    const boxed = stringResponseMap.get(response);
+    if (boxed) {
+      return responseMetadata.get(boxed);
+    }
+    return undefined;
+  }
+  
+  // For AsyncGenerators and other objects, directly use the WeakMap
+  return responseMetadata.get(response);
+}
 
 // Import package version for debugging
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -632,6 +669,16 @@ async function callAINonStreaming(
   isRetry: boolean = false,
 ): Promise<string> {
   try {
+    // Start timing for metadata
+    const startTime = Date.now();
+    
+    // Create metadata object
+    const meta: ResponseMeta = {
+      model: options.model || 'unknown',
+      timing: {
+        startTime: startTime,
+      },
+    };
     const { endpoint, requestOptions, model, schemaStrategy } =
       prepareRequestParams(prompt, options);
 
@@ -714,8 +761,32 @@ async function callAINonStreaming(
     // Extract content from the response
     const content = extractContent(result, schemaStrategy);
 
+    // Get token usage if available
+    if (result.usage) {
+      meta.usage = {
+        promptTokens: result.usage.prompt_tokens,
+        completionTokens: result.usage.completion_tokens,
+        totalTokens: result.usage.total_tokens
+      };
+    }
+    
+    // Update model info
+    meta.model = model;
+    
+    // Update timing info
+    if (meta.timing) {
+      meta.timing.endTime = Date.now();
+      meta.timing.duration = meta.timing.endTime - meta.timing.startTime;
+    }
+
     // Process the content based on model type
-    return schemaStrategy.processResponse(content);
+    const processedContent = schemaStrategy.processResponse(content);
+    
+    // Box the string for WeakMap storage
+    const boxed = boxString(processedContent);
+    responseMetadata.set(boxed, meta);
+    
+    return processedContent;
   } catch (error) {
     handleApiError(error, "Non-streaming API call", options.debug);
   }
@@ -816,6 +887,16 @@ async function* createStreamingGenerator(
   schemaStrategy: SchemaStrategy,
   model: string,
 ): StreamResponse {
+  // Create a metadata object for this streaming response
+  const startTime = Date.now();
+  const meta: ResponseMeta = {
+    model,
+    // Safely handle response cloning - some mocks might not implement clone
+    rawResponse: typeof response.clone === 'function' ? response.clone() : response,
+    timing: {
+      startTime: startTime,
+    },
+  };
   if (options.debug) {
     console.log(
       `[callAI:${PACKAGE_VERSION}] Starting streaming generator with model: ${model}`,
@@ -1117,11 +1198,45 @@ async function* createStreamingGenerator(
 
     // If we have assembled tool calls but haven't yielded them yet
     if (toolCallsAssembled && (!completeText || completeText.length === 0)) {
-      return toolCallsAssembled;
+      const result = toolCallsAssembled;
+      
+      // Update metadata with completion timing
+      const endTime = Date.now();
+      if (meta.timing) {
+        meta.timing.endTime = endTime;
+        meta.timing.duration = endTime - meta.timing.startTime;
+      }
+      
+      // If result is a string, we need to box it for the WeakMap
+      if (typeof result === 'string') {
+        const boxed = boxString(result);
+        responseMetadata.set(boxed, meta);
+      } else {
+        responseMetadata.set(result, meta);
+      }
+      
+      return result;
     }
 
     // Ensure the final return has proper, processed content
-    return schemaStrategy.processResponse(completeText);
+    const finalResult = schemaStrategy.processResponse(completeText);
+    
+    // Update metadata with completion timing
+    const endTime = Date.now();
+    if (meta.timing) {
+      meta.timing.endTime = endTime;
+      meta.timing.duration = endTime - meta.timing.startTime;
+    }
+    
+    // If finalResult is a string, we need to box it for the WeakMap
+    if (typeof finalResult === 'string') {
+      const boxed = boxString(finalResult);
+      responseMetadata.set(boxed, meta);
+    } else {
+      responseMetadata.set(finalResult, meta);
+    }
+    
+    return finalResult;
   } catch (error) {
     // Standardize error handling
     handleApiError(error, "Streaming API call", options.debug);

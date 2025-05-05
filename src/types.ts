@@ -21,6 +21,45 @@ export type Message = {
   content: string | ContentItem[];
 };
 
+/**
+ * Metadata associated with a response
+ * Available through the getMeta() helper function
+ */
+export interface ResponseMeta {
+  /**
+   * The model used for the response
+   */
+  model: string;
+  
+  /**
+   * The original raw API response object
+   */
+  rawResponse?: Response;
+  
+  /**
+   * Token usage information if available
+   */
+  usage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+  };
+  
+  /**
+   * Timing information about the request
+   */
+  timing?: {
+    startTime: number;
+    endTime?: number;
+    duration?: number;
+  };
+  
+  /**
+   * Additional model-specific information
+   */
+  [key: string]: any;
+}
+
 export interface Schema {
   /**
    * Optional schema name - will be sent to OpenRouter if provided
