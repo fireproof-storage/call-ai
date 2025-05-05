@@ -18,9 +18,9 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "jest --testPathIgnorePatterns=\".*\\.integration\\.(no-await\\.)?test\\.ts$\"",
-    "test:integration": "jest --testMatch=\"**/*\\.integration\\.test\\.ts\"",
-    "test:all": "jest",
+    "test": "jest --testMatch=\"**/*unit*.test.ts\"",
+    "test:integration": "jest simple.integration",
+    "test:all": "pnpm test && pnpm test:integration",
     "prepublishOnly": "npm run build",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
