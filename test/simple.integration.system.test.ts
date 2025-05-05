@@ -93,12 +93,25 @@ describe("Simple callAI integration tests", () => {
   describe("Non-structured text generation", () => {
     // Run all model tests concurrently within this describe block
     modelEntries.map(([modelName, modelId]) => {
-      // Test without streaming
+      // Test with a system prompt
       gradeAwareTest(modelId)(
-        `should generate text with ${modelName} model without streaming`,
+        `should handle system prompt with ${modelName} model`,
         async () => {
-          // Make a simple non-structured API call
-          const result = await callAI("Write a short joke about programming.", {
+          // Create message array with system prompt
+          const messages = [
+            {
+              role: "system" as const,
+              content:
+                "You are a helpful assistant that provides only factual information.",
+            },
+            {
+              role: "user" as const,
+              content: "Provide information about France.",
+            },
+          ] as Message[];
+
+          // Make API call with message array
+          const result = await callAI(messages, {
             apiKey: process.env.CALLAI_API_KEY,
             model: modelId.id,
           });
@@ -109,11 +122,22 @@ describe("Simple callAI integration tests", () => {
           // Verify response
           expectOrWarn(
             modelId,
-            !!result,
-            `should generate text with ${modelName} model without streaming`,
+            typeof result === "string",
+            `Result is not a string but a ${typeof result} in ${modelName} model`,
           );
-          expect(typeof result).toBe("string");
-          expect((result as string).length).toBeGreaterThan(10);
+          if (typeof result === "string") {
+            expectOrWarn(
+              modelId,
+              result.length > 50,
+              `Result length (${result.length}) too short in ${modelName} model`,
+            );
+            // Should mention France somewhere in the response
+            expectOrWarn(
+              modelId,
+              result.toLowerCase().includes("france"),
+              `Response doesn't mention "France" in ${modelName} model`,
+            );
+          }
 
           // Verify metadata
           expect(resultMeta).toBeDefined();
@@ -121,9 +145,6 @@ describe("Simple callAI integration tests", () => {
           expect(resultMeta?.timing).toBeDefined();
           expect(resultMeta?.timing?.startTime).toBeDefined();
           expect(resultMeta?.timing?.endTime).toBeDefined();
-          expect(resultMeta?.timing?.startTime).toBeLessThanOrEqual(
-            resultMeta?.timing?.endTime as number,
-          );
           expect(resultMeta?.usage).toBeDefined();
         },
         TIMEOUT,

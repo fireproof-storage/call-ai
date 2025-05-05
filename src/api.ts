@@ -690,10 +690,10 @@ async function callAINonStreaming(
       prepareRequestParams(prompt, options);
 
     const response = await fetch(endpoint, requestOptions);
-    
+
     // Save the raw response in the metadata
-    meta.rawResponse = typeof response.clone === 'function' ? 
-      response.clone() : response;
+    meta.rawResponse =
+      typeof response.clone === "function" ? response.clone() : response;
 
     // Handle HTTP errors, with potential fallback for invalid model
     if (!response.ok || response.status >= 400) {
