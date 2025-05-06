@@ -77,18 +77,15 @@ describe("getMeta", () => {
     // Verify metadata content
     expect(meta).toBeDefined();
     expect(meta?.model).toBe("openai/gpt-4o");
-    expect(meta?.usage).toBeDefined();
-    expect(meta?.usage?.promptTokens).toBe(10);
-    expect(meta?.usage?.completionTokens).toBe(20);
-    expect(meta?.usage?.totalTokens).toBe(30);
-
+    
+    // Verify raw response data
+    expect(meta?.rawResponse).toBeDefined();
+    expect(meta?.rawResponse.model).toBe("openai/gpt-4o");
+    
     // Verify timing information
     expect(meta?.timing).toBeDefined();
     expect(meta?.timing?.startTime).toBeDefined();
     expect(meta?.timing?.endTime).toBeDefined();
-
-    // The raw response should be available
-    expect(meta?.rawResponse).toBeDefined();
   });
 
   it("provides an exported mock for testing with streaming responses", async () => {
@@ -111,17 +108,16 @@ describe("getMeta", () => {
     // to our generator in the same way the real code would
     const generator = mockStreamResponse();
 
-    // Create a mock ResponseMeta object
+    // Create a mock metadata object
     const mockMeta: ResponseMeta = {
       model: "test-model",
       timing: {
         startTime: Date.now(),
         endTime: Date.now() + 100,
       },
-      usage: {
-        promptTokens: 5,
-        completionTokens: 2,
-        totalTokens: 7,
+      rawResponse: {
+        model: "test-model",
+        id: "test-id"
       },
     };
 

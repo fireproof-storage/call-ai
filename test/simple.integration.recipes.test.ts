@@ -155,7 +155,7 @@ describe("Simple callAI integration tests", () => {
             expectOrWarn(modelId, !!resultMeta.timing, `Timing should be defined in metadata for ${modelName}`);
             expectOrWarn(modelId, !!resultMeta.timing?.startTime, `Start time should be defined in metadata for ${modelName}`);
             expectOrWarn(modelId, !!resultMeta.timing?.endTime, `End time should be defined in metadata for ${modelName}`);
-            expectOrWarn(modelId, !!resultMeta.usage, `Usage should be defined in metadata for ${modelName}`);
+            expectOrWarn(modelId, !!resultMeta.rawResponse, `Raw response should be defined in metadata for ${modelName}`);
           }
 
           if (typeof result === "string") {

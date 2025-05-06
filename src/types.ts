@@ -32,20 +32,6 @@ export interface ResponseMeta {
   model: string;
 
   /**
-   * The original raw API response object
-   */
-  rawResponse?: Response;
-
-  /**
-   * Token usage information if available
-   */
-  usage?: {
-    promptTokens?: number;
-    completionTokens?: number;
-    totalTokens?: number;
-  };
-
-  /**
    * Timing information about the request
    */
   timing?: {
@@ -55,9 +41,10 @@ export interface ResponseMeta {
   };
 
   /**
-   * Additional model-specific information
+   * Raw response data from the fetch call
+   * Contains the parsed JSON result from the API call
    */
-  [key: string]: any;
+  rawResponse?: any;
 }
 
 export interface Schema {

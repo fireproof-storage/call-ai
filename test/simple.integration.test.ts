@@ -124,7 +124,7 @@ describe("Simple callAI integration tests", () => {
           expect(resultMeta?.timing?.startTime).toBeLessThanOrEqual(
             resultMeta?.timing?.endTime as number,
           );
-          expect(resultMeta?.usage).toBeDefined();
+          expect(resultMeta?.rawResponse).toBeDefined();
         },
         TIMEOUT,
       );

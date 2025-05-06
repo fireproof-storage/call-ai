@@ -691,9 +691,7 @@ async function callAINonStreaming(
 
     const response = await fetch(endpoint, requestOptions);
 
-    // Save the raw response in the metadata
-    meta.rawResponse =
-      typeof response.clone === "function" ? response.clone() : response;
+    // We don't store the raw Response object in metadata anymore
 
     // Handle HTTP errors, with potential fallback for invalid model
     if (!response.ok || response.status >= 400) {
@@ -772,13 +770,10 @@ async function callAINonStreaming(
     // Extract content from the response
     const content = extractContent(result, schemaStrategy);
 
-    // Get token usage if available
-    if (result.usage) {
-      meta.usage = {
-        promptTokens: result.usage.prompt_tokens,
-        completionTokens: result.usage.completion_tokens,
-        totalTokens: result.usage.total_tokens,
-      };
+    // Store the raw response data for user access
+    if (result) {
+      // Store the parsed JSON result from the API call
+      meta.rawResponse = result;
     }
 
     // Update model info
@@ -901,10 +896,7 @@ async function* createStreamingGenerator(
   // Create a metadata object for this streaming response
   const startTime = Date.now();
   const meta: ResponseMeta = {
-    model,
-    // Safely handle response cloning - some mocks might not implement clone
-    rawResponse:
-      typeof response.clone === "function" ? response.clone() : response,
+    model: model,
     timing: {
       startTime: startTime,
     },
