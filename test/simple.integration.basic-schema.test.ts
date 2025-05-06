@@ -145,6 +145,23 @@ describe("Simple callAI integration tests", () => {
               console.log(`\n===== Parsed data from ${modelName} =====`);
               console.log(JSON.stringify(data, null, 2));
               
+              // Verify actual API call timing
+              const meta = getMeta(result);
+              console.log(`\n===== Timing for ${modelName} =====`);
+              console.log(JSON.stringify(meta?.timing || 'No timing data', null, 2));
+              
+              // Ensure the call took at least 5ms (to detect mocks or cached responses)
+              if (meta?.timing?.duration !== undefined) {
+                expectOrWarn(
+                  modelId,
+                  meta.timing.duration >= 5,
+                  `API call duration (${meta.timing.duration}ms) was suspiciously fast for ${modelName} model, possibly mocked or cached`,
+                  meta.timing
+                );
+              } else {
+                console.warn(`No timing information available for ${modelName} model`);
+              }
+              
               expectOrWarn(
                 modelId,
                 typeof data === "object" && data !== null,
