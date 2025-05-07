@@ -74,6 +74,10 @@ export function callAI(
     options.schema || null,
   );
 
+  if (!options.max_tokens) {
+    options.max_tokens = 100000;
+  }
+
   // Handle special case: Claude with tools requires streaming
   if (!options.stream && schemaStrategy.shouldForceStream) {
     // Buffer streaming results into a single response
