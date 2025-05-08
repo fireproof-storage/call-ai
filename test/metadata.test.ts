@@ -77,11 +77,11 @@ describe("getMeta", () => {
     // Verify metadata content
     expect(meta).toBeDefined();
     expect(meta?.model).toBe("openai/gpt-4o");
-    
+
     // Verify raw response data
     expect(meta?.rawResponse).toBeDefined();
     expect(meta?.rawResponse.model).toBe("openai/gpt-4o");
-    
+
     // Verify timing information
     expect(meta?.timing).toBeDefined();
     expect(meta?.timing?.startTime).toBeDefined();
@@ -117,7 +117,7 @@ describe("getMeta", () => {
       },
       rawResponse: {
         model: "test-model",
-        id: "test-id"
+        id: "test-id",
       },
     };
 

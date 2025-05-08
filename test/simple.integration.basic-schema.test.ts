@@ -45,7 +45,12 @@ const expectOrWarn = (
       // Enhanced debug logging for failures
       console.log(`DETAILED FAILURE for ${model.id}: ${message}`);
       if (debugValue !== undefined) {
-        console.log('Debug value:', typeof debugValue === 'object' ? JSON.stringify(debugValue, null, 2) : debugValue);
+        console.log(
+          "Debug value:",
+          typeof debugValue === "object"
+            ? JSON.stringify(debugValue, null, 2)
+            : debugValue,
+        );
       }
     }
     expect(condition).toBe(true);
@@ -106,21 +111,24 @@ describe("Simple callAI integration tests", () => {
         `should handle basic schema with ${modelName} model`,
         async () => {
           // Make API call with a basic schema
-          const result = await callAI("Provide information about France. Population should be expressed in millions (e.g., 67.5 for 67.5 million people).", {
-            apiKey: process.env.CALLAI_API_KEY,
-            model: modelId.id,
-            schema: {
-              type: "object",
-              properties: {
-                capital: { type: "string" },
-                population: { type: "number" },
-                languages: {
-                  type: "array",
-                  items: { type: "string" },
+          const result = await callAI(
+            "Provide information about France. Population should be expressed in millions (e.g., 67.5 for 67.5 million people).",
+            {
+              apiKey: process.env.CALLAI_API_KEY,
+              model: modelId.id,
+              schema: {
+                type: "object",
+                properties: {
+                  capital: { type: "string" },
+                  population: { type: "number" },
+                  languages: {
+                    type: "array",
+                    items: { type: "string" },
+                  },
                 },
-              }
+              },
             },
-          });
+          );
 
           // Get the metadata
           const resultMeta = getMeta(result);
@@ -131,42 +139,48 @@ describe("Simple callAI integration tests", () => {
             typeof result === "string",
             `Result is not a string but a ${typeof result} in ${modelName} model`,
           );
-          
+
           if (typeof result === "string") {
             // Try to parse as JSON
             try {
               // Log the entire response for debugging
               console.log(`\n===== Response from ${modelName} =====`);
-              console.log(result.substring(0, 500) + (result.length > 500 ? '...' : ''));
-              
+              console.log(
+                result.substring(0, 500) + (result.length > 500 ? "..." : ""),
+              );
+
               const data = JSON.parse(result);
-              
+
               // Log parsed data for debugging
               console.log(`\n===== Parsed data from ${modelName} =====`);
               console.log(JSON.stringify(data, null, 2));
-              
+
               // Verify actual API call timing
               const meta = getMeta(result);
               console.log(`\n===== Timing for ${modelName} =====`);
-              console.log(JSON.stringify(meta?.timing || 'No timing data', null, 2));
-              
+              console.log(
+                JSON.stringify(meta?.timing || "No timing data", null, 2),
+              );
+
               // Ensure the call took at least 5ms (to detect mocks or cached responses)
               if (meta?.timing?.duration !== undefined) {
                 expectOrWarn(
                   modelId,
                   meta.timing.duration >= 5,
                   `API call duration (${meta.timing.duration}ms) was suspiciously fast for ${modelName} model, possibly mocked or cached`,
-                  meta.timing
+                  meta.timing,
                 );
               } else {
-                console.warn(`No timing information available for ${modelName} model`);
+                console.warn(
+                  `No timing information available for ${modelName} model`,
+                );
               }
-              
+
               expectOrWarn(
                 modelId,
                 typeof data === "object" && data !== null,
                 `Parsed result is not an object in ${modelName} model response`,
-                data
+                data,
               );
 
               if (typeof data === "object" && data !== null) {
@@ -175,13 +189,13 @@ describe("Simple callAI integration tests", () => {
                   modelId,
                   "capital" in data,
                   `Missing 'capital' in ${modelName} model response`,
-                  Object.keys(data)
+                  Object.keys(data),
                 );
                 expectOrWarn(
                   modelId,
                   "population" in data,
                   `Missing 'population' in ${modelName} model response`,
-                  Object.keys(data)
+                  Object.keys(data),
                 );
 
                 // Validate capital
@@ -190,14 +204,14 @@ describe("Simple callAI integration tests", () => {
                     modelId,
                     typeof data.capital === "string",
                     `Capital is not a string in ${modelName} model response`,
-                    data.capital
+                    data.capital,
                   );
                   if (typeof data.capital === "string") {
                     expectOrWarn(
                       modelId,
                       data.capital.toLowerCase().includes("paris"),
                       `Capital ${data.capital} is not Paris in ${modelName} model response`,
-                      data.capital
+                      data.capital,
                     );
                   }
                 }
@@ -208,17 +222,20 @@ describe("Simple callAI integration tests", () => {
                     modelId,
                     typeof data.population === "number",
                     `'population' is not a number in ${modelName} model response`,
-                    data.population
+                    data.population,
                   );
                   if (typeof data.population === "number") {
                     // Population should be in a reasonable range (60-70 million for France)
                     // Check if number is already in millions (under 100) or in absolute (over 1 million)
-                    const populationInMillions = data.population < 1000 ? data.population : data.population / 1000000;
+                    const populationInMillions =
+                      data.population < 1000
+                        ? data.population
+                        : data.population / 1000000;
                     expectOrWarn(
                       modelId,
                       populationInMillions >= 60 && populationInMillions <= 70,
                       `Population ${data.population} (${populationInMillions.toFixed(2)}M) outside expected range in ${modelName} model response`,
-                      data.population
+                      data.population,
                     );
                   }
                 }
@@ -229,7 +246,7 @@ describe("Simple callAI integration tests", () => {
                     modelId,
                     Array.isArray(data.languages),
                     `'languages' is not an array in ${modelName} model response`,
-                    data.languages
+                    data.languages,
                   );
                   if (Array.isArray(data.languages)) {
                     // Should include French
@@ -241,7 +258,7 @@ describe("Simple callAI integration tests", () => {
                           lang.toLowerCase().includes("french"),
                       ),
                       `Languages doesn't include French in ${modelName} model response`,
-                      data.languages
+                      data.languages,
                     );
                   }
                 }

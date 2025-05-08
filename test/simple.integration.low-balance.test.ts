@@ -49,23 +49,26 @@ describe("Low Balance API Key Tests", () => {
               languages: {
                 type: "array",
                 items: { type: "string" },
-              }
-            }
+              },
+            },
           },
         });
-        
+
         // If we get here, the key wasn't actually low balance - test should fail
         fail("Expected key limit exceeded error but got successful result");
       } catch (error) {
         // We expect a 403 error with "Key limit exceeded" message
         const errorStr = String(error);
-        
+
         // Test passes when we get the key limit exceeded error
-        expect(errorStr).toContain('403');
-        expect(errorStr).toContain('Key limit exceeded');
-        
+        expect(errorStr).toContain("403");
+        expect(errorStr).toContain("Key limit exceeded");
+
         // Log the error for visibility
-        console.log("Received expected low balance error:", errorStr.substring(0, 200));
+        console.log(
+          "Received expected low balance error:",
+          errorStr.substring(0, 200),
+        );
       }
     });
   });
