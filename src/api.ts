@@ -1586,13 +1586,68 @@ async function* createStreamingGenerator(
                           );
                         }
 
-                        // Common pattern: property name split like "popul" and "ation"
-                        // Fix by checking for property fragments
-                        // This regex looks for property fragments at the end of the string
-                        const fixedJson = toolCallsAssembled.replace(
-                          /"(\w+)"\s*:\s*$/,
-                          "",
+                        // Apply comprehensive fixes for Claude's JSON property splitting
+                        let fixedJson = toolCallsAssembled;
+
+                        // 1. Remove trailing commas
+                        fixedJson = fixedJson.replace(/,\s*([\}\]])/, "$1");
+
+                        // 2. Ensure proper JSON structure
+                        // Add closing braces if missing
+                        const openBraces = (fixedJson.match(/\{/g) || [])
+                          .length;
+                        const closeBraces = (fixedJson.match(/\}/g) || [])
+                          .length;
+                        if (openBraces > closeBraces) {
+                          fixedJson += "}".repeat(openBraces - closeBraces);
+                        }
+
+                        // Add opening brace if missing
+                        if (!fixedJson.trim().startsWith("{")) {
+                          fixedJson = "{" + fixedJson.trim();
+                        }
+
+                        // Ensure it ends with a closing brace
+                        if (!fixedJson.trim().endsWith("}")) {
+                          fixedJson += "}";
+                        }
+
+                        // 3. Fix various property name/value split issues
+                        // Fix dangling property names without values
+                        fixedJson = fixedJson.replace(
+                          /"(\w+)"\s*:\s*$/g,
+                          '"$1":null',
                         );
+
+                        // Fix missing property values
+                        fixedJson = fixedJson.replace(
+                          /"(\w+)"\s*:\s*,/g,
+                          '"$1":null,',
+                        );
+
+                        // Fix incomplete property names (when split across chunks)
+                        fixedJson = fixedJson.replace(
+                          /"(\w+)"\s*:\s*"(\w+)$/g,
+                          '"$1$2"',
+                        );
+
+                        // Balance brackets
+                        const openBrackets = (fixedJson.match(/\[/g) || [])
+                          .length;
+                        const closeBrackets = (fixedJson.match(/\]/g) || [])
+                          .length;
+                        if (openBrackets > closeBrackets) {
+                          fixedJson += "]".repeat(openBrackets - closeBrackets);
+                        }
+
+                        if (options.debug) {
+                          console.log(
+                            `[callAI:${PACKAGE_VERSION}] Applied comprehensive JSON fixes:`,
+                            `\nBefore: ${toolCallsAssembled}`,
+                            `\nAfter: ${fixedJson}`,
+                          );
+                        }
+
                         toolCallsAssembled = fixedJson;
                       }
                     }
@@ -1738,13 +1793,45 @@ async function* createStreamingGenerator(
           );
         }
 
-        // Try some common fixes for streaming-related JSON issues
-        // 1. Remove trailing commas
+        // Apply more robust fixes for Claude's streaming JSON issues
+
+        // 1. Remove trailing commas (common in malformed JSON)
         result = result.replace(/,\s*([\}\]])/, "$1");
 
-        // 2. Fix split property names (common with Claude)
-        // Look for patterns like "popul" and then "ation" in next chunk
+        // 2. Ensure we have proper JSON structure
+        // Add closing braces if missing
+        const openBraces = (result.match(/\{/g) || []).length;
+        const closeBraces = (result.match(/\}/g) || []).length;
+        if (openBraces > closeBraces) {
+          result += "}".repeat(openBraces - closeBraces);
+        }
+
+        // Add opening brace if missing
+        if (!result.trim().startsWith("{")) {
+          result = "{" + result.trim();
+        }
+
+        // Ensure it ends with a closing brace
+        if (!result.trim().endsWith("}")) {
+          result += "}";
+        }
+
+        // 3. Fix various property name/value split issues (common with Claude)
+        // Fix dangling property names without values
+        result = result.replace(/"(\w+)"\s*:\s*$/g, '"$1":null');
+
+        // Fix missing property values
+        result = result.replace(/"(\w+)"\s*:\s*,/g, '"$1":null,');
+
+        // Fix incomplete property names (when split across chunks)
         result = result.replace(/"(\w+)"\s*:\s*"(\w+)$/g, '"$1$2"');
+
+        // One more check for balanced braces/brackets
+        const openBrackets = (result.match(/\[/g) || []).length;
+        const closeBrackets = (result.match(/\]/g) || []).length;
+        if (openBrackets > closeBrackets) {
+          result += "]".repeat(openBrackets - closeBrackets);
+        }
 
         if (options.debug) {
           console.log(

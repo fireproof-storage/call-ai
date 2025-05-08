@@ -54,28 +54,28 @@ describe("Claude JSON Property Splitting Test", () => {
             .mockResolvedValueOnce({
               done: false,
               value: new TextEncoder().encode(
-                `data: {"type":"message_start"}\n\n`
+                `data: {"type":"message_start"}\n\n`,
               ),
             })
             // First part with split property "popul"
             .mockResolvedValueOnce({
               done: false,
               value: new TextEncoder().encode(
-                `data: {"type":"content_block_delta","delta":{"text":"{\\\"capital\\\":\\\"Paris\\\", \\\"popul"}}\n\n`
+                `data: {"type":"content_block_delta","delta":{"text":"{\\\"capital\\\":\\\"Paris\\\", \\\"popul"}}\n\n`,
               ),
             })
             // Second part with "ation" completing the property name
             .mockResolvedValueOnce({
               done: false,
               value: new TextEncoder().encode(
-                `data: {"type":"content_block_delta","delta":{"text":"ation\\\":67.5, \\\"languages\\\":[\\\"French\\\"]}"}}\n\n`
+                `data: {"type":"content_block_delta","delta":{"text":"ation\\\":67.5, \\\"languages\\\":[\\\"French\\\"]}"}}\n\n`,
               ),
             })
             // Final chunk with tool_calls completion signal
             .mockResolvedValueOnce({
               done: false,
               value: new TextEncoder().encode(
-                `data: {"type":"message_delta","delta":{"stop_reason":"tool_calls"}}\n\n`
+                `data: {"type":"message_delta","delta":{"stop_reason":"tool_calls"}}\n\n`,
               ),
             })
             // End of stream
@@ -98,7 +98,7 @@ describe("Claude JSON Property Splitting Test", () => {
     const expectedResult = {
       capital: "Paris",
       population: 67.5,
-      languages: ["French"]
+      languages: ["French"],
     };
 
     // Collect results from streaming
@@ -115,10 +115,10 @@ describe("Claude JSON Property Splitting Test", () => {
     // The key test - our implementation should produce valid JSON
     // despite the property name "population" being split across chunks
     const parsedResult = JSON.parse(finalResult);
-    
+
     // Validate the parsed result matches our expectations
     expect(parsedResult).toEqual(expectedResult);
-    
+
     // We should receive a single chunk with the complete JSON
     expect(chunkCount).toBe(1);
   });
