@@ -27,21 +27,58 @@ const keyStore = {
   metadata: {} as Record<string, any>,
 };
 
+// Global debug flag
+let globalDebug = false;
+
 /**
  * Initialize key store with environment variables
  */
 function initKeyStore() {
-  // Initialize from environment variables if in Node.js context
+  // Initialize with environment variables if available
   if (typeof process !== "undefined" && process.env) {
-    keyStore.current = process.env.CALLAI_API_KEY || null;
-    keyStore.refreshEndpoint =
-      process.env.CALLAI_REFRESH_ENDPOINT || keyStore.refreshEndpoint;
-    keyStore.refreshToken =
-      process.env.CALL_AI_REFRESH_TOKEN || keyStore.refreshToken;
+    if (process.env.CALLAI_API_KEY) {
+      keyStore.current = process.env.CALLAI_API_KEY;
+    }
+
+    // Support both CALLAI_REFRESH_ENDPOINT and CALLAI_REKEY_ENDPOINT for backward compatibility
+    if (process.env.CALLAI_REFRESH_ENDPOINT) {
+      keyStore.refreshEndpoint = process.env.CALLAI_REFRESH_ENDPOINT;
+    } else if (process.env.CALLAI_REKEY_ENDPOINT) {
+      keyStore.refreshEndpoint = process.env.CALLAI_REKEY_ENDPOINT;
+    } else {
+      // Default to vibecode.garden if not specified
+      keyStore.refreshEndpoint = "https://vibecode.garden";
+    }
+
+    // Support both CALL_AI_REFRESH_TOKEN and CALL_AI_KEY_TOKEN for backward compatibility
+    if (process.env.CALL_AI_REFRESH_TOKEN) {
+      keyStore.refreshToken = process.env.CALL_AI_REFRESH_TOKEN;
+    } else if (process.env.CALL_AI_KEY_TOKEN) {
+      keyStore.refreshToken = process.env.CALL_AI_KEY_TOKEN;
+    } else {
+      // Default to use-vibes if not specified - this is the default token for vibecode.garden
+      keyStore.refreshToken = "use-vibes";
+    }
+
+    // Check for CALLAI_DEBUG environment variable (any truthy value works)
+    if (process.env.CALLAI_DEBUG) {
+      // Set the global debug flag
+      globalDebug = true;
+    }
   }
   // Initialize from window globals if in browser context
   else if (typeof window !== "undefined") {
-    keyStore.current = (window as any).CALLAI_API_KEY || keyStore.current;
+    // Use window.CALLAI_API_KEY or window.callAI.API_KEY if available
+    if ((window as any).CALLAI_API_KEY) {
+      keyStore.current = (window as any).CALLAI_API_KEY;
+    } else if ((window as any).callAI?.API_KEY) {
+      keyStore.current = (window as any).callAI.API_KEY;
+    }
+
+    // Check for debug flag in browser environment
+    if ((window as any).CALLAI_DEBUG) {
+      globalDebug = true;
+    }
     keyStore.refreshEndpoint =
       (window as any).CALLAI_REFRESH_ENDPOINT || keyStore.refreshEndpoint;
     keyStore.refreshToken =
@@ -82,7 +119,7 @@ async function refreshApiKey(
   currentKey: string | null,
   endpoint: string | null,
   refreshToken: string | null,
-  debug: boolean = false,
+  debug: boolean = globalDebug,
 ): Promise<{ apiKey: string; topup: boolean }> {
   if (!endpoint) {
     throw new Error("No refresh endpoint configured");
@@ -359,7 +396,9 @@ export function callAI(
     const { endpoint, requestOptions, model, schemaStrategy } =
       prepareRequestParams(prompt, { ...options, stream: true });
 
-    if (options.debug) {
+    // Use either explicit debug option or global debug flag
+    const debug = options.debug || globalDebug;
+    if (debug) {
       console.log(
         `[callAI:${PACKAGE_VERSION}] Making fetch request to: ${endpoint}`,
       );
@@ -733,7 +772,7 @@ function createBackwardCompatStreamingProxy(
 async function handleApiError(
   error: any,
   context: string,
-  debug: boolean = false,
+  debug: boolean = globalDebug,
   options: { apiKey?: string; endpoint?: string; skipRefresh?: boolean } = {},
 ): Promise<void> {
   if (debug) {
@@ -834,7 +873,7 @@ async function checkForInvalidModelError(
   model: string,
   isRetry: boolean,
   skipRetry: boolean = false,
-  debug: boolean = false,
+  debug: boolean = globalDebug,
 ): Promise<{ isInvalidModel: boolean; errorData?: any }> {
   // Skip retry immediately if skipRetry is true or if we're already retrying
   if (skipRetry || isRetry) {
