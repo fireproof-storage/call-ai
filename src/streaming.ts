@@ -497,9 +497,16 @@ async function* callAIStreaming(
     ? prompt
     : [{ role: "user", content: prompt }];
 
-  // Default to OpenAI/OpenRouter as the provider
-  const apiKey = options.apiKey || keyStore.current;
+  // Get API key from options, key store, or window global
+  const apiKey = options.apiKey || 
+                 keyStore.current || 
+                 (typeof window !== "undefined" ? (window as any).CALLAI_API_KEY : null);
   const model = options.model || "openai/gpt-3.5-turbo";
+  
+  // Validate API key
+  if (!apiKey) {
+    throw new Error("API key is required. Please provide an API key via options.apiKey, environment variable CALLAI_API_KEY, or set window.CALLAI_API_KEY");
+  }
 
   // Default endpoint compatible with OpenAI API
   const endpoint = options.endpoint || "https://openrouter.ai/api/v1";
@@ -596,6 +603,12 @@ async function* callAIStreaming(
       method: "POST",
       headers,
       body: JSON.stringify(requestBody),
+    }).catch(error => {
+      // Explicitly handle network errors
+      if (error.message && error.message.includes('Network')) {
+        throw new Error(`Network error: ${error.message}`);
+      }
+      throw error;
     });
 
     // Handle HTTP errors
@@ -646,8 +659,8 @@ async function* callAIStreaming(
     try {
       // Handle errors according to our error policy
       await handleApiError(error, "Streaming API call", debug, {
-        apiKey,
-        endpoint: options.endpoint,
+        apiKey: apiKey || undefined,
+        endpoint: options.endpoint || undefined,
         skipRefresh: options.skipRefresh,
       });
 

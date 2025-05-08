@@ -252,7 +252,7 @@ async function refreshApiKey(
       },
       body: JSON.stringify({
         key: currentKey,
-        hash: getHashFromKey(currentKey),
+        hash: currentKey ? getHashFromKey(currentKey) : null,
       }),
     });
 
@@ -264,35 +264,33 @@ async function refreshApiKey(
 
     // Parse the response
     const data = await response.json();
-
-    // Handle the Vibecode API response format
-    if (data.key) {
-      if (debug) {
-        console.log("API key refreshed successfully");
-      }
-
-      // Store metadata for potential future use (like top-up)
-      if (data.metadata) {
-        storeKeyMetadata(data.metadata);
-      }
-
-      // Update the key store
-      keyStore.current = data.key;
-
-      // Determine if this was a top-up (using existing key) or new key
-      const isTopup =
-        currentKey && data.hash && data.hash === getHashFromKey(currentKey);
-
-      // Reset refreshing flag
-      keyStore.isRefreshing = false;
-
-      return {
-        apiKey: data.key,
-        topup: isTopup,
-      };
-    } else {
-      throw new Error("API key refresh failed: Invalid response format");
+    if (!data.key) {
+      throw new Error("Invalid response from key refresh endpoint: missing key");
     }
+
+    if (debug) {
+      console.log("API key refreshed successfully");
+    }
+
+    // Store metadata for potential future use (like top-up)
+    if (data.metadata) {
+      storeKeyMetadata(data.metadata);
+    }
+
+    // Update the key store
+    keyStore.current = data.key;
+
+    // Determine if this was a top-up (using existing key) or new key
+    const isTopup =
+      currentKey && data.hash && data.hash === getHashFromKey(currentKey);
+
+    // Reset refreshing flag
+    keyStore.isRefreshing = false;
+
+    return {
+      apiKey: data.key,
+      topup: isTopup,
+    };
   } catch (error) {
     // Reset refreshing flag
     keyStore.isRefreshing = false;

@@ -89,7 +89,7 @@ async function handleApiError(
       }
       // Create a more detailed error from the original one
       const detailedError = new Error(
-        `${errorMessage} (Key refresh failed: ${refreshError.message})`,
+        `${errorMessage} (Key refresh failed: ${refreshError instanceof Error ? refreshError.message : String(refreshError)})`,
       );
       // Preserve error metadata from the original error
       (detailedError as any).originalError = error;

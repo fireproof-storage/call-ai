@@ -2,7 +2,7 @@
  * Core API implementation for call-ai
  */
 
-import { CallAIOptions, Message, SchemaStrategy } from "./types";
+import { CallAIOptions, Message, SchemaStrategy, Schema } from "./types";
 import { globalDebug, keyStore } from "./key-management";
 import { callAINonStreaming } from "./non-streaming";
 import { callAIStreaming } from "./streaming";
@@ -20,31 +20,40 @@ const PACKAGE_VERSION = require("../package.json").version;
  * @returns Promise<string> for non-streaming or AsyncGenerator for streaming
  */
 async function callAI(prompt: string | Message[], options: CallAIOptions = {}) {
-  // Initialize the key store if it hasn't been done yet
-  if (keyStore.current === null) {
-    const initKeyStore = require("./key-management").initKeyStore;
-    initKeyStore();
-  }
+  // Always call initKeyStore to ensure keys are loaded
+  const { initKeyStore } = require("./key-management");
+  initKeyStore();
 
   const debug = options.debug === undefined ? globalDebug : options.debug;
 
   // Handle schema strategy based on model or explicitly provided strategy
   let schemaStrategy: SchemaStrategy = {
-    strategy: "default",
+    strategy: "none" as const,
+    model: options.model || "openai/gpt-3.5-turbo",
     prepareRequest: (schema: any) => ({}),
-    processResponse: (response: any) => response,
+    processResponse: (response: any) => {
+      // If response is an object, stringify it to match expected test output
+      if (response && typeof response === 'object') {
+        return JSON.stringify(response);
+      }
+      return response;
+    },
+    shouldForceStream: false
   };
 
   // If a schema is provided, determine the appropriate strategy
   if (options.schema) {
     const model = options.model || "openai/gpt-3.5-turbo";
+    
     // Choose function calling strategy based on model
     if (/claude/i.test(model) || /anthropic/i.test(model)) {
       schemaStrategy = {
-        strategy: "tool_mode",
+        strategy: "tool_mode" as const,
+        model,
+        shouldForceStream: false,
         prepareRequest: (schema, messages) => {
           // Parse the schema to extract the function definition
-          let toolDef;
+          let toolDef: any = {};
 
           if (typeof schema === "string") {
             try {
@@ -53,7 +62,7 @@ async function callAI(prompt: string | Message[], options: CallAIOptions = {}) {
               // If it's not valid JSON, we'll use it as a plain description
               toolDef = { description: schema };
             }
-          } else {
+          } else if (schema) {
             toolDef = schema;
           }
 
@@ -114,70 +123,42 @@ async function callAI(prompt: string | Message[], options: CallAIOptions = {}) {
         },
       };
     } else {
-      // For OpenAI-like models, use function calling format
+      // For OpenAI compatible models, use json_schema format
       schemaStrategy = {
-        strategy: "function_call",
+        strategy: "json_schema" as const,
+        model,
+        shouldForceStream: false,
         prepareRequest: (schema) => {
-          // Parse the schema to extract the function definition
-          let functionDef;
-
-          if (typeof schema === "string") {
-            try {
-              functionDef = JSON.parse(schema);
-            } catch (e) {
-              // If it's not valid JSON, we'll use it as a plain description
-              functionDef = { description: schema };
-            }
-          } else {
-            functionDef = schema;
-          }
-
-          // Build the functions array and set function_call
-          const functions = [
-            {
-              name: functionDef.name || "execute_function",
-              description: functionDef.description || "Execute a function",
-              parameters: functionDef.parameters || {
-                type: "object",
-                properties: {},
-              },
-            },
-          ];
-
+          // Create a properly formatted JSON schema request
+          const schemaObj = schema as Schema || {};
           return {
-            functions,
-            function_call: { name: functions[0].name },
+            response_format: { 
+              type: "json_schema",
+              json_schema: {
+                name: schemaObj.name || "result",
+                schema: {
+                  type: "object",
+                  properties: schemaObj.properties || {},
+                  required: schemaObj.required || Object.keys(schemaObj.properties || {}),
+                  additionalProperties: schemaObj.additionalProperties !== undefined ? 
+                    schemaObj.additionalProperties : false
+                }
+              }
+            }
           };
         },
         processResponse: (response) => {
           // Handle different response formats
           if (typeof response === "string") {
+            // Keep string responses as is
             return response;
           }
-
-          // Handle function call format
-          if (
-            response &&
-            response.function_call &&
-            response.function_call.arguments
-          ) {
-            return response.function_call.arguments;
-          }
-
-          // For all other cases, return string representation
-          return typeof response === "string"
-            ? response
-            : JSON.stringify(response);
+          // If it's an object, convert to string to match test expectations
+          return JSON.stringify(response);
         },
       };
     }
   }
-
-  // Set the schema strategy in options for downstream handlers
-  options.schemaStrategy = schemaStrategy;
-
-  // Request parameters validation and preparation
-  const requestParams = prepareRequestParams(prompt, options);
 
   // Check if this should be a streaming or non-streaming call
   if (options.stream) {
@@ -185,21 +166,71 @@ async function callAI(prompt: string | Message[], options: CallAIOptions = {}) {
       console.log(`[callAI:${PACKAGE_VERSION}] Making streaming request`);
     }
 
-    // Return the streaming generator
-    return callAIStreaming(requestParams.messages, options);
+    // For streaming requests we need to handle both synchronous and asynchronous errors
+    try {
+      // Make this async so we can catch immediate API key validation errors
+      // eslint-disable-next-line require-yield
+      async function* errorCatchingGenerator() {
+        try {
+          // Pass schemaStrategy through options to avoid type error
+          const optionsWithSchema = {
+            ...options,
+            schemaStrategy
+          };
+          
+          // Get API key from options, key store, or window global
+          const apiKey = optionsWithSchema.apiKey || 
+                         keyStore.current || 
+                         (typeof window !== "undefined" ? (window as any).CALLAI_API_KEY : null);
+          
+          // Add API key to options for streaming call
+          optionsWithSchema.apiKey = apiKey;
+          
+          // Validate API key
+          if (!apiKey) {
+            throw new Error("API key is required. Please provide an API key via options.apiKey, environment variable CALLAI_API_KEY, or set window.CALLAI_API_KEY");
+          }
+          
+          // Delegate to the real generator
+          yield* callAIStreaming(prompt, optionsWithSchema);
+          return "";
+        } catch (error) {
+          // Re-throw API key errors and other immediate errors
+          throw error;
+        }
+      }
+      
+      // Create the generator and wrap in a promise
+      const generator = errorCatchingGenerator();
+      // Cast the promise to ensure correct type compatibility
+      const streamingPromise = Promise.resolve(generator) as Promise<AsyncGenerator<string, string, unknown>>;
+      
+      // Create a proxy that supports both Promise and AsyncGenerator interfaces
+      // This maintains backward compatibility with pre-0.7.0 code
+      return createBackwardCompatStreamingProxy(streamingPromise);
+    } catch (error) {
+      // If there's an immediate error (like API key validation), make sure it's propagated properly
+      throw error;
+    }
   } else {
     if (debug) {
       console.log(`[callAI:${PACKAGE_VERSION}] Making non-streaming request`);
     }
 
-    // Return the non-streaming promise
-    return callAINonStreaming(requestParams.messages, options);
+    // Pass schemaStrategy through options to avoid type error
+    const optionsWithSchema = {
+      ...options,
+      schemaStrategy
+    };
+    
+    // Make a non-streaming API call
+    return callAINonStreaming(prompt, optionsWithSchema);
   }
 }
 
 /**
  * Buffers the results of a streaming generator into a single string
- *
+ * 
  * @param generator The streaming generator returned by callAI
  * @returns Promise<string> with the complete response
  */
@@ -209,24 +240,15 @@ async function bufferStreamingResults(
   let result = "";
 
   try {
-    // Process each chunk as it arrives
+    // Iterate through the generator and collect results
     for await (const chunk of generator) {
-      result = chunk; // Each chunk is the complete text so far
+      result += chunk;
     }
 
     return result;
   } catch (error) {
-    // Throw with detailed error
-    console.error(`[callAI:${PACKAGE_VERSION}] Error in streaming:`, error);
-
-    // Enhance the error message
+    // If we already collected some content, attach it to the error
     if (error instanceof Error) {
-      // If no content accumulated, throw the original error
-      if (!result) {
-        throw error;
-      }
-
-      // Otherwise throw with partial content
       const enhancedError = new Error(
         `${error.message} (Partial content: ${result.slice(0, 100)}...)`,
       );
@@ -248,54 +270,112 @@ async function bufferStreamingResults(
  * This allows existing code to run without awaiting the callAI response
  */
 function createBackwardCompatStreamingProxy(
-  generator: AsyncGenerator<string, string, unknown>,
+  generatorPromise: Promise<AsyncGenerator<string, string, unknown>>,
 ) {
-  // We need to capture the first iteration of the generator
-  // so we can return it on the first next() call
-  let firstIteration: Promise<IteratorResult<string, string>> | null = null;
-
-  // Start iterator but don't resolve it yet
-  firstIteration = generator.next();
-
-  // Legacy warning displayed once per session
+  let resolvedGenerator: AsyncGenerator<string, string, unknown> | null = null;
+  let firstNext: Promise<IteratorResult<string, string>> | null = null;
   let warnedLegacy = false;
+  
+  /**
+   * Pre-resolve the generator and start first iteration for direct access
+   * Used by non-await code paths in tests
+   */
+  function immediateAccess() {
+    // Start resolving the generator for immediate access
+    if (!resolvedGenerator && !firstNext) {
+      const promise = generatorPromise.then(gen => {
+        resolvedGenerator = gen;
+        return gen.next();
+      });
+      firstNext = promise;
+      return promise;
+    }
+    return firstNext;
+  }
+  
+  // Immediately start resolving to improve compatibility with no-await tests
+  immediateAccess();
 
-  // Create a proxy that looks like a generator but handles pre-await access
-  const proxy = {
-    // Make it look like a generator with these methods
-    next: async () => {
+  // Create the main proxy target with core generator methods
+  const target: any = {
+    // next method that works with both await and no-await patterns
+    next: async function(value?: any) {
       if (!warnedLegacy) {
         console.warn(
           `[callAI:${PACKAGE_VERSION}] DEPRECATION WARNING: You are using streaming without 'await'. ` +
-            `This backward compatibility mode will be removed in a future version. ` +
-            `Please update your code to: const stream = await callAI(..., { stream: true });`,
+          `This backward compatibility mode will be removed in a future version. ` +
+          `Please update your code to: const stream = await callAI(..., { stream: true });`,
         );
         warnedLegacy = true;
       }
 
-      if (firstIteration) {
-        const result = await firstIteration;
-        firstIteration = null;
+      // If we already have a firstNext promise, use it
+      if (firstNext) {
+        const result = await firstNext;
+        firstNext = null;
         return result;
       }
 
-      return generator.next();
-    },
-    return: (value?: any) => generator.return(value as string),
-    throw: (e?: any) => generator.throw(e),
+      // Otherwise, we need to resolve the generator first
+      if (!resolvedGenerator) {
+        resolvedGenerator = await generatorPromise;
+      }
 
-    // Make it iterable
-    [Symbol.asyncIterator]() {
-      return this;
+      return resolvedGenerator.next(value);
     },
+
+    // Return method
+    return: async function(value?: any) {
+      if (!resolvedGenerator) {
+        resolvedGenerator = await generatorPromise;
+      }
+      return resolvedGenerator.return!(value);
+    },
+
+    // Throw method
+    throw: async function(e?: any) {
+      if (!resolvedGenerator) {
+        resolvedGenerator = await generatorPromise;
+      }
+      return resolvedGenerator.throw!(e);
+    },
+
+    // Iterator symbol to make it work with for-await-of
+    [Symbol.asyncIterator]: function() {
+      return this;
+    }
   };
 
-  return proxy;
+  // Create a proxy that acts as both AsyncGenerator and Promise
+  return new Proxy(target, {
+    // Handle property access (for Promise compatibility)
+    get: function(target, prop) {
+      // Special handling for Promise methods
+      if (prop === 'then') {
+        return function(resolve: any, reject: any) {
+          return generatorPromise.then(resolve, reject);
+        };
+      }
+      if (prop === 'catch') {
+        return function(reject: any) {
+          return generatorPromise.catch(reject);
+        };
+      }
+      if (prop === 'finally') {
+        return function(callback: any) {
+          return generatorPromise.finally(callback);
+        };
+      }
+      
+      // Regular property access
+      return target[prop];
+    }
+  });
 }
 
 /**
  * Validates and prepares request parameters for API calls
- *
+ * 
  * @param prompt User prompt (string or Message array)
  * @param options Call options
  * @returns Validated and processed parameters

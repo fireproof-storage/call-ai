@@ -17,14 +17,25 @@ async function callAINonStreaming(
   options: CallAIOptions = {},
   isRetry: boolean = false,
 ): Promise<string> {
+  // Ensure keyStore is initialized first
+  const { initKeyStore } = require("./key-management");
+  initKeyStore();
+
   // Convert simple string prompts to message array format
   const messages = Array.isArray(prompt)
     ? prompt
     : [{ role: "user", content: prompt }];
 
-  // Default to OpenAI/OpenRouter as the provider
-  const apiKey = options.apiKey || keyStore.current;
+  // Get API key from options, key store, or window global
+  const apiKey = options.apiKey || 
+                 keyStore.current || 
+                 (typeof window !== "undefined" ? (window as any).CALLAI_API_KEY : null);
   const model = options.model || "openai/gpt-3.5-turbo";
+  
+  // Validate API key
+  if (!apiKey) {
+    throw new Error("API key is required. Please provide an API key via options.apiKey, environment variable CALLAI_API_KEY, or set window.CALLAI_API_KEY");
+  }
 
   // Default endpoint compatible with OpenAI API
   const endpoint = options.endpoint || "https://openrouter.ai/api/v1";
@@ -131,6 +142,12 @@ async function callAINonStreaming(
       method: "POST",
       headers,
       body: JSON.stringify(requestBody),
+    }).catch(error => {
+      // Explicitly handle network errors
+      if (error.message && error.message.includes('Network')) {
+        throw new Error(`Network error: ${error.message}`);
+      }
+      throw error;
     });
 
     // Handle HTTP errors
@@ -180,7 +197,7 @@ async function callAINonStreaming(
         result = extractContent(json, schemaStrategy);
       }
     } catch (parseError) {
-      throw new Error(`Failed to parse API response: ${parseError.message}`);
+      throw new Error(`Failed to parse API response: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
     }
 
     // Update metadata with completion timing
@@ -200,8 +217,8 @@ async function callAINonStreaming(
   } catch (error) {
     // Handle errors according to our error policy
     await handleApiError(error, "Non-streaming API call", options.debug, {
-      apiKey,
-      endpoint: options.endpoint,
+      apiKey: apiKey || undefined,
+      endpoint: options.endpoint || undefined,
       skipRefresh: options.skipRefresh,
     });
 
@@ -317,7 +334,7 @@ async function extractClaudeResponse(response: Response): Promise<any> {
     // If content not found in expected structure, return the whole JSON
     return json;
   } catch (error) {
-    throw new Error(`Failed to extract Claude response: ${error.message}`);
+    throw new Error(`Failed to extract Claude response: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
