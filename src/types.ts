@@ -159,6 +159,12 @@ export interface CallAIOptions {
   skipRetry?: boolean;
 
   /**
+   * Skip key refresh on 4xx errors
+   * Useful for testing error conditions or when you want to handle refresh manually
+   */
+  skipRefresh?: boolean;
+
+  /**
    * Enable raw response logging without any filtering or processing
    */
   debug?: boolean;

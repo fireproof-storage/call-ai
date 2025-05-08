@@ -11,6 +11,216 @@ import {
 } from "./types";
 import { chooseSchemaStrategy } from "./strategies";
 
+// Internal key store to keep track of the latest key
+const keyStore = {
+  // Default key from environment or config
+  current: null as string | null,
+  // The refresh endpoint URL - defaults to vibecode.garden
+  refreshEndpoint: "https://vibecode.garden" as string | null,
+  // Authentication token for refresh endpoint - defaults to use-vibes
+  refreshToken: "use-vibes" as string | null,
+  // Flag to prevent concurrent refresh attempts
+  isRefreshing: false,
+  // Timestamp of last refresh attempt (to prevent too frequent refreshes)
+  lastRefreshAttempt: 0,
+  // Storage for key metadata (useful for future top-up implementation)
+  metadata: {} as Record<string, any>,
+};
+
+/**
+ * Initialize key store with environment variables
+ */
+function initKeyStore() {
+  // Initialize from environment variables if in Node.js context
+  if (typeof process !== "undefined" && process.env) {
+    keyStore.current = process.env.CALLAI_API_KEY || null;
+    keyStore.refreshEndpoint =
+      process.env.CALLAI_REFRESH_ENDPOINT || keyStore.refreshEndpoint;
+    keyStore.refreshToken =
+      process.env.CALL_AI_REFRESH_TOKEN || keyStore.refreshToken;
+  }
+  // Initialize from window globals if in browser context
+  else if (typeof window !== "undefined") {
+    keyStore.current = (window as any).CALLAI_API_KEY || keyStore.current;
+    keyStore.refreshEndpoint =
+      (window as any).CALLAI_REFRESH_ENDPOINT || keyStore.refreshEndpoint;
+    keyStore.refreshToken =
+      (window as any).CALL_AI_REFRESH_TOKEN || keyStore.refreshToken;
+  }
+}
+
+// Initialize on module load
+initKeyStore();
+
+/**
+ * Check if an error indicates we need a new API key
+ * @param error The error to check
+ * @param debug Whether to log debug information
+ * @returns True if the error suggests we need a new key
+ */
+function isNewKeyError(error: any, debug: boolean = false): boolean {
+  const status = error?.status || error?.statusCode || error?.response?.status;
+  const is4xx = status >= 400 && status < 500;
+
+  if (is4xx && debug) {
+    console.log(
+      `[callAI:debug] Key error detected: status=${status}, message=${String(error)}`,
+    );
+  }
+
+  return is4xx;
+}
+
+/**
+ * Refreshes the API key by calling the specified endpoint
+ * @param currentKey The current API key (may be null for initial key request)
+ * @param endpoint The endpoint to call for key refresh
+ * @param refreshToken Authentication token for the refresh endpoint
+ * @returns Object containing the API key and topup flag
+ */
+async function refreshApiKey(
+  currentKey: string | null,
+  endpoint: string | null,
+  refreshToken: string | null,
+): Promise<{ apiKey: string; topup: boolean }> {
+  if (!endpoint) {
+    throw new Error("No refresh endpoint configured");
+  }
+
+  try {
+    // Prepare headers with authentication
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    // Use the refresh token for authentication if available, otherwise use the current key
+    if (refreshToken) {
+      headers["Authorization"] = `Bearer ${refreshToken}`;
+    } else if (currentKey) {
+      headers["Authorization"] = `Bearer ${currentKey}`;
+    } else {
+      throw new Error(
+        "No refresh token or API key available for authentication",
+      );
+    }
+
+    // Extract hash from current key if available (for potential future top-up capability)
+    let keyHash = null;
+    if (currentKey) {
+      try {
+        // Attempt to extract hash if it's stored in metadata
+        keyHash = getHashFromKey(currentKey);
+      } catch (e) {
+        // If we can't extract the hash, we'll just create a new key
+        console.warn(
+          "Could not extract hash from current key, will create new key",
+        );
+      }
+    }
+
+    // Determine if this might be a top-up request based on available hash
+    const isTopupAttempt = Boolean(keyHash);
+
+    // Create the request body
+    const requestBody: any = {
+      userId: "anonymous", // Replace with actual user ID if available
+      name: "Session Key",
+      label: `session-${Date.now()}`,
+    };
+
+    // If we have a key hash and want to attempt top-up (for future implementation)
+    if (isTopupAttempt) {
+      requestBody.keyHash = keyHash;
+      requestBody.action = "topup"; // Signal that we're trying to top up existing key
+    }
+
+    // Append the specific API path to the base URL endpoint
+    const fullEndpointUrl = `${endpoint}/api/keys`;
+
+    // Make request to refresh endpoint
+    const response = await fetch(fullEndpointUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      // Check for specific error situations
+      if (response.status === 401 || response.status === 403) {
+        const refreshTokenError = new Error("Refresh token expired or invalid");
+        refreshTokenError.name = "RefreshTokenError";
+        throw refreshTokenError;
+      }
+
+      const errorData = await response.json();
+      throw new Error(
+        `Failed to refresh key: ${errorData.error || response.statusText}`,
+      );
+    }
+
+    // Parse the response
+    const data = await response.json();
+
+    // Extract the key and relevant metadata
+    if (!data.key) {
+      throw new Error("API key not found in refresh response");
+    }
+
+    // Store the key metadata for potential future use
+    storeKeyMetadata(data);
+
+    // For now, always return with topup=false since the backend doesn't support topup yet
+    // When topup is implemented on the backend, this can be updated to check data.topup
+    return {
+      apiKey: data.key,
+      topup: Boolean(data.topup), // Will be true when backend supports topup feature
+    };
+  } catch (error: unknown) {
+    // Re-throw refresh token errors with specific type
+    if (
+      error &&
+      typeof error === "object" &&
+      "name" in error &&
+      error.name === "RefreshTokenError"
+    ) {
+      throw error;
+    }
+    throw new Error(`Key refresh failed: ${String(error)}`);
+  }
+}
+
+/**
+ * Helper function to extract hash from key (implementation depends on how you store metadata)
+ */
+function getHashFromKey(key: string): string | null {
+  // This extracts the hash from stored metadata if available
+  const keyMetadata = keyStore.metadata?.[key];
+  return keyMetadata?.hash || null;
+}
+
+/**
+ * Helper function to store key metadata for future reference
+ */
+function storeKeyMetadata(data: any): void {
+  // Initialize metadata storage if needed
+  if (!keyStore.metadata) {
+    keyStore.metadata = {};
+  }
+
+  // Store the metadata with the key as the index
+  if (data.key) {
+    keyStore.metadata[data.key] = {
+      hash: data.hash || null,
+      name: data.name || null,
+      label: data.label || null,
+      limit: data.limit || null,
+      usage: data.usage || null,
+      created_at: data.created_at || new Date().toISOString(),
+      updated_at: data.updated_at || new Date().toISOString(),
+    };
+  }
+}
+
 // WeakMap to store metadata for responses without modifying the response objects
 const responseMetadata = new WeakMap<object, ResponseMeta>();
 
@@ -387,8 +597,18 @@ async function bufferStreamingResults(
 
     return finalResult;
   } catch (error) {
-    handleApiError(error, "Streaming buffer error", options.debug);
+    await handleApiError(error, "Streaming buffer error", options.debug, {
+      apiKey: options.apiKey,
+      endpoint: options.endpoint,
+      skipRefresh: options.skipRefresh,
+    });
+    // If we get here, key was refreshed successfully, retry the operation
+    return bufferStreamingResults(prompt, options);
   }
+
+  // This line should never be reached, but it satisfies the linter by ensuring
+  // all code paths return a value
+  throw new Error("Unexpected code path in bufferStreamingResults");
 }
 
 /**
@@ -448,15 +668,100 @@ function createBackwardCompatStreamingProxy(
 
 /**
  * Standardized API error handler
+ * @param error The error object
+ * @param context Context description for error messages
+ * @param debug Whether to log debug information
+ * @param options Options for error handling including key refresh control
  */
-function handleApiError(
+async function handleApiError(
   error: any,
   context: string,
   debug: boolean = false,
-): never {
+  options: { apiKey?: string; endpoint?: string; skipRefresh?: boolean } = {},
+): Promise<void> {
   if (debug) {
     console.error(`[callAI:${context}]:`, error);
   }
+
+  // Check if this is a key-related error that can be resolved by refreshing
+  const canRefresh = !options.skipRefresh && isNewKeyError(error, debug);
+
+  if (canRefresh) {
+    if (debug) {
+      console.log(
+        `[callAI:debug] Attempting key refresh due to error: ${String(error)}`,
+      );
+    }
+
+    // Rate limit refresh attempts to avoid hammering the server
+    const now = Date.now();
+    const minRefreshInterval = 5000; // 5 seconds between refresh attempts
+
+    if (keyStore.isRefreshing) {
+      if (debug) {
+        console.log(
+          `[callAI:debug] Key refresh already in progress, waiting...`,
+        );
+      }
+
+      // We could implement a wait mechanism here if needed
+      // For now, just throw an error to prevent concurrent refreshes
+      throw new Error(
+        `${context}: Key refresh already in progress. Please retry in a few seconds.`,
+      );
+    }
+
+    if (now - keyStore.lastRefreshAttempt < minRefreshInterval) {
+      if (debug) {
+        console.log(`[callAI:debug] Too many refresh attempts, throttling...`);
+      }
+      throw new Error(
+        `${context}: Too many key refresh attempts. Please retry in a few seconds.`,
+      );
+    }
+
+    try {
+      // Set refresh state
+      keyStore.isRefreshing = true;
+      keyStore.lastRefreshAttempt = now;
+
+      // Use passed apiKey or fall back to stored key
+      const currentKey = options.apiKey || keyStore.current;
+      const endpoint = options.endpoint || keyStore.refreshEndpoint;
+
+      // Attempt to refresh the key
+      const { apiKey, topup } = await refreshApiKey(
+        currentKey,
+        endpoint,
+        keyStore.refreshToken,
+      );
+
+      // Store the new key
+      keyStore.current = apiKey;
+
+      if (debug) {
+        console.log(
+          `[callAI:debug] Key refresh ${topup ? "top-up" : "new key"} successful`,
+        );
+      }
+
+      // Return instead of throwing, allowing caller to retry with new key
+      return;
+    } catch (refreshError) {
+      if (debug) {
+        console.error(`[callAI:debug] Key refresh failed:`, refreshError);
+      }
+      // If refresh fails, throw the original error with additional context
+      throw new Error(
+        `${context}: ${String(error)} (Key refresh failed: ${String(refreshError)})`,
+      );
+    } finally {
+      // Always reset the refresh state
+      keyStore.isRefreshing = false;
+    }
+  }
+
+  // For non-key errors or when skipRefresh is true, throw the original error
   throw new Error(`${context}: ${String(error)}`);
 }
 
@@ -798,8 +1103,17 @@ async function callAINonStreaming(
 
     return processedContent;
   } catch (error) {
-    handleApiError(error, "Non-streaming API call", options.debug);
+    await handleApiError(error, "Non-streaming API call", options.debug, {
+      apiKey: options.apiKey,
+      endpoint: options.endpoint,
+      skipRefresh: options.skipRefresh,
+    });
+    // If we get here, key was refreshed successfully, retry the operation
+    return callAINonStreaming(prompt, options, true); // Set isRetry to true
   }
+
+  // This line will never be reached, but it satisfies the linter
+  throw new Error("Unexpected code path in callAINonStreaming");
 }
 
 /**
@@ -1246,7 +1560,21 @@ async function* createStreamingGenerator(
 
     return finalResult;
   } catch (error) {
-    // Standardize error handling
-    handleApiError(error, "Streaming API call", options.debug);
+    try {
+      // Standardize error handling
+      await handleApiError(error, "Streaming API call", options.debug, {
+        apiKey: options.apiKey,
+        endpoint: options.endpoint,
+        skipRefresh: options.skipRefresh,
+      });
+
+      // If we get here, key was refreshed successfully
+      const message = "[Key refreshed. Please retry your request.]";
+      yield message;
+      return message;
+    } catch (refreshError) {
+      // Re-throw the error if key refresh also failed
+      throw refreshError;
+    }
   }
 }

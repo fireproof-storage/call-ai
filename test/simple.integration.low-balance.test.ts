@@ -13,9 +13,6 @@ if (process.env.LOW_BALANCE_OPENROUTER_API_KEY) {
   process.env.CALLAI_API_KEY = process.env.LOW_BALANCE_OPENROUTER_API_KEY;
 }
 
-// Timeout for individual test
-const TIMEOUT = 9000;
-
 // Test models based on the OpenRouter documentation
 const supportedModels = {
   claude: { id: "anthropic/claude-3-sonnet", grade: "A" },

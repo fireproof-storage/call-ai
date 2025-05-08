@@ -14,9 +14,20 @@ dotenv.config();
 // Skip tests if no API key is available
 const haveApiKey = process.env.LOW_BALANCE_OPENROUTER_API_KEY;
 
-// Copy LOW_BALANCE_OPENROUTER_API_KEY to CALLAI_API_KEY for this test
+// Set up environment variables for testing key refresh behavior
 if (process.env.LOW_BALANCE_OPENROUTER_API_KEY) {
+  // Use the low balance key for triggering a refresh scenario
   process.env.CALLAI_API_KEY = process.env.LOW_BALANCE_OPENROUTER_API_KEY;
+  
+  // Set the refresh endpoint to vibecode.garden if not already set
+  if (!process.env.CALLAI_REFRESH_ENDPOINT) {
+    process.env.CALLAI_REFRESH_ENDPOINT = "https://vibecode.garden";
+  }
+  
+  // Set the refresh token for authentication
+  if (!process.env.CALL_AI_REFRESH_TOKEN) {
+    process.env.CALL_AI_REFRESH_TOKEN = "use-vibes";
+  }
 }
 const itif = (condition: boolean) => (condition ? it.concurrent : it.skip);
 
