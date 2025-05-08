@@ -37,9 +37,9 @@ const TIMEOUT = 9000;
 // Test models based on the OpenRouter documentation
 const supportedModels = {
   // openAI: { id: "openai/gpt-4o-mini", grade: "A" },
-  gemini: { id: "google/gemini-2.5-flash-preview", grade: "A" },
+  // gemini: { id: "google/gemini-2.5-flash-preview", grade: "A" },
   // geminiPro: { id: "google/gemini-2.5-pro-preview-03-25", grade: "A" },
-  // claude: { id: "anthropic/claude-3-sonnet", grade: "A" },
+  claude: { id: "anthropic/claude-3-sonnet", grade: "A" },
   // claudeThinking: { id: "anthropic/claude-3.7-sonnet:thinking", grade: "B" },
   // llama3: { id: "meta-llama/llama-4-maverick", grade: "B" },
   // deepseek: { id: 'deepseek/deepseek-chat', grade: 'C' },
@@ -133,7 +133,7 @@ describe("Simple callAI integration tests", () => {
               apiKey: process.env.CALLAI_API_KEY,
               model: modelId.id,
               debug: true,
-              max_tokens: 200000 - 200,
+              max_tokens: 128000 - 200,
               schema: {
                 type: "object",
                 properties: {

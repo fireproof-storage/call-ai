@@ -96,11 +96,22 @@ initKeyStore();
  * @returns True if the error suggests we need a new key
  */
 function isNewKeyError(error: any, debug: boolean = false): boolean {
-  const status = error?.status || error?.statusCode || error?.response?.status;
+  // Extract status from error object or message text
+  let status = error?.status || error?.statusCode || error?.response?.status;
+  const errorMessage = String(error || '').toLowerCase();
+  
+  // Extract status code from error message if not found in the object properties
+  // Handle messages like "HTTP error! Status: 403" common in fetch errors
+  if (!status && errorMessage.includes('status:')) {
+    const statusMatch = errorMessage.match(/status:\s*(\d+)/i);
+    if (statusMatch && statusMatch[1]) {
+      status = parseInt(statusMatch[1], 10);
+    }
+  }
+  
   const is4xx = status >= 400 && status < 500;
   
   // Common error messages related to API key issues across different providers
-  const errorMessage = String(error || '').toLowerCase();
   const isKeyError = 
     errorMessage.includes('key limit') || 
     errorMessage.includes('api key') || 
@@ -114,15 +125,20 @@ function isNewKeyError(error: any, debug: boolean = false): boolean {
   // The HTTP status code is 401 (Unauthorized) or 403 (Forbidden) which often indicates auth issues
   const isAuthError = status === 401 || status === 403;
   
-  // For Gemini model errors, any 403 error should trigger a key refresh
-  // This is needed because Gemini error messages don't follow the same patterns
-  const isGeminiError = errorMessage.includes('gemini') && isAuthError;
+  // Check for OpenRouter-specific errors that indicate key issues
+  const isOpenRouterKeyError = 
+    errorMessage.includes('openrouter') && 
+    (errorMessage.includes('key limit') || errorMessage.includes('manage it using'));
+  
+  // For status 403, treat as likely key error since that's common for quota/authorization issues
+  const isLikelyKeyError = status === 403 && !isKeyError;
   
   // Consider an error a key-related error if:
   // 1. It's a 4xx status code AND contains key-related terms in the error message, OR
   // 2. It's a 401/403 auth error, OR
-  // 3. It's specifically a Gemini model error with auth status
-  if ((is4xx && isKeyError) || isAuthError || isGeminiError) {
+  // 3. It's an OpenRouter key error message
+  // 4. It's a 403 error (common for key/quota issues)
+  if ((is4xx && isKeyError) || isAuthError || isOpenRouterKeyError || isLikelyKeyError) {
     if (debug) {
       console.log(
         `[callAI:debug] Key error detected: status=${status}, message=${String(error).substring(0, 200)}`,
@@ -1164,7 +1180,12 @@ async function callAINonStreaming(
         );
       }
 
-      throw new Error(`HTTP error! Status: ${response.status}`);
+      // Create a proper error object with the status code preserved
+      const error: any = new Error(`HTTP error! Status: ${response.status}`);
+      // Add status code as a property of the error object
+      error.status = response.status;
+      error.statusCode = response.status; // Add statusCode for compatibility with different error patterns
+      throw error;
     }
 
     let result;
