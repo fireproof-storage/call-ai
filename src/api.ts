@@ -160,20 +160,49 @@ async function refreshApiKey(
 
     // Parse the response
     const data = await response.json();
+    
+    // Log the entire response for debugging
+    console.log(`[callAI:debug] Refresh API response:`, JSON.stringify(data, null, 2));
 
-    // Extract the key and relevant metadata
-    if (!data.key) {
+    // Extract the key and relevant metadata - handle different possible formats
+    let apiKey;
+    if (typeof data === 'object' && data !== null) {
+      // Handle case where key is a string (direct key value)
+      if (typeof data.key === 'string') {
+        apiKey = data.key;
+      } 
+      // Handle case where apiKey is used instead of key
+      else if (typeof data.apiKey === 'string') {
+        apiKey = data.apiKey;
+      } 
+      // Handle nested response format where key is an object containing a key property
+      // This is the format returned by Vibecode API
+      else if (data.key && typeof data.key === 'object' && typeof data.key.key === 'string') {
+        apiKey = data.key.key;
+        console.log(`[callAI:debug] Found key in nested key.key format: ${apiKey.substring(0, 8)}...`);
+      }
+      // Handle data.data nesting pattern
+      else if (data.data && typeof data.data.key === 'string') {
+        apiKey = data.data.key;
+      }
+    }
+    
+    if (!apiKey) {
+      console.log(`[callAI:debug] Failed to extract key from response:`, data);
       throw new Error("API key not found in refresh response");
     }
 
     // Store the key metadata for potential future use
     storeKeyMetadata(data);
 
+    // Log the key for debugging (safe because this is a test key)
+    console.log(`[callAI:debug] Received new key from refresh endpoint: ${apiKey.substring(0, 8)}...`);
+
     // For now, always return with topup=false since the backend doesn't support topup yet
     // When topup is implemented on the backend, this can be updated to check data.topup
     return {
-      apiKey: data.key,
-      topup: Boolean(data.topup), // Will be true when backend supports topup feature
+      apiKey: apiKey,
+      topup: Boolean(data.topup) // Will be true when backend supports topup feature
     };
   } catch (error: unknown) {
     // Re-throw refresh token errors with specific type
@@ -602,8 +631,12 @@ async function bufferStreamingResults(
       endpoint: options.endpoint,
       skipRefresh: options.skipRefresh,
     });
-    // If we get here, key was refreshed successfully, retry the operation
-    return bufferStreamingResults(prompt, options);
+    // If we get here, key was refreshed successfully, retry the operation with the new key
+    // Retry with the refreshed key
+    return bufferStreamingResults(prompt, {
+      ...options,
+      apiKey: keyStore.current || undefined // Use the refreshed key from keyStore
+    });
   }
 
   // This line should never be reached, but it satisfies the linter by ensuring
@@ -683,8 +716,24 @@ async function handleApiError(
     console.error(`[callAI:${context}]:`, error);
   }
 
+  // Debug log the options for diagnosing throttling issues
+  console.log(`[callAI:debug] handleApiError called with: context=${context}, options=`, {
+    apiKey: options.apiKey ? '(set)' : '(not set)',
+    endpoint: options.endpoint,
+    skipRefresh: options.skipRefresh,
+  });
+  
+  console.log(`[callAI:debug] Current keyStore state:`, {
+    isRefreshing: keyStore.isRefreshing,
+    lastRefreshAttempt: keyStore.lastRefreshAttempt,
+    refreshEndpoint: keyStore.refreshEndpoint,
+    hasRefreshToken: Boolean(keyStore.refreshToken),
+    timeSinceLastRefresh: keyStore.lastRefreshAttempt ? (Date.now() - keyStore.lastRefreshAttempt) + 'ms' : 'n/a'
+  });
+
   // Check if this is a key-related error that can be resolved by refreshing
   const canRefresh = !options.skipRefresh && isNewKeyError(error, debug);
+  console.log(`[callAI:debug] canRefresh=${canRefresh}, skipRefresh=${options.skipRefresh}, isNewKeyError=${isNewKeyError(error, debug)}`);
 
   if (canRefresh) {
     if (debug) {
@@ -711,14 +760,17 @@ async function handleApiError(
       );
     }
 
+    // Check if we need to throttle refresh attempts
     if (now - keyStore.lastRefreshAttempt < minRefreshInterval) {
       if (debug) {
-        console.log(`[callAI:debug] Too many refresh attempts, throttling...`);
+        console.log(`[callAI:debug] Too many refresh attempts, throttling... (${now - keyStore.lastRefreshAttempt}ms since last attempt, minimum interval is ${minRefreshInterval}ms)`);
       }
       throw new Error(
         `${context}: Too many key refresh attempts. Please retry in a few seconds.`,
       );
     }
+    
+    // Removed isRefreshRetry check
 
     try {
       // Set refresh state
@@ -1108,8 +1160,12 @@ async function callAINonStreaming(
       endpoint: options.endpoint,
       skipRefresh: options.skipRefresh,
     });
-    // If we get here, key was refreshed successfully, retry the operation
-    return callAINonStreaming(prompt, options, true); // Set isRetry to true
+    // If we get here, key was refreshed successfully, retry the operation with the new key
+    // Retry with the refreshed key
+    return callAINonStreaming(prompt, {
+      ...options,
+      apiKey: keyStore.current || undefined // Use the refreshed key from keyStore
+    }, true); // Set isRetry to true
   }
 
   // This line will never be reached, but it satisfies the linter
