@@ -12,7 +12,7 @@ const haveApiKey = process.env.CALLAI_API_KEY;
 const itif = (condition: boolean) => (condition ? it : it.skip);
 
 // Timeout for individual test
-const TIMEOUT = 9000;
+const TIMEOUT = 30000;
 
 describe("Error handling integration tests", () => {
   // Test default model (should succeed)

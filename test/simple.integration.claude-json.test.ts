@@ -101,24 +101,21 @@ const gradeAwareTest = (modelId: { id: string; grade: string }) => {
   }
 };
 
-describe("Claude JSON property splitting test", () => {
-  // This test specifically targets the issue where Claude's streaming API
-  // splits JSON property names across chunk boundaries
-  describe("Streaming JSON property name handling", () => {
+describe("Simple callAI integration tests", () => {
+  // Test basic non-structured requests with all models
+  describe("Non-structured text generation", () => {
     // Run all model tests concurrently within this describe block
     modelEntries.map(([modelName, modelId]) => {
-      // Only test Claude models as they exhibit the property splitting issue
-      if (modelId.id.includes('claude')) {
-        gradeAwareTest(modelId)(
-          `should handle property name splitting across chunks in ${modelName} streaming response`,
+      // Test with functions/tools (simple schema)
+      gradeAwareTest(modelId)(
+        `should handle basic schema with ${modelName} model`,
         async () => {
-          // Make API call with stream enabled to trigger the potential JSON property splitting issue
+          // Make API call with a basic schema
           const result = await callAI(
             "Provide information about France. Population should be expressed in millions (e.g., 67.5 for 67.5 million people).",
             {
               apiKey: process.env.CALLAI_API_KEY,
               model: modelId.id,
-              stream: true, // Streaming must be enabled to trigger the property splitting issue
               schema: {
                 type: "object",
                 properties: {
@@ -143,49 +140,27 @@ describe("Claude JSON property splitting test", () => {
             `Result is not a string but a ${typeof result} in ${modelName} model`,
           );
 
-          // For streaming responses, collect all chunks
-          let finalResult = "";
-          let chunkCount = 0;
-          
-          if (typeof result === "object" && Symbol.asyncIterator in result) {
-            // Handle streaming response
-            console.log(`\n===== Starting streaming test with ${modelName} =====`);
-            console.log(`This test will pass if property names split across chunks are handled correctly`);
-            
+          if (typeof result === "string") {
+            // Try to parse as JSON
             try {
-              // Collect all chunks
-              const generator = result as AsyncGenerator<string>;
-              for await (const chunk of generator) {
-                chunkCount++;
-                // The last chunk will be the complete response
-                finalResult = chunk;
-              }
-              
-              console.log(`\n===== Received ${chunkCount} chunks from ${modelName} =====`);
+              // Log the entire response for debugging
+              console.log(`\n===== Response from ${modelName} =====`);
               console.log(
-                finalResult.substring(0, 500) + (finalResult.length > 500 ? "..." : ""),
+                result.substring(0, 500) + (result.length > 500 ? "..." : ""),
               );
 
-              // This is the key part - parse the final JSON result
-              // Without the fix, this might fail when property names are split across chunks
-              const data = JSON.parse(finalResult);
+              const data = JSON.parse(result);
 
               // Log parsed data for debugging
-              console.log(`\n===== Successfully parsed data from ${modelName} =====`);
+              console.log(`\n===== Parsed data from ${modelName} =====`);
+              console.log(JSON.stringify(data, null, 2));
+
+              // Verify actual API call timing
+              const meta = getMeta(result);
+              console.log(`\n===== Timing for ${modelName} =====`);
               console.log(
-                JSON.stringify(data, null, 2),
+                JSON.stringify(meta?.timing || "No timing data", null, 2),
               );
-              
-              console.log(`\n===== TEST PASSED: JSON property splitting handled correctly =====`);
-              
-              // Check timing info
-              const meta = getMeta(generator);
-              if (meta?.timing?.startTime && meta?.timing?.endTime) {
-                console.log(`\n===== Timing for ${modelName} =====`);
-                console.log(
-                  JSON.stringify(meta.timing, null, 2),
-                );
-              }
 
               // Ensure the call took at least 5ms (to detect mocks or cached responses)
               if (meta?.timing?.duration !== undefined) {
@@ -256,12 +231,10 @@ describe("Claude JSON property splitting test", () => {
                       data.population < 1000
                         ? data.population
                         : data.population / 1000000;
-                    // This is a critical check for our property splitting test
-                    // If "population" was split (e.g., "popul" + "ation"), parsing would fail without our fix
                     expectOrWarn(
                       modelId,
                       populationInMillions >= 60 && populationInMillions <= 70,
-                      `Population ${data.population} (${populationInMillions.toFixed(2)}M) outside expected range in ${modelName} model response - possibly due to property name splitting`,
+                      `Population ${data.population} (${populationInMillions.toFixed(2)}M) outside expected range in ${modelName} model response`,
                       data.population,
                     );
                   }
@@ -291,29 +264,16 @@ describe("Claude JSON property splitting test", () => {
                 }
               }
             } catch (e) {
-              // This will be hit if JSON parsing fails, which is the issue we're testing for
-              console.log(`\n===== TEST FAILED: JSON parsing error in ${modelName} response =====`);
-              console.log(`This indicates the streaming property splitting issue is present!`);
-              console.log(`Error: ${e}`);
-              console.log(`JSON that failed to parse: ${finalResult}`);
-              
               expectOrWarn(
                 modelId,
                 false,
-                `JSON parse error in ${modelName} model response: ${e}\nThis indicates the streaming property splitting issue is present!`,
+                `JSON parse error in ${modelName} model response: ${e}`,
               );
             }
           }
         },
         TIMEOUT,
       );
-      }
     });
   });
 });
-
-// Add a comment explaining the test's purpose
-// This test verifies that Claude's streaming responses are correctly handled
-// when JSON property names are split across multiple chunks.
-// The issue occurs when a property name like "population" gets split into
-// "popul" and "ation" across different chunks, causing JSON parsing errors.

@@ -26,7 +26,7 @@ The solution is to add a timeout specifically for the `response.text()` operatio
 /**
  * Helper function to read response text with timeout
  */
-const readResponseTextWithTimeout = async (response: Response, timeoutMs: number = 15000): Promise<string> => {
+const readResponseTextWithTimeout = async (response: Response, timeoutMs: number = 30000): Promise<string> => {
   // Create a timeout promise
   const timeoutPromise = new Promise<never>((_, reject) => {
     setTimeout(() => {

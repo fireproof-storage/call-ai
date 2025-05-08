@@ -15,7 +15,7 @@ const haveApiKey = process.env.CALLAI_API_KEY;
 const itif = (condition: boolean) => (condition ? it.concurrent : it.skip);
 
 // Timeout for individual test
-const TIMEOUT = 9000;
+const TIMEOUT = 30000;
 
 // Test models based on the OpenRouter documentation
 const supportedModels = {

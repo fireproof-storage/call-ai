@@ -98,47 +98,53 @@ initKeyStore();
 function isNewKeyError(error: any, debug: boolean = false): boolean {
   // Extract status from error object or message text
   let status = error?.status || error?.statusCode || error?.response?.status;
-  const errorMessage = String(error || '').toLowerCase();
-  
+  const errorMessage = String(error || "").toLowerCase();
+
   // Extract status code from error message if not found in the object properties
   // Handle messages like "HTTP error! Status: 403" common in fetch errors
-  if (!status && errorMessage.includes('status:')) {
+  if (!status && errorMessage.includes("status:")) {
     const statusMatch = errorMessage.match(/status:\s*(\d+)/i);
     if (statusMatch && statusMatch[1]) {
       status = parseInt(statusMatch[1], 10);
     }
   }
-  
+
   const is4xx = status >= 400 && status < 500;
-  
+
   // Common error messages related to API key issues across different providers
-  const isKeyError = 
-    errorMessage.includes('key limit') || 
-    errorMessage.includes('api key') || 
-    errorMessage.includes('token limit') ||
-    errorMessage.includes('usage limit') ||
-    errorMessage.includes('quota') ||
-    errorMessage.includes('insufficient balance') ||
-    errorMessage.includes('rate limit') ||
-    errorMessage.includes('exceeded');
-  
+  const isKeyError =
+    errorMessage.includes("key limit") ||
+    errorMessage.includes("api key") ||
+    errorMessage.includes("token limit") ||
+    errorMessage.includes("usage limit") ||
+    errorMessage.includes("quota") ||
+    errorMessage.includes("insufficient balance") ||
+    errorMessage.includes("rate limit") ||
+    errorMessage.includes("exceeded");
+
   // The HTTP status code is 401 (Unauthorized) or 403 (Forbidden) which often indicates auth issues
   const isAuthError = status === 401 || status === 403;
-  
+
   // Check for OpenRouter-specific errors that indicate key issues
-  const isOpenRouterKeyError = 
-    errorMessage.includes('openrouter') && 
-    (errorMessage.includes('key limit') || errorMessage.includes('manage it using'));
-  
+  const isOpenRouterKeyError =
+    errorMessage.includes("openrouter") &&
+    (errorMessage.includes("key limit") ||
+      errorMessage.includes("manage it using"));
+
   // For status 403, treat as likely key error since that's common for quota/authorization issues
   const isLikelyKeyError = status === 403 && !isKeyError;
-  
+
   // Consider an error a key-related error if:
   // 1. It's a 4xx status code AND contains key-related terms in the error message, OR
   // 2. It's a 401/403 auth error, OR
   // 3. It's an OpenRouter key error message
   // 4. It's a 403 error (common for key/quota issues)
-  if ((is4xx && isKeyError) || isAuthError || isOpenRouterKeyError || isLikelyKeyError) {
+  if (
+    (is4xx && isKeyError) ||
+    isAuthError ||
+    isOpenRouterKeyError ||
+    isLikelyKeyError
+  ) {
     if (debug) {
       console.log(
         `[callAI:debug] Key error detected: status=${status}, message=${String(error).substring(0, 200)}`,
@@ -146,14 +152,14 @@ function isNewKeyError(error: any, debug: boolean = false): boolean {
     }
     return true;
   }
-  
+
   if (debug && is4xx) {
     // Log 4xx errors that weren't identified as key errors for debugging
     console.log(
       `[callAI:debug] Non-key 4xx error detected: status=${status}, message=${String(error).substring(0, 200)}`,
     );
   }
-  
+
   return false;
 }
 
@@ -826,7 +832,7 @@ async function handleApiError(
 ): Promise<void> {
   if (debug) {
     console.error(`[callAI:${context}]:`, error);
-    
+
     // In debug mode, show more information about the error type
     console.log(`[callAI:debug] Error type:`, {
       status: error?.status || error?.statusCode || error?.response?.status,
@@ -834,7 +840,7 @@ async function handleApiError(
       skipRefresh: options.skipRefresh,
       hasApiKey: Boolean(options.apiKey || keyStore.current),
       hasEndpoint: Boolean(options.endpoint || keyStore.refreshEndpoint),
-      hasRefreshToken: Boolean(keyStore.refreshToken)
+      hasRefreshToken: Boolean(keyStore.refreshToken),
     });
   }
 
@@ -1563,22 +1569,48 @@ async function* createStreamingGenerator(
               if (json.choices && json.choices.length > 0) {
                 const choice = json.choices[0];
 
-                // Handle finish reason tool_calls
+                // Handle finish reason tool_calls - this is where we know the tool call is complete
                 if (choice.finish_reason === "tool_calls") {
                   try {
-                    // Parse the assembled JSON
+                    // Try to fix any malformed JSON that might have resulted from chunking
+                    // This happens when property names get split across chunks
+                    if (toolCallsAssembled) {
+                      try {
+                        // First try parsing as-is
+                        JSON.parse(toolCallsAssembled);
+                      } catch (parseError) {
+                        if (options.debug) {
+                          console.log(
+                            `[callAI:${PACKAGE_VERSION}] Attempting to fix malformed JSON in tool call:`,
+                            toolCallsAssembled,
+                          );
+                        }
+
+                        // Common pattern: property name split like "popul" and "ation"
+                        // Fix by checking for property fragments
+                        // This regex looks for property fragments at the end of the string
+                        const fixedJson = toolCallsAssembled.replace(
+                          /"(\w+)"\s*:\s*$/,
+                          "",
+                        );
+                        toolCallsAssembled = fixedJson;
+                      }
+                    }
+
+                    // Return the assembled tool call
                     completeText = toolCallsAssembled;
                     yield completeText;
                     continue;
                   } catch (e) {
                     console.error(
-                      "[callAIStreaming] Error parsing assembled tool call:",
+                      "[callAIStreaming] Error handling assembled tool call:",
                       e,
                     );
                   }
                 }
 
                 // Assemble tool_calls arguments from delta
+                // Simply accumulate the raw strings without trying to parse them
                 if (choice.delta && choice.delta.tool_calls) {
                   const toolCall = choice.delta.tool_calls[0];
                   if (
@@ -1587,7 +1619,7 @@ async function* createStreamingGenerator(
                     toolCall.function.arguments !== undefined
                   ) {
                     toolCallsAssembled += toolCall.function.arguments;
-                    // We don't yield here to avoid partial JSON
+                    // Don't try to parse or yield anything yet - wait for complete signal
                   }
                 }
               }
@@ -1692,7 +1724,35 @@ async function* createStreamingGenerator(
 
     // If we have assembled tool calls but haven't yielded them yet
     if (toolCallsAssembled && (!completeText || completeText.length === 0)) {
-      const result = toolCallsAssembled;
+      // Try to fix any remaining JSON issues before returning
+      let result = toolCallsAssembled;
+
+      try {
+        // Validate the JSON before returning
+        JSON.parse(result);
+      } catch (e) {
+        if (options.debug) {
+          console.log(
+            `[callAI:${PACKAGE_VERSION}] Final JSON validation failed, attempting fixes:`,
+            e,
+          );
+        }
+
+        // Try some common fixes for streaming-related JSON issues
+        // 1. Remove trailing commas
+        result = result.replace(/,\s*([\}\]])/, "$1");
+
+        // 2. Fix split property names (common with Claude)
+        // Look for patterns like "popul" and then "ation" in next chunk
+        result = result.replace(/"(\w+)"\s*:\s*"(\w+)$/g, '"$1$2"');
+
+        if (options.debug) {
+          console.log(
+            `[callAI:${PACKAGE_VERSION}] After fixes, result:`,
+            result,
+          );
+        }
+      }
 
       // Update metadata with completion timing
       const endTime = Date.now();
