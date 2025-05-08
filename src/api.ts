@@ -98,14 +98,47 @@ initKeyStore();
 function isNewKeyError(error: any, debug: boolean = false): boolean {
   const status = error?.status || error?.statusCode || error?.response?.status;
   const is4xx = status >= 400 && status < 500;
-
-  if (is4xx && debug) {
+  
+  // Common error messages related to API key issues across different providers
+  const errorMessage = String(error || '').toLowerCase();
+  const isKeyError = 
+    errorMessage.includes('key limit') || 
+    errorMessage.includes('api key') || 
+    errorMessage.includes('token limit') ||
+    errorMessage.includes('usage limit') ||
+    errorMessage.includes('quota') ||
+    errorMessage.includes('insufficient balance') ||
+    errorMessage.includes('rate limit') ||
+    errorMessage.includes('exceeded');
+  
+  // The HTTP status code is 401 (Unauthorized) or 403 (Forbidden) which often indicates auth issues
+  const isAuthError = status === 401 || status === 403;
+  
+  // For Gemini model errors, any 403 error should trigger a key refresh
+  // This is needed because Gemini error messages don't follow the same patterns
+  const isGeminiError = errorMessage.includes('gemini') && isAuthError;
+  
+  // Consider an error a key-related error if:
+  // 1. It's a 4xx status code AND contains key-related terms in the error message, OR
+  // 2. It's a 401/403 auth error, OR
+  // 3. It's specifically a Gemini model error with auth status
+  if ((is4xx && isKeyError) || isAuthError || isGeminiError) {
+    if (debug) {
+      console.log(
+        `[callAI:debug] Key error detected: status=${status}, message=${String(error).substring(0, 200)}`,
+      );
+    }
+    return true;
+  }
+  
+  if (debug && is4xx) {
+    // Log 4xx errors that weren't identified as key errors for debugging
     console.log(
-      `[callAI:debug] Key error detected: status=${status}, message=${String(error)}`,
+      `[callAI:debug] Non-key 4xx error detected: status=${status}, message=${String(error).substring(0, 200)}`,
     );
   }
-
-  return is4xx;
+  
+  return false;
 }
 
 /**
@@ -777,6 +810,16 @@ async function handleApiError(
 ): Promise<void> {
   if (debug) {
     console.error(`[callAI:${context}]:`, error);
+    
+    // In debug mode, show more information about the error type
+    console.log(`[callAI:debug] Error type:`, {
+      status: error?.status || error?.statusCode || error?.response?.status,
+      message: String(error).substring(0, 200),
+      skipRefresh: options.skipRefresh,
+      hasApiKey: Boolean(options.apiKey || keyStore.current),
+      hasEndpoint: Boolean(options.endpoint || keyStore.refreshEndpoint),
+      hasRefreshToken: Boolean(keyStore.refreshToken)
+    });
   }
 
   // Check if this is a key-related error that can be resolved by refreshing
