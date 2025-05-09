@@ -10,6 +10,7 @@ import {
   ThenableStreamResponse,
 } from "./types";
 import { chooseSchemaStrategy } from "./strategies";
+import { responseMetadata, stringResponseMap, boxString, getMeta } from "./response-metadata";
 
 // Internal key store to keep track of the latest key
 const keyStore = {
@@ -365,44 +366,11 @@ function storeKeyMetadata(data: any): void {
     };
   }
 }
+// Response metadata is now imported from ./response-metadata
 
-// WeakMap to store metadata for responses without modifying the response objects
-const responseMetadata = new WeakMap<object, ResponseMeta>();
-
-// Store for string responses - we need to box strings since WeakMap keys must be objects
-const stringResponseMap = new Map<string, object>();
-
-/**
- * Helper to box a string so it can be used with WeakMap
- * @internal
- */
-function boxString(str: string): object {
-  const boxed = new String(str);
-  stringResponseMap.set(str, boxed);
-  return boxed;
-}
-
-/**
- * Retrieve metadata associated with a response from callAI()
- * @param response A response from callAI, either string or AsyncGenerator
- * @returns The metadata object if available, undefined otherwise
- */
-export function getMeta(
-  response: string | StreamResponse,
-): ResponseMeta | undefined {
-  // For strings, we need to use our mapping since primitives can't be WeakMap keys
-  if (typeof response === "string") {
-    // Check if we have a boxed version of this string
-    const boxed = stringResponseMap.get(response);
-    if (boxed) {
-      return responseMetadata.get(boxed);
-    }
-    return undefined;
-  }
-
-  // For AsyncGenerators and other objects, directly use the WeakMap
-  return responseMetadata.get(response);
-}
+// boxString and getMeta functions are now imported from ./response-metadata
+// Re-export getMeta to maintain backward compatibility
+export { getMeta };
 
 // Import package version for debugging
 // eslint-disable-next-line @typescript-eslint/no-var-requires
