@@ -21,6 +21,7 @@ import {
   storeKeyMetadata
 } from "./key-management";
 import { handleApiError, checkForInvalidModelError } from "./error-handling";
+import { recursivelyAddAdditionalProperties } from "./utils";
 
 // Key management is now imported from ./key-management
 
