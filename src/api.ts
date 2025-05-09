@@ -27,6 +27,9 @@ import {
 } from "./key-management";
 import { handleApiError, checkForInvalidModelError } from "./error-handling";
 import { recursivelyAddAdditionalProperties } from "./utils";
+import { createBackwardCompatStreamingProxy } from "./api-core";
+import { extractContent, extractClaudeResponse } from "./non-streaming";
+import { createStreamingGenerator, callAIStreaming } from "./streaming";
 
 // Key management is now imported from ./key-management
 
@@ -375,19 +378,18 @@ async function bufferStreamingResults(
     const generator = (await callAI(
       prompt,
       streamingOptions,
-    )) as StreamResponse;
+    )) as AsyncGenerator<string, string, unknown>;
 
-    // Buffer all chunks
-    let finalResult = "";
-    let chunkCount = 0;
+    // Buffer all results
+    let result = "";
     for await (const chunk of generator) {
-      finalResult = chunk; // Each chunk contains the full accumulated text
-      chunkCount++;
+      result += chunk;
     }
 
-    return finalResult;
+    return result;
   } catch (error) {
-    await handleApiError(error, "Streaming buffer error", options.debug, {
+    // Handle errors with standard API error handling
+    await handleApiError(error, "Buffered streaming", options.debug, {
       apiKey: options.apiKey,
       endpoint: options.endpoint,
       skipRefresh: options.skipRefresh,
@@ -408,57 +410,7 @@ async function bufferStreamingResults(
 /**
  * Standardized API error handler
  */
-/**
- * Create a proxy that acts both as a Promise and an AsyncGenerator for backward compatibility
- * @internal This is for internal use only, not part of public API
- */
-function createBackwardCompatStreamingProxy(
-  promise: Promise<StreamResponse>,
-): ThenableStreamResponse {
-  // Create a proxy that forwards methods to the Promise or AsyncGenerator as appropriate
-  return new Proxy({} as any, {
-    get(target, prop) {
-      // First check if it's an AsyncGenerator method (needed for for-await)
-      if (
-        prop === "next" ||
-        prop === "throw" ||
-        prop === "return" ||
-        prop === Symbol.asyncIterator
-      ) {
-        // Create wrapper functions that await the Promise first
-        if (prop === Symbol.asyncIterator) {
-          return function () {
-            return {
-              // Implement async iterator that gets the generator first
-              async next(value?: unknown) {
-                try {
-                  const generator = await promise;
-                  return generator.next(value);
-                } catch (error) {
-                  // Turn Promise rejection into iterator result with error thrown
-                  return Promise.reject(error);
-                }
-              },
-            };
-          };
-        }
-
-        // Methods like next, throw, return
-        return async function (value?: unknown) {
-          const generator = await promise;
-          return (generator as any)[prop](value);
-        };
-      }
-
-      // Then check if it's a Promise method
-      if (prop === "then" || prop === "catch" || prop === "finally") {
-        return promise[prop].bind(promise);
-      }
-
-      return undefined;
-    },
-  });
-}
+// createBackwardCompatStreamingProxy is imported from api-core.ts
 
 // handleApiError is imported from error-handling.ts
 
@@ -512,46 +464,56 @@ function prepareRequestParams(
     ? prompt
     : [{ role: "user", content: prompt }];
 
-  // Build request parameters
+  // Common parameters for both streaming and non-streaming
   const requestParams: any = {
-    model: model,
-    stream: options.stream === true,
-    messages: messages,
+    model,
+    messages,
+    temperature: options.temperature !== undefined ? options.temperature : 0.7,
+    top_p: options.topP !== undefined ? options.topP : 1,
+    max_tokens: options.maxTokens || 2048,
+    stream: options.stream !== undefined ? options.stream : false,
   };
 
-  // Support for multimodal content (like images)
-  if (options.modalities && options.modalities.length > 0) {
-    requestParams.modalities = options.modalities;
+  // Add optional parameters if specified
+  if (options.stop) {
+    // Handle both single string and array of stop sequences
+    requestParams.stop = Array.isArray(options.stop)
+      ? options.stop
+      : [options.stop];
   }
 
-  // Apply the strategy's request preparation
-  const strategyParams = schemaStrategy.prepareRequest(schema, messages);
-
-  // If the strategy returns custom messages, use those instead
-  if (strategyParams.messages) {
-    requestParams.messages = strategyParams.messages;
+  // Add response_format parameter for models that support JSON output
+  if (options.responseFormat === "json") {
+    requestParams.response_format = { type: "json_object" };
   }
 
-  // Add all other strategy parameters
-  Object.entries(strategyParams).forEach(([key, value]) => {
-    if (key !== "messages") {
-      requestParams[key] = value;
-    }
-  });
+  // Add schema structure if provided (for function calling/JSON mode)
+  if (schema) {
+    // Apply schema-specific parameters using the selected strategy
+    Object.assign(
+      requestParams,
+      schemaStrategy.prepareRequest(schema, messages),
+    );
+  }
 
-  // Add any other options provided, but exclude internal keys
-  Object.entries(options).forEach(([key, value]) => {
-    if (!["apiKey", "model", "endpoint", "stream", "schema"].includes(key)) {
-      requestParams[key] = value;
-    }
-  });
+  // HTTP headers for the request
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+    "HTTP-Referer": options.referer || "https://vibes.diy",
+    "X-Title": options.title || "Vibes",
+  };
 
-  const requestOptions = {
+  // Add any additional headers
+  if (options.headers) {
+    Object.assign(headers, options.headers);
+  }
+
+  // Build the requestOptions object for fetch
+  const requestOptions: RequestInit = {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "HTTP-Referer": "https://vibes.diy",
-      "X-Title": "Vibes",
+      ...headers,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(requestParams),
@@ -721,608 +683,4 @@ async function callAINonStreaming(
 
   // This line will never be reached, but it satisfies the linter
   throw new Error("Unexpected code path in callAINonStreaming");
-}
-
-/**
- * Extract content from API response accounting for different formats
- */
-function extractContent(result: any, schemaStrategy: SchemaStrategy): any {
-  // Find tool use content or normal content
-  let content;
-
-  // Extract tool use content if necessary
-  if (
-    schemaStrategy.strategy === "tool_mode" &&
-    result.stop_reason === "tool_use"
-  ) {
-    // Try to find tool_use block in different response formats
-    if (result.content && Array.isArray(result.content)) {
-      const toolUseBlock = result.content.find(
-        (block: any) => block.type === "tool_use",
-      );
-      if (toolUseBlock) {
-        content = toolUseBlock;
-      }
-    }
-
-    if (!content && result.choices && Array.isArray(result.choices)) {
-      const choice = result.choices[0];
-      if (choice.message && Array.isArray(choice.message.content)) {
-        const toolUseBlock = choice.message.content.find(
-          (block: any) => block.type === "tool_use",
-        );
-        if (toolUseBlock) {
-          content = toolUseBlock;
-        }
-      }
-    }
-  }
-
-  // If no tool use content was found, use the standard message content
-  if (!content) {
-    if (!result.choices || !result.choices.length) {
-      throw new Error("Invalid response format from API");
-    }
-
-    content = result.choices[0]?.message?.content || "";
-  }
-
-  return content;
-}
-
-/**
- * Extract response from Claude API with timeout handling
- */
-async function extractClaudeResponse(response: Response): Promise<any> {
-  let textResponse: string;
-  const textPromise = response.text();
-  const timeoutPromise = new Promise<string>((_resolve, reject) => {
-    setTimeout(() => {
-      reject(new Error("Text extraction timed out after 5 seconds"));
-    }, 5000);
-  });
-
-  try {
-    textResponse = (await Promise.race([
-      textPromise,
-      timeoutPromise,
-    ])) as string;
-  } catch (textError) {
-    // Always log timeout errors
-    console.error(`Text extraction timed out or failed:`, textError);
-    throw new Error(
-      "Claude response text extraction timed out. This is likely an issue with the Claude API's response format.",
-    );
-  }
-
-  try {
-    return JSON.parse(textResponse);
-  } catch (err) {
-    // Always log JSON parsing errors
-    console.error(`Failed to parse Claude response as JSON:`, err);
-    throw new Error(`Failed to parse Claude response as JSON: ${err}`);
-  }
-}
-
-/**
- * Generator factory function for streaming API calls
- * This is called after the fetch is made and response is validated
- *
- * Note: Even though we checked response.ok before creating this generator,
- * we need to be prepared for errors that may occur during streaming. Some APIs
- * return a 200 OK initially but then deliver error information in the stream.
- */
-async function* createStreamingGenerator(
-  response: Response,
-  options: CallAIOptions,
-  schemaStrategy: SchemaStrategy,
-  model: string,
-): StreamResponse {
-  // Create a metadata object for this streaming response
-  const startTime = Date.now();
-  const meta: ResponseMeta = {
-    model: model,
-    timing: {
-      startTime: startTime,
-    },
-  };
-  if (options.debug) {
-    console.log(
-      `[callAI:${PACKAGE_VERSION}] Starting streaming generator with model: ${model}`,
-    );
-    console.log(
-      `[callAI:${PACKAGE_VERSION}] Response status:`,
-      response.status,
-    );
-    console.log(`[callAI:${PACKAGE_VERSION}] Response type:`, response.type);
-    console.log(
-      `[callAI:${PACKAGE_VERSION}] Response Content-Type:`,
-      response.headers.get("content-type"),
-    );
-  }
-  try {
-    // Handle streaming response
-    if (!response.body) {
-      throw new Error(
-        "Response body is undefined - API endpoint may not support streaming",
-      );
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let completeText = "";
-    let chunkCount = 0;
-    let toolCallsAssembled = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        if (options.debug) {
-          console.log(
-            `[callAI:${PACKAGE_VERSION}] Stream done=true after ${chunkCount} chunks`,
-          );
-          console.log(
-            `[callAI-streaming:complete v${PACKAGE_VERSION}] Stream finished after ${chunkCount} chunks`,
-          );
-        }
-        break;
-      }
-
-      // Increment chunk counter before processing
-      chunkCount++;
-      const chunk = decoder.decode(value);
-      if (options.debug) {
-        console.log(
-          `[callAI:${PACKAGE_VERSION}] Raw chunk #${chunkCount} (${chunk.length} bytes):`,
-          chunk.length > 200 ? chunk.substring(0, 200) + "..." : chunk,
-        );
-      }
-
-      const lines = chunk.split("\n").filter((line) => line.trim() !== "");
-      if (options.debug) {
-        console.log(
-          `[callAI:${PACKAGE_VERSION}] Chunk #${chunkCount} contains ${lines.length} non-empty lines`,
-        );
-      }
-
-      for (const line of lines) {
-        if (options.debug) {
-          console.log(
-            `[callAI:${PACKAGE_VERSION}] Processing line:`,
-            line.length > 100 ? line.substring(0, 100) + "..." : line,
-          );
-        }
-
-        if (line.startsWith("data: ")) {
-          let data = line.slice(6);
-
-          if (data === "[DONE]") {
-            if (options.debug) {
-              console.log(`[callAI:${PACKAGE_VERSION}] Received [DONE] marker`);
-            }
-            break;
-          }
-          if (options.debug) {
-            console.log(`[callAI:raw] ${line}`);
-          }
-
-          // Skip [DONE] marker or OPENROUTER PROCESSING lines
-          if (
-            line.includes("[DONE]") ||
-            line.includes("OPENROUTER PROCESSING")
-          ) {
-            continue;
-          }
-
-          try {
-            const jsonLine = line.replace("data: ", "");
-            if (!jsonLine.trim()) {
-              if (options.debug) {
-                console.log(
-                  `[callAI:${PACKAGE_VERSION}] Empty JSON line after data: prefix`,
-                );
-              }
-              continue;
-            }
-
-            if (options.debug) {
-              console.log(
-                `[callAI:${PACKAGE_VERSION}] JSON line (first 100 chars):`,
-                jsonLine.length > 100
-                  ? jsonLine.substring(0, 100) + "..."
-                  : jsonLine,
-              );
-            }
-
-            // Parse the JSON chunk
-            let json;
-            try {
-              json = JSON.parse(jsonLine);
-              if (options.debug) {
-                console.log(
-                  `[callAI:${PACKAGE_VERSION}] Parsed JSON:`,
-                  JSON.stringify(json).substring(0, 1000),
-                );
-              }
-            } catch (parseError) {
-              if (options.debug) {
-                console.error(
-                  `[callAI:${PACKAGE_VERSION}] JSON parse error:`,
-                  parseError,
-                );
-              }
-              continue;
-            }
-
-            // Enhanced error detection - check for BOTH error and json.error
-            // Some APIs return 200 OK but then deliver errors in the stream
-            if (json.error || (typeof json === "object" && "error" in json)) {
-              if (options.debug) {
-                console.error(
-                  `[callAI:${PACKAGE_VERSION}] Detected error in streaming response:`,
-                  json,
-                );
-              }
-
-              // Create a detailed error object similar to our HTTP error handling
-              const errorMessage =
-                json.error?.message ||
-                json.error?.toString() ||
-                JSON.stringify(json.error || json);
-
-              const detailedError = new Error(
-                `API streaming error: ${errorMessage}`,
-              );
-
-              // Add error metadata
-              (detailedError as any).status = json.error?.status || 400;
-              (detailedError as any).statusText =
-                json.error?.type || "Bad Request";
-              (detailedError as any).details = JSON.stringify(
-                json.error || json,
-              );
-
-              console.error(
-                `[callAI:${PACKAGE_VERSION}] Throwing stream error:`,
-                detailedError,
-              );
-              throw detailedError;
-            }
-
-            // Handle tool use response - Claude with schema cases
-            const isClaudeWithSchema =
-              /claude/i.test(model) && schemaStrategy.strategy === "tool_mode";
-
-            if (isClaudeWithSchema) {
-              // Claude streaming tool calls - need to assemble arguments
-              if (json.choices && json.choices.length > 0) {
-                const choice = json.choices[0];
-
-                // Handle finish reason tool_calls - this is where we know the tool call is complete
-                if (choice.finish_reason === "tool_calls") {
-                  try {
-                    // Try to fix any malformed JSON that might have resulted from chunking
-                    // This happens when property names get split across chunks
-                    if (toolCallsAssembled) {
-                      try {
-                        // First try parsing as-is
-                        JSON.parse(toolCallsAssembled);
-                      } catch (parseError) {
-                        if (options.debug) {
-                          console.log(
-                            `[callAI:${PACKAGE_VERSION}] Attempting to fix malformed JSON in tool call:`,
-                            toolCallsAssembled,
-                          );
-                        }
-
-                        // Apply comprehensive fixes for Claude's JSON property splitting
-                        let fixedJson = toolCallsAssembled;
-
-                        // 1. Remove trailing commas
-                        fixedJson = fixedJson.replace(/,\s*([\}\]])/, "$1");
-
-                        // 2. Ensure proper JSON structure
-                        // Add closing braces if missing
-                        const openBraces = (fixedJson.match(/\{/g) || [])
-                          .length;
-                        const closeBraces = (fixedJson.match(/\}/g) || [])
-                          .length;
-                        if (openBraces > closeBraces) {
-                          fixedJson += "}".repeat(openBraces - closeBraces);
-                        }
-
-                        // Add opening brace if missing
-                        if (!fixedJson.trim().startsWith("{")) {
-                          fixedJson = "{" + fixedJson.trim();
-                        }
-
-                        // Ensure it ends with a closing brace
-                        if (!fixedJson.trim().endsWith("}")) {
-                          fixedJson += "}";
-                        }
-
-                        // 3. Fix various property name/value split issues
-                        // Fix dangling property names without values
-                        fixedJson = fixedJson.replace(
-                          /"(\w+)"\s*:\s*$/g,
-                          '"$1":null',
-                        );
-
-                        // Fix missing property values
-                        fixedJson = fixedJson.replace(
-                          /"(\w+)"\s*:\s*,/g,
-                          '"$1":null,',
-                        );
-
-                        // Fix incomplete property names (when split across chunks)
-                        fixedJson = fixedJson.replace(
-                          /"(\w+)"\s*:\s*"(\w+)$/g,
-                          '"$1$2"',
-                        );
-
-                        // Balance brackets
-                        const openBrackets = (fixedJson.match(/\[/g) || [])
-                          .length;
-                        const closeBrackets = (fixedJson.match(/\]/g) || [])
-                          .length;
-                        if (openBrackets > closeBrackets) {
-                          fixedJson += "]".repeat(openBrackets - closeBrackets);
-                        }
-
-                        if (options.debug) {
-                          console.log(
-                            `[callAI:${PACKAGE_VERSION}] Applied comprehensive JSON fixes:`,
-                            `\nBefore: ${toolCallsAssembled}`,
-                            `\nAfter: ${fixedJson}`,
-                          );
-                        }
-
-                        toolCallsAssembled = fixedJson;
-                      }
-                    }
-
-                    // Return the assembled tool call
-                    completeText = toolCallsAssembled;
-                    yield completeText;
-                    continue;
-                  } catch (e) {
-                    console.error(
-                      "[callAIStreaming] Error handling assembled tool call:",
-                      e,
-                    );
-                  }
-                }
-
-                // Assemble tool_calls arguments from delta
-                // Simply accumulate the raw strings without trying to parse them
-                if (choice.delta && choice.delta.tool_calls) {
-                  const toolCall = choice.delta.tool_calls[0];
-                  if (
-                    toolCall &&
-                    toolCall.function &&
-                    toolCall.function.arguments !== undefined
-                  ) {
-                    toolCallsAssembled += toolCall.function.arguments;
-                    // Don't try to parse or yield anything yet - wait for complete signal
-                  }
-                }
-              }
-            }
-
-            // Handle tool use response - old format
-            if (
-              isClaudeWithSchema &&
-              (json.stop_reason === "tool_use" || json.type === "tool_use")
-            ) {
-              // First try direct tool use object format
-              if (json.type === "tool_use") {
-                completeText = schemaStrategy.processResponse(json);
-                yield completeText;
-                continue;
-              }
-
-              // Extract the tool use content
-              if (json.content && Array.isArray(json.content)) {
-                const toolUseBlock = json.content.find(
-                  (block: any) => block.type === "tool_use",
-                );
-                if (toolUseBlock) {
-                  completeText = schemaStrategy.processResponse(toolUseBlock);
-                  yield completeText;
-                  continue;
-                }
-              }
-
-              // Find tool_use in assistant's content blocks
-              if (json.choices && Array.isArray(json.choices)) {
-                const choice = json.choices[0];
-                if (choice.message && Array.isArray(choice.message.content)) {
-                  const toolUseBlock = choice.message.content.find(
-                    (block: any) => block.type === "tool_use",
-                  );
-                  if (toolUseBlock) {
-                    completeText = schemaStrategy.processResponse(toolUseBlock);
-                    yield completeText;
-                    continue;
-                  }
-                }
-
-                // Handle case where the tool use is in the delta
-                if (choice.delta && Array.isArray(choice.delta.content)) {
-                  const toolUseBlock = choice.delta.content.find(
-                    (block: any) => block.type === "tool_use",
-                  );
-                  if (toolUseBlock) {
-                    completeText = schemaStrategy.processResponse(toolUseBlock);
-                    yield completeText;
-                    continue;
-                  }
-                }
-              }
-            }
-
-            // Extract content from the delta
-            if (json.choices?.[0]?.delta?.content !== undefined) {
-              const content = json.choices[0].delta.content || "";
-
-              // Treat all models the same - yield as content arrives
-              completeText += content;
-              yield schemaStrategy.processResponse(completeText);
-            }
-            // Handle message content format (non-streaming deltas)
-            else if (json.choices?.[0]?.message?.content !== undefined) {
-              const content = json.choices[0].message.content || "";
-              completeText += content;
-              yield schemaStrategy.processResponse(completeText);
-            }
-            // Handle content blocks for Claude/Anthropic response format
-            else if (
-              json.choices?.[0]?.message?.content &&
-              Array.isArray(json.choices[0].message.content)
-            ) {
-              const contentBlocks = json.choices[0].message.content;
-              // Find text or tool_use blocks
-              for (const block of contentBlocks) {
-                if (block.type === "text") {
-                  completeText += block.text || "";
-                } else if (isClaudeWithSchema && block.type === "tool_use") {
-                  completeText = schemaStrategy.processResponse(block);
-                  break; // We found what we need
-                }
-              }
-
-              yield schemaStrategy.processResponse(completeText);
-            }
-          } catch (e) {
-            if (options.debug) {
-              console.error(`[callAIStreaming] Error parsing JSON chunk:`, e);
-            }
-          }
-        }
-      }
-    }
-
-    // We no longer need special error handling here as errors are thrown immediately
-
-    // No extra error handling needed here - errors are thrown immediately
-
-    // If we have assembled tool calls but haven't yielded them yet
-    if (toolCallsAssembled && (!completeText || completeText.length === 0)) {
-      // Try to fix any remaining JSON issues before returning
-      let result = toolCallsAssembled;
-
-      try {
-        // Validate the JSON before returning
-        JSON.parse(result);
-      } catch (e) {
-        if (options.debug) {
-          console.log(
-            `[callAI:${PACKAGE_VERSION}] Final JSON validation failed, attempting fixes:`,
-            e,
-          );
-        }
-
-        // Apply more robust fixes for Claude's streaming JSON issues
-
-        // 1. Remove trailing commas (common in malformed JSON)
-        result = result.replace(/,\s*([\}\]])/, "$1");
-
-        // 2. Ensure we have proper JSON structure
-        // Add closing braces if missing
-        const openBraces = (result.match(/\{/g) || []).length;
-        const closeBraces = (result.match(/\}/g) || []).length;
-        if (openBraces > closeBraces) {
-          result += "}".repeat(openBraces - closeBraces);
-        }
-
-        // Add opening brace if missing
-        if (!result.trim().startsWith("{")) {
-          result = "{" + result.trim();
-        }
-
-        // Ensure it ends with a closing brace
-        if (!result.trim().endsWith("}")) {
-          result += "}";
-        }
-
-        // 3. Fix various property name/value split issues (common with Claude)
-        // Fix dangling property names without values
-        result = result.replace(/"(\w+)"\s*:\s*$/g, '"$1":null');
-
-        // Fix missing property values
-        result = result.replace(/"(\w+)"\s*:\s*,/g, '"$1":null,');
-
-        // Fix incomplete property names (when split across chunks)
-        result = result.replace(/"(\w+)"\s*:\s*"(\w+)$/g, '"$1$2"');
-
-        // One more check for balanced braces/brackets
-        const openBrackets = (result.match(/\[/g) || []).length;
-        const closeBrackets = (result.match(/\]/g) || []).length;
-        if (openBrackets > closeBrackets) {
-          result += "]".repeat(openBrackets - closeBrackets);
-        }
-
-        if (options.debug) {
-          console.log(
-            `[callAI:${PACKAGE_VERSION}] After fixes, result:`,
-            result,
-          );
-        }
-      }
-
-      // Update metadata with completion timing
-      const endTime = Date.now();
-      if (meta.timing) {
-        meta.timing.endTime = endTime;
-        meta.timing.duration = endTime - meta.timing.startTime;
-      }
-
-      // If result is a string, we need to box it for the WeakMap
-      if (typeof result === "string") {
-        const boxed = boxString(result);
-        responseMetadata.set(boxed, meta);
-      } else {
-        responseMetadata.set(result, meta);
-      }
-
-      return result;
-    }
-
-    // Ensure the final return has proper, processed content
-    const finalResult = schemaStrategy.processResponse(completeText);
-
-    // Update metadata with completion timing
-    const endTime = Date.now();
-    if (meta.timing) {
-      meta.timing.endTime = endTime;
-      meta.timing.duration = endTime - meta.timing.startTime;
-    }
-
-    // If finalResult is a string, we need to box it for the WeakMap
-    if (typeof finalResult === "string") {
-      const boxed = boxString(finalResult);
-      responseMetadata.set(boxed, meta);
-    } else {
-      responseMetadata.set(finalResult, meta);
-    }
-
-    return finalResult;
-  } catch (error) {
-    try {
-      // Standardize error handling
-      await handleApiError(error, "Streaming API call", options.debug, {
-        apiKey: options.apiKey,
-        endpoint: options.endpoint,
-        skipRefresh: options.skipRefresh,
-      });
-
-      // If we get here, key was refreshed successfully
-      const message = "[Key refreshed. Please retry your request.]";
-      yield message;
-      return message;
-    } catch (refreshError) {
-      // Re-throw the error if key refresh also failed
-      throw refreshError;
-    }
-  }
 }
