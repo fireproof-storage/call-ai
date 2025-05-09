@@ -133,7 +133,7 @@ describe("Simple callAI integration tests", () => {
               apiKey: process.env.CALLAI_API_KEY,
               model: modelId.id,
               debug: true,
-              
+              refreshToken: "not-a-vibe",
               max_tokens: 128000 - 200,
               schema: {
                 type: "object",
