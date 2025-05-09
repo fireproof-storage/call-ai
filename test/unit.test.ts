@@ -441,7 +441,7 @@ describe("callAI", () => {
     }
   });
 
-  it.skip("should handle errors during API call for streaming", async () => {
+  it("should handle errors during API call for streaming", async () => {
     (global.fetch as jest.Mock).mockRejectedValue(new Error("Network error"));
 
     try {
