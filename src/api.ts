@@ -390,6 +390,7 @@ async function bufferStreamingResults(
       apiKey: options.apiKey,
       endpoint: options.endpoint,
       skipRefresh: options.skipRefresh,
+      refreshToken: options.refreshToken,
     });
     // If we get here, key was refreshed successfully, retry the operation with the new key
     // Retry with the refreshed key
@@ -663,6 +664,7 @@ async function callAINonStreaming(
       apiKey: options.apiKey,
       endpoint: options.endpoint,
       skipRefresh: options.skipRefresh,
+      refreshToken: options.refreshToken,
     });
     // If we get here, key was refreshed successfully, retry the operation with the new key
     // Retry with the refreshed key

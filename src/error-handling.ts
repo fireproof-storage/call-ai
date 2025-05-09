@@ -17,7 +17,7 @@ async function handleApiError(
   error: any,
   context: string,
   debug: boolean = globalDebug,
-  options: { apiKey?: string; endpoint?: string; skipRefresh?: boolean } = {},
+  options: { apiKey?: string; endpoint?: string; skipRefresh?: boolean; refreshToken?: string } = {},
 ): Promise<void> {
   // Extract error details
   const errorMessage = error?.message || String(error);
@@ -54,15 +54,16 @@ async function handleApiError(
     }
 
     try {
-      // Use provided key/endpoint or fallback to global configuration
+      // Use provided key/endpoint/refreshToken or fallback to global configuration
       const currentKey = options.apiKey || keyStore.current;
       const endpoint = options.endpoint || keyStore.refreshEndpoint;
+      const refreshToken = options.refreshToken || keyStore.refreshToken;
 
       // Refresh the API key
       const { apiKey, topup } = await refreshApiKey(
         currentKey,
         endpoint,
-        keyStore.refreshToken,
+        refreshToken,
         debug,
       );
 

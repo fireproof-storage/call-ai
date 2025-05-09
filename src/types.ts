@@ -142,6 +142,12 @@ export interface CallAIOptions {
   stream?: boolean;
 
   /**
+   * Authentication token for key refresh service
+   * Can also be set via window.CALL_AI_REFRESH_TOKEN, process.env.CALL_AI_REFRESH_TOKEN, or default to "use-vibes"
+   */
+  refreshToken?: string;
+
+  /**
    * Schema for structured output
    */
   schema?: Schema | null;
