@@ -234,6 +234,22 @@ async function refreshApiKey(
   }
 
   try {
+    // Request payload
+    const requestPayload = {
+      key: currentKey,
+      hash: currentKey ? getHashFromKey(currentKey) : null,
+      name: "call-ai-client",  // Add the required name field
+    };
+    
+    if (debug) {
+      console.log(`[callAI:key-refresh] Request URL: ${url}`);
+      console.log(`[callAI:key-refresh] Request headers:`, {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${refreshToken}`,
+      });
+      console.log(`[callAI:key-refresh] Request payload:`, requestPayload);
+    }
+    
     // Make the request
     const response = await fetch(url, {
       method: "POST",
@@ -241,47 +257,76 @@ async function refreshApiKey(
         "Content-Type": "application/json",
         Authorization: `Bearer ${refreshToken}`,
       },
-      body: JSON.stringify({
-        key: currentKey,
-        hash: currentKey ? getHashFromKey(currentKey) : null,
-      }),
+      body: JSON.stringify(requestPayload),
     });
 
+    if (debug) {
+      console.log(`[callAI:key-refresh] Response status: ${response.status} ${response.statusText}`);
+      console.log(`[callAI:key-refresh] Response headers:`, Object.fromEntries([...response.headers.entries()]));
+    }
+
     if (!response.ok) {
+      // Try to get the response body for more details
+      const errorText = await response.text();
+      if (debug) {
+        console.log(`[callAI:key-refresh] Error response body: ${errorText}`);
+      }
       throw new Error(
-        `API key refresh failed: ${response.status} ${response.statusText}`,
+        `API key refresh failed: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ''}`,
       );
     }
 
     // Parse the response
     const data = await response.json();
-    if (!data.key) {
+    
+    // Log the complete response structure for debugging
+    if (debug) {
+      console.log(`[callAI:key-refresh] Full response structure:`, JSON.stringify(data, null, 2));
+    }
+    
+    // Handle different API response formats
+    let newKey: string;
+    
+    // Check if response has the new nested format with data.key.key
+    if (data.key && typeof data.key === 'object' && data.key.key) {
+      newKey = data.key.key;
+    } 
+    // Check for old format where data.key is the string key directly
+    else if (data.key && typeof data.key === 'string') {
+      newKey = data.key;
+    } 
+    // Handle error case
+    else {
       throw new Error(
-        "Invalid response from key refresh endpoint: missing key",
+        "Invalid response from key refresh endpoint: missing or malformed key"
       );
     }
-
+    
     if (debug) {
-      console.log("API key refreshed successfully");
+      console.log(`API key refreshed successfully: ${newKey.substring(0, 10)}...`);
     }
 
     // Store metadata for potential future use (like top-up)
-    if (data.metadata) {
-      storeKeyMetadata(data.metadata);
+    if (data.metadata || (data.key && typeof data.key === 'object' && data.key.metadata)) {
+      const metadata = data.metadata || data.key.metadata;
+      storeKeyMetadata(metadata);
     }
 
-    // Update the key store
-    keyStore.current = data.key;
+    // Update the key store with the string value
+    keyStore.current = newKey;
 
     // Determine if this was a top-up (using existing key) or new key
-    const isTopup =
-      currentKey && data.hash && data.hash === getHashFromKey(currentKey);
+    // For the new API response format, hash is in data.key.hash
+    const hashValue = 
+      data.hash || 
+      (data.key && typeof data.key === 'object' && data.key.hash);
+    const isTopup = currentKey && hashValue && hashValue === getHashFromKey(currentKey);
 
     // Reset refreshing flag
     keyStore.isRefreshing = false;
 
     return {
-      apiKey: data.key,
+      apiKey: newKey, // Return the string key, not the object
       topup: isTopup,
     };
   } catch (error) {
