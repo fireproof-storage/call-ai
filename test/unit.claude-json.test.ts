@@ -26,5 +26,4 @@ describe("Claude JSON streaming property name splitting", () => {
       languages: ["French"],
     });
   });
-  
 });

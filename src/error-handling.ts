@@ -17,10 +17,10 @@ async function handleApiError(
   error: any,
   context: string,
   debug: boolean = globalDebug,
-  options: { 
-    apiKey?: string; 
-    endpoint?: string; 
-    skipRefresh?: boolean; 
+  options: {
+    apiKey?: string;
+    endpoint?: string;
+    skipRefresh?: boolean;
     refreshToken?: string;
     updateRefreshToken?: (currentToken: string) => Promise<string>;
   } = {},
@@ -34,12 +34,16 @@ async function handleApiError(
     (errorMessage.match(/status: (\d+)/i)?.[1] &&
       parseInt(errorMessage.match(/status: (\d+)/i)![1]));
 
+  // Check if this is a missing API key error
+  const isMissingKeyError = errorMessage.includes("API key is required");
+
   if (debug) {
     console.error(`[callAI:error] ${context} error:`, {
       message: errorMessage,
       status,
       name: error?.name,
       cause: error?.cause,
+      isMissingKey: isMissingKeyError
     });
   }
 
@@ -49,7 +53,8 @@ async function handleApiError(
   }
 
   // Determine if this error suggests we need a new API key
-  const needsNewKey = isNewKeyError(error, debug);
+  // Either it's a specific key error OR we have no key at all
+  const needsNewKey = isNewKeyError(error, debug) || isMissingKeyError;
 
   // If the error suggests an API key issue, try to refresh the key
   if (needsNewKey) {
@@ -98,18 +103,19 @@ async function handleApiError(
 
           try {
             // Get a new refresh token using the callback
-            const newRefreshToken = await options.updateRefreshToken(refreshToken);
-            
+            const newRefreshToken =
+              await options.updateRefreshToken(refreshToken);
+
             if (newRefreshToken && newRefreshToken !== refreshToken) {
               if (debug) {
                 console.log(
-                  `[callAI:key-refresh] Got new refresh token, retrying key refresh`
+                  `[callAI:key-refresh] Got new refresh token, retrying key refresh`,
                 );
               }
-              
+
               // Update the stored refresh token
               keyStore.refreshToken = newRefreshToken;
-              
+
               // Try again with the new token
               const { apiKey, topup } = await refreshApiKey(
                 currentKey,
@@ -117,24 +123,24 @@ async function handleApiError(
                 newRefreshToken,
                 debug,
               );
-              
+
               // Update the key in the store
               if (keyStore.current !== apiKey) {
                 keyStore.current = apiKey;
               }
-              
+
               if (debug) {
                 console.log(
                   `[callAI:key-refresh] ${topup ? "Topped up" : "Refreshed"} API key successfully with new refresh token`,
                 );
               }
-              
+
               // Return without throwing since we've successfully recovered
               return;
             } else {
               if (debug) {
                 console.log(
-                  `[callAI:key-refresh] No new refresh token provided or same token returned, cannot retry`
+                  `[callAI:key-refresh] No new refresh token provided or same token returned, cannot retry`,
                 );
               }
               // Continue to error handling
@@ -144,7 +150,7 @@ async function handleApiError(
             if (debug) {
               console.error(
                 `[callAI:key-refresh] Failed to update refresh token:`,
-                tokenUpdateError
+                tokenUpdateError,
               );
             }
             // Continue to error handling with the original refresh error
@@ -155,7 +161,6 @@ async function handleApiError(
           throw initialRefreshError;
         }
       }
-      
     } catch (refreshError) {
       // Log refresh failure but throw the original error
       if (debug) {

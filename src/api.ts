@@ -428,16 +428,15 @@ function prepareRequestParams(
   requestOptions: RequestInit;
   schemaStrategy: SchemaStrategy;
 } {
-  const apiKey =
+  // First try to get the API key from options or window globals
+  let apiKey =
     options.apiKey ||
+    keyStore.current || // Try keyStore first in case it was refreshed in a previous call
     (typeof window !== "undefined" ? (window as any).CALLAI_API_KEY : null);
   const schema = options.schema || null;
 
-  if (!apiKey) {
-    throw new Error(
-      "API key is required. Provide it via options.apiKey or set window.CALLAI_API_KEY",
-    );
-  }
+  // If no API key exists, we won't throw immediately. We'll continue and let handleApiError
+  // attempt to fetch a key if needed. This will be handled later in the call chain.
 
   // Select the appropriate strategy based on model and schema
   const schemaStrategy = chooseSchemaStrategy(options.model, schema);
@@ -517,6 +516,14 @@ function prepareRequestParams(
     },
     body: JSON.stringify(requestParams),
   };
+  
+  // If we don't have an API key, throw a clear error that can be caught and handled
+  // by the error handling system to trigger key fetching
+  if (!apiKey) {
+    throw new Error(
+      "API key is required. Provide it via options.apiKey or set window.CALLAI_API_KEY",
+    );
+  }
 
   // Debug logging for request payload
   if (options.debug) {
