@@ -113,8 +113,6 @@ async function handleApiError(
 async function checkForInvalidModelError(
   response: Response,
   model: string,
-  isRetry: boolean,
-  skipRetry: boolean = false,
   debug: boolean = globalDebug,
 ): Promise<{ isInvalidModel: boolean; errorData?: any }> {
   // Only check 4xx errors (which could indicate invalid model)

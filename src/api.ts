@@ -7,29 +7,14 @@ import {
   ResponseMeta,
   SchemaStrategy,
   StreamResponse,
-  ThenableStreamResponse,
 } from "./types";
 import { chooseSchemaStrategy } from "./strategies";
-import {
-  responseMetadata,
-  stringResponseMap,
-  boxString,
-  getMeta,
-} from "./response-metadata";
-import {
-  keyStore,
-  globalDebug,
-  initKeyStore,
-  isNewKeyError,
-  refreshApiKey,
-  getHashFromKey,
-  storeKeyMetadata,
-} from "./key-management";
+import { responseMetadata, boxString, getMeta } from "./response-metadata";
+import { keyStore, globalDebug } from "./key-management";
 import { handleApiError, checkForInvalidModelError } from "./error-handling";
-import { recursivelyAddAdditionalProperties } from "./utils";
 import { createBackwardCompatStreamingProxy } from "./api-core";
 import { extractContent, extractClaudeResponse } from "./non-streaming";
-import { createStreamingGenerator, callAIStreaming } from "./streaming";
+import { createStreamingGenerator } from "./streaming";
 
 // Key management is now imported from ./key-management
 
@@ -193,8 +178,6 @@ export function callAI(
           const modelCheckResult = await checkForInvalidModelError(
             clonedResponse,
             model,
-            false,
-            options.skipRetry,
             options.debug,
           );
           isInvalidModel = modelCheckResult.isInvalidModel;
@@ -563,8 +546,6 @@ async function callAINonStreaming(
       const { isInvalidModel } = await checkForInvalidModelError(
         response,
         model,
-        isRetry,
-        options.skipRetry,
         options.debug,
       );
 

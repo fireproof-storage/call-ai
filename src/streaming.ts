@@ -3,9 +3,9 @@
  */
 
 import { CallAIOptions, SchemaStrategy } from "./types";
-import { globalDebug, keyStore } from "./key-management";
+import { globalDebug } from "./key-management";
 import { responseMetadata, boxString } from "./response-metadata";
-import { handleApiError, checkForInvalidModelError } from "./error-handling";
+import { checkForInvalidModelError } from "./error-handling";
 import { PACKAGE_VERSION, FALLBACK_MODEL } from "./non-streaming";
 
 // Generator factory function for streaming API calls
@@ -605,8 +605,6 @@ async function* callAIStreaming(
       const { isInvalidModel, errorData } = await checkForInvalidModelError(
         response,
         model,
-        isRetry,
-        !!options.skipRetry,
         debug,
       );
 

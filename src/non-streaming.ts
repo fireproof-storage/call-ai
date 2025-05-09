@@ -144,8 +144,6 @@ async function callAINonStreaming(
       const { isInvalidModel, errorData } = await checkForInvalidModelError(
         response,
         model,
-        isRetry,
-        !!options.skipRetry,
         debug,
       );
 

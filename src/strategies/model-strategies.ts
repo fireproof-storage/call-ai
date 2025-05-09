@@ -1,7 +1,7 @@
 /**
  * Model strategies for different AI models
  */
-import { Message, ModelStrategy, Schema } from "../types";
+import { Message, ModelStrategy } from "../types";
 import { recursivelyAddAdditionalProperties } from "../utils";
 
 /**
@@ -9,7 +9,7 @@ import { recursivelyAddAdditionalProperties } from "../utils";
  */
 export const openAIStrategy: ModelStrategy = {
   name: "openai",
-  prepareRequest: (schema, messages) => {
+  prepareRequest: (schema) => {
     if (!schema) return {};
 
     // Process schema for JSON schema approach
@@ -83,7 +83,7 @@ export const geminiStrategy: ModelStrategy = {
 export const claudeStrategy: ModelStrategy = {
   name: "anthropic",
   shouldForceStream: true,
-  prepareRequest: (schema, messages) => {
+  prepareRequest: (schema) => {
     if (!schema) return {};
 
     // Process schema for tool use - format for OpenRouter/Claude

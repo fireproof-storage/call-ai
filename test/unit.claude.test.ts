@@ -17,13 +17,9 @@ global.TextDecoder = jest.fn().mockImplementation(() => ({
   }),
 }));
 
-// Mock tool_calls_assembled flag for validation
-let toolCallsAssembledFlag = false;
-
 describe("Claude Streaming JSON Property Splitting Test", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    toolCallsAssembledFlag = false;
   });
 
   it.skip("should handle Claude property splitting in streaming responses", async () => {

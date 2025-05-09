@@ -2,15 +2,6 @@
  * Key management functionality for call-ai
  */
 
-import {
-  CallAIOptions,
-  Message,
-  ResponseMeta,
-  SchemaStrategy,
-  StreamResponse,
-  ThenableStreamResponse,
-} from "./types";
-
 // Internal key store to keep track of the latest key
 const keyStore = {
   // Default key from environment or config

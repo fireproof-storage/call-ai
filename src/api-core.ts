@@ -10,10 +10,9 @@ import {
   StreamResponse,
   ThenableStreamResponse,
 } from "./types";
-import { globalDebug, keyStore } from "./key-management";
+import { globalDebug } from "./key-management";
 import { callAINonStreaming } from "./non-streaming";
 import { callAIStreaming } from "./streaming";
-import { getMeta } from "./response-metadata";
 
 // Import package version for debugging
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -32,13 +31,14 @@ function callAI(prompt: string | Message[], options: CallAIOptions = {}) {
   const debug = options.debug === undefined ? globalDebug : options.debug;
 
   // Validate and prepare parameters (including API key validation)
-  const { messages, apiKey } = prepareRequestParams(prompt, options);
+
+  prepareRequestParams(prompt, options);
 
   // Handle schema strategy based on model or explicitly provided strategy
   let schemaStrategy: SchemaStrategy = {
     strategy: "none" as const,
     model: options.model || "openai/gpt-3.5-turbo",
-    prepareRequest: (schema: any) => ({}),
+    prepareRequest: () => ({}),
     processResponse: (response: any) => {
       // If response is an object, stringify it to match expected test output
       if (response && typeof response === "object") {
@@ -59,7 +59,7 @@ function callAI(prompt: string | Message[], options: CallAIOptions = {}) {
         strategy: "tool_mode" as const,
         model,
         shouldForceStream: false,
-        prepareRequest: (schema, messages) => {
+        prepareRequest: (schema) => {
           // Parse the schema to extract the function definition
           let toolDef: any = {};
 
@@ -253,7 +253,7 @@ function createBackwardCompatStreamingProxy(
 ): ThenableStreamResponse {
   // Create a proxy that forwards methods to the Promise or AsyncGenerator as appropriate
   return new Proxy({} as any, {
-    get(target, prop) {
+    get(_target, prop) {
       // First check if it's an AsyncGenerator method (needed for for-await)
       if (
         prop === "next" ||
