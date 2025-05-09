@@ -16,7 +16,7 @@ const PACKAGE_VERSION = require("../package.json").version;
  */
 export async function imageGen(
   prompt: string,
-  options: ImageGenOptions = {}
+  options: ImageGenOptions = {},
 ): Promise<ImageResponse> {
   const {
     model = "gpt-image-1",
@@ -25,28 +25,34 @@ export async function imageGen(
   } = options;
 
   if (debug) {
-    console.log(`[imageGen:${PACKAGE_VERSION}] Generating image with prompt: ${prompt.substring(0, 50)}...`);
+    console.log(
+      `[imageGen:${PACKAGE_VERSION}] Generating image with prompt: ${prompt.substring(0, 50)}...`,
+    );
     console.log(`[imageGen:${PACKAGE_VERSION}] Using model: ${model}`);
   }
 
   // Get custom origin if set
-  const customOrigin = 
-    options.imgUrl || 
-    (typeof window !== "undefined" ? (window as any).CALLAI_IMG_URL : null) || 
-    (typeof process !== "undefined" && process.env ? process.env.CALLAI_IMG_URL : null);
+  const customOrigin =
+    options.imgUrl ||
+    (typeof window !== "undefined" ? (window as any).CALLAI_IMG_URL : null) ||
+    (typeof process !== "undefined" && process.env
+      ? process.env.CALLAI_IMG_URL
+      : null);
 
   try {
     // Handle image generation
     if (!options.images || options.images.length === 0) {
       // Simple image generation with text prompt
       // Use custom origin or document.location.origin
-      const origin = customOrigin || (typeof document !== 'undefined' ? document.location.origin : '');
+      const origin =
+        customOrigin ||
+        (typeof document !== "undefined" ? document.location.origin : "");
       const generateEndpoint = `${origin}/api/openai-image/generate`;
-      
+
       const response = await fetch(generateEndpoint, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${apiKey}`,
+          Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -60,7 +66,9 @@ export async function imageGen(
 
       if (!response.ok) {
         const errorData = await response.text();
-        throw new Error(`Image generation failed: ${response.status} ${response.statusText} - ${errorData}`);
+        throw new Error(
+          `Image generation failed: ${response.status} ${response.statusText} - ${errorData}`,
+        );
       }
 
       const result = await response.json();
@@ -70,32 +78,36 @@ export async function imageGen(
       const formData = new FormData();
       formData.append("model", model);
       formData.append("prompt", prompt);
-      
+
       // Add each image to the form data
       options.images.forEach((image, index) => {
         formData.append(`image_${index}`, image);
       });
-      
+
       // Add optional parameters if provided
       if (options.size) formData.append("size", options.size);
       if (options.quality) formData.append("quality", options.quality);
       if (options.style) formData.append("style", options.style);
 
       // Use custom origin or document.location.origin
-      const origin = customOrigin || (typeof document !== 'undefined' ? document.location.origin : '');
+      const origin =
+        customOrigin ||
+        (typeof document !== "undefined" ? document.location.origin : "");
       const editEndpoint = `${origin}/api/openai-image/edit`;
-      
+
       const response = await fetch(editEndpoint, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${apiKey}`,
+          Authorization: `Bearer ${apiKey}`,
         },
         body: formData,
       });
 
       if (!response.ok) {
         const errorData = await response.text();
-        throw new Error(`Image editing failed: ${response.status} ${response.statusText} - ${errorData}`);
+        throw new Error(
+          `Image editing failed: ${response.status} ${response.statusText} - ${errorData}`,
+        );
       }
 
       const result = await response.json();

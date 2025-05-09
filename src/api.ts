@@ -4,11 +4,36 @@
 import {
   CallAIOptions,
   Message,
+  ResponseMeta,
   SchemaStrategy,
   StreamResponse,
-  ThenableStreamResponse,
 } from "./types";
 import { chooseSchemaStrategy } from "./strategies";
+import { responseMetadata, boxString, getMeta } from "./response-metadata";
+import { keyStore, globalDebug } from "./key-management";
+import { handleApiError, checkForInvalidModelError } from "./error-handling";
+import { createBackwardCompatStreamingProxy } from "./api-core";
+import { extractContent, extractClaudeResponse } from "./non-streaming";
+import { createStreamingGenerator } from "./streaming";
+
+// Key management is now imported from ./key-management
+
+// initKeyStore is imported from key-management.ts
+// No need to call initKeyStore() here as it's called on module load in key-management.ts
+
+// isNewKeyError is imported from key-management.ts
+
+// refreshApiKey is imported from key-management.ts
+
+// getHashFromKey is imported from key-management.ts
+
+// storeKeyMetadata is imported from key-management.ts
+
+// Response metadata is now imported from ./response-metadata
+
+// boxString and getMeta functions are now imported from ./response-metadata
+// Re-export getMeta to maintain backward compatibility
+export { getMeta };
 
 // Import package version for debugging
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -35,6 +60,9 @@ export function callAI(
     options.schema || null,
   );
 
+  // We no longer set a default maxTokens
+  // Will only include max_tokens in the request if explicitly set by the user
+
   // Handle special case: Claude with tools requires streaming
   if (!options.stream && schemaStrategy.shouldForceStream) {
     // Buffer streaming results into a single response
@@ -53,7 +81,9 @@ export function callAI(
     const { endpoint, requestOptions, model, schemaStrategy } =
       prepareRequestParams(prompt, { ...options, stream: true });
 
-    if (options.debug) {
+    // Use either explicit debug option or global debug flag
+    const debug = options.debug || globalDebug;
+    if (debug) {
       console.log(
         `[callAI:${PACKAGE_VERSION}] Making fetch request to: ${endpoint}`,
       );
@@ -147,8 +177,6 @@ export function callAI(
           const modelCheckResult = await checkForInvalidModelError(
             clonedResponse,
             model,
-            false,
-            options.skipRetry,
             options.debug,
           );
           isInvalidModel = modelCheckResult.isInvalidModel;
@@ -332,195 +360,59 @@ async function bufferStreamingResults(
     const generator = (await callAI(
       prompt,
       streamingOptions,
-    )) as StreamResponse;
+    )) as AsyncGenerator<string, string, unknown>;
 
-    // Buffer all chunks
-    let finalResult = "";
-    let chunkCount = 0;
-    for await (const chunk of generator) {
-      finalResult = chunk; // Each chunk contains the full accumulated text
-      chunkCount++;
-    }
+    // For Claude JSON responses, take only the last chunk (the final processed result)
+    // For all other cases, concatenate chunks as before
+    const isClaudeJson = /claude/.test(options.model || "") && options.schema;
 
-    return finalResult;
-  } catch (error) {
-    handleApiError(error, "Streaming buffer error", options.debug);
-  }
-}
-
-/**
- * Standardized API error handler
- */
-/**
- * Create a proxy that acts both as a Promise and an AsyncGenerator for backward compatibility
- * @internal This is for internal use only, not part of public API
- */
-function createBackwardCompatStreamingProxy(
-  promise: Promise<StreamResponse>,
-): ThenableStreamResponse {
-  // Create a proxy that forwards methods to the Promise or AsyncGenerator as appropriate
-  return new Proxy({} as any, {
-    get(target, prop) {
-      // First check if it's an AsyncGenerator method (needed for for-await)
-      if (
-        prop === "next" ||
-        prop === "throw" ||
-        prop === "return" ||
-        prop === Symbol.asyncIterator
-      ) {
-        // Create wrapper functions that await the Promise first
-        if (prop === Symbol.asyncIterator) {
-          return function () {
-            return {
-              // Implement async iterator that gets the generator first
-              async next(value?: unknown) {
-                try {
-                  const generator = await promise;
-                  return generator.next(value);
-                } catch (error) {
-                  // Turn Promise rejection into iterator result with error thrown
-                  return Promise.reject(error);
-                }
-              },
-            };
-          };
-        }
-
-        // Methods like next, throw, return
-        return async function (value?: unknown) {
-          const generator = await promise;
-          return (generator as any)[prop](value);
-        };
+    if (isClaudeJson) {
+      // For Claude with JSON schema, we only want the last yielded value
+      // which will be the complete, properly processed JSON
+      let lastChunk = "";
+      for await (const chunk of generator) {
+        // Replace the last chunk entirely instead of concatenating
+        lastChunk = chunk;
       }
-
-      // Then check if it's a Promise method
-      if (prop === "then" || prop === "catch" || prop === "finally") {
-        return promise[prop].bind(promise);
-      }
-
-      return undefined;
-    },
-  });
-}
-
-/**
- * Standardized API error handler
- */
-function handleApiError(
-  error: any,
-  context: string,
-  debug: boolean = false,
-): never {
-  if (debug) {
-    console.error(`[callAI:${context}]:`, error);
-  }
-  throw new Error(`${context}: ${String(error)}`);
-}
-
-/**
- * Helper to check if an error indicates invalid model and handle fallback
- */
-async function checkForInvalidModelError(
-  response: Response,
-  model: string,
-  isRetry: boolean,
-  skipRetry: boolean = false,
-  debug: boolean = false,
-): Promise<{ isInvalidModel: boolean; errorData?: any }> {
-  // Skip retry immediately if skipRetry is true or if we're already retrying
-  if (skipRetry || isRetry) {
-    return { isInvalidModel: false };
-  }
-
-  // We want to check all 4xx errors, not just 400
-  if (response.status < 400 || response.status >= 500) {
-    return { isInvalidModel: false };
-  }
-
-  // Clone the response so we can read the body
-  const clonedResponse = response.clone();
-  try {
-    const errorData = await clonedResponse.json();
-
-    if (debug) {
-      console.log(
-        `[callAI:${PACKAGE_VERSION}] Checking for invalid model error:`,
-        {
-          model,
-          statusCode: response.status,
-          errorData,
-        },
-      );
-    }
-
-    // Common patterns for invalid model errors across different providers
-    const invalidModelPatterns = [
-      "not a valid model",
-      "model .* does not exist",
-      "invalid model",
-      "unknown model",
-      "no provider was found",
-      "fake-model", // For our test case
-      "does-not-exist", // For our test case
-    ];
-
-    // Check if error message contains any of our patterns
-    let errorMessage = "";
-    if (errorData.error && errorData.error.message) {
-      errorMessage = errorData.error.message.toLowerCase();
-    } else if (errorData.message) {
-      errorMessage = errorData.message.toLowerCase();
+      return lastChunk;
     } else {
-      errorMessage = JSON.stringify(errorData).toLowerCase();
-    }
-
-    // Test the error message against each pattern
-    const isInvalidModel = invalidModelPatterns.some((pattern) =>
-      errorMessage.includes(pattern.toLowerCase()),
-    );
-
-    if (isInvalidModel && debug) {
-      console.warn(
-        `[callAI:${PACKAGE_VERSION}] Model ${model} not valid, will retry with ${FALLBACK_MODEL}`,
-      );
-    }
-
-    return { isInvalidModel, errorData };
-  } catch (parseError) {
-    // If we can't parse the response as JSON, try to read it as text
-    if (debug) {
-      console.error("Failed to parse error response as JSON:", parseError);
-    }
-    try {
-      const textResponse = await response.clone().text();
-      if (debug) {
-        console.log("Error response as text:", textResponse);
+      // For all other cases, concatenate chunks
+      let result = "";
+      for await (const chunk of generator) {
+        result += chunk;
       }
-
-      // Even if it's not JSON, check if it contains any of our known patterns
-      const lowerText = textResponse.toLowerCase();
-      const isInvalidModel =
-        lowerText.includes("invalid model") ||
-        lowerText.includes("not exist") ||
-        lowerText.includes("fake-model");
-
-      if (isInvalidModel) {
-        if (debug) {
-          console.warn(
-            `[callAI:${PACKAGE_VERSION}] Detected invalid model in text response for ${model}`,
-          );
-        }
-      }
-
-      return { isInvalidModel, errorData: { text: textResponse } };
-    } catch (textError) {
-      if (debug) {
-        console.error("Failed to read error response as text:", textError);
-      }
-      return { isInvalidModel: false };
+      return result;
     }
+  } catch (error) {
+    // Handle errors with standard API error handling
+    await handleApiError(error, "Buffered streaming", options.debug, {
+      apiKey: options.apiKey,
+      endpoint: options.endpoint,
+      skipRefresh: options.skipRefresh,
+      refreshToken: options.refreshToken,
+      updateRefreshToken: options.updateRefreshToken,
+    });
+    // If we get here, key was refreshed successfully, retry the operation with the new key
+    // Retry with the refreshed key
+    return bufferStreamingResults(prompt, {
+      ...options,
+      apiKey: keyStore.current || undefined, // Use the refreshed key from keyStore
+    });
   }
+
+  // This line should never be reached, but it satisfies the linter by ensuring
+  // all code paths return a value
+  throw new Error("Unexpected code path in bufferStreamingResults");
 }
+
+/**
+ * Standardized API error handler
+ */
+// createBackwardCompatStreamingProxy is imported from api-core.ts
+
+// handleApiError is imported from error-handling.ts
+
+// checkForInvalidModelError is imported from error-handling.ts
 
 /**
  * Prepare request parameters common to both streaming and non-streaming calls
@@ -535,80 +427,106 @@ function prepareRequestParams(
   requestOptions: RequestInit;
   schemaStrategy: SchemaStrategy;
 } {
-  const apiKey =
+  // First try to get the API key from options or window globals
+  let apiKey =
     options.apiKey ||
+    keyStore.current || // Try keyStore first in case it was refreshed in a previous call
     (typeof window !== "undefined" ? (window as any).CALLAI_API_KEY : null);
   const schema = options.schema || null;
 
-  if (!apiKey) {
-    throw new Error(
-      "API key is required. Provide it via options.apiKey or set window.CALLAI_API_KEY",
-    );
-  }
+  // If no API key exists, we won't throw immediately. We'll continue and let handleApiError
+  // attempt to fetch a key if needed. This will be handled later in the call chain.
 
   // Select the appropriate strategy based on model and schema
   const schemaStrategy = chooseSchemaStrategy(options.model, schema);
   const model = schemaStrategy.model;
 
   // Get custom chat API origin if set
-  const customChatOrigin = 
-    options.chatUrl || 
-    (typeof window !== "undefined" ? (window as any).CALLAI_CHAT_URL : null) || 
-    (typeof process !== "undefined" && process.env ? process.env.CALLAI_CHAT_URL : null);
-    
+  const customChatOrigin =
+    options.chatUrl ||
+    (typeof window !== "undefined" ? (window as any).CALLAI_CHAT_URL : null) ||
+    (typeof process !== "undefined" && process.env
+      ? process.env.CALLAI_CHAT_URL
+      : null);
+
   // Use custom origin or default OpenRouter URL
-  const endpoint = options.endpoint || 
-    (customChatOrigin ? `${customChatOrigin}/api/v1/chat/completions` : "https://openrouter.ai/api/v1/chat/completions");
+  const endpoint =
+    options.endpoint ||
+    (customChatOrigin
+      ? `${customChatOrigin}/api/v1/chat/completions`
+      : "https://openrouter.ai/api/v1/chat/completions");
 
   // Handle both string prompts and message arrays for backward compatibility
   const messages: Message[] = Array.isArray(prompt)
     ? prompt
     : [{ role: "user", content: prompt }];
 
-  // Build request parameters
+  // Common parameters for both streaming and non-streaming
   const requestParams: any = {
-    model: model,
-    stream: options.stream === true,
-    messages: messages,
+    model,
+    messages,
+    temperature: options.temperature !== undefined ? options.temperature : 0.7,
+    top_p: options.topP !== undefined ? options.topP : 1,
+    stream: options.stream !== undefined ? options.stream : false,
   };
 
-  // Support for multimodal content (like images)
-  if (options.modalities && options.modalities.length > 0) {
-    requestParams.modalities = options.modalities;
+  // Only include max_tokens if explicitly set
+  if (options.maxTokens !== undefined) {
+    requestParams.max_tokens = options.maxTokens;
   }
 
-  // Apply the strategy's request preparation
-  const strategyParams = schemaStrategy.prepareRequest(schema, messages);
-
-  // If the strategy returns custom messages, use those instead
-  if (strategyParams.messages) {
-    requestParams.messages = strategyParams.messages;
+  // Add optional parameters if specified
+  if (options.stop) {
+    // Handle both single string and array of stop sequences
+    requestParams.stop = Array.isArray(options.stop)
+      ? options.stop
+      : [options.stop];
   }
 
-  // Add all other strategy parameters
-  Object.entries(strategyParams).forEach(([key, value]) => {
-    if (key !== "messages") {
-      requestParams[key] = value;
-    }
-  });
+  // Add response_format parameter for models that support JSON output
+  if (options.responseFormat === "json") {
+    requestParams.response_format = { type: "json_object" };
+  }
 
-  // Add any other options provided, but exclude internal keys
-  Object.entries(options).forEach(([key, value]) => {
-    if (!["apiKey", "model", "endpoint", "stream", "schema"].includes(key)) {
-      requestParams[key] = value;
-    }
-  });
+  // Add schema structure if provided (for function calling/JSON mode)
+  if (schema) {
+    // Apply schema-specific parameters using the selected strategy
+    Object.assign(
+      requestParams,
+      schemaStrategy.prepareRequest(schema, messages),
+    );
+  }
 
-  const requestOptions = {
+  // HTTP headers for the request
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+    "HTTP-Referer": options.referer || "https://vibes.diy",
+    "X-Title": options.title || "Vibes",
+  };
+
+  // Add any additional headers
+  if (options.headers) {
+    Object.assign(headers, options.headers);
+  }
+
+  // Build the requestOptions object for fetch
+  const requestOptions: RequestInit = {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "HTTP-Referer": "https://vibes.diy",
-      "X-Title": "Vibes",
+      ...headers,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(requestParams),
   };
+
+  // If we don't have an API key, throw a clear error that can be caught and handled
+  // by the error handling system to trigger key fetching
+  if (!apiKey) {
+    throw new Error(
+      "API key is required. Provide it via options.apiKey or set window.CALLAI_API_KEY",
+    );
+  }
 
   // Debug logging for request payload
   if (options.debug) {
@@ -632,18 +550,28 @@ async function callAINonStreaming(
   isRetry: boolean = false,
 ): Promise<string> {
   try {
+    // Start timing for metadata
+    const startTime = Date.now();
+
+    // Create metadata object
+    const meta: ResponseMeta = {
+      model: options.model || "unknown",
+      timing: {
+        startTime: startTime,
+      },
+    };
     const { endpoint, requestOptions, model, schemaStrategy } =
       prepareRequestParams(prompt, options);
 
     const response = await fetch(endpoint, requestOptions);
+
+    // We don't store the raw Response object in metadata anymore
 
     // Handle HTTP errors, with potential fallback for invalid model
     if (!response.ok || response.status >= 400) {
       const { isInvalidModel } = await checkForInvalidModelError(
         response,
         model,
-        isRetry,
-        options.skipRetry,
         options.debug,
       );
 
@@ -656,7 +584,12 @@ async function callAINonStreaming(
         );
       }
 
-      throw new Error(`HTTP error! Status: ${response.status}`);
+      // Create a proper error object with the status code preserved
+      const error: any = new Error(`HTTP error! Status: ${response.status}`);
+      // Add status code as a property of the error object
+      error.status = response.status;
+      error.statusCode = response.status; // Add statusCode for compatibility with different error patterns
+      throw error;
     }
 
     let result;
@@ -714,416 +647,49 @@ async function callAINonStreaming(
     // Extract content from the response
     const content = extractContent(result, schemaStrategy);
 
+    // Store the raw response data for user access
+    if (result) {
+      // Store the parsed JSON result from the API call
+      meta.rawResponse = result;
+    }
+
+    // Update model info
+    meta.model = model;
+
+    // Update timing info
+    if (meta.timing) {
+      meta.timing.endTime = Date.now();
+      meta.timing.duration = meta.timing.endTime - meta.timing.startTime;
+    }
+
     // Process the content based on model type
-    return schemaStrategy.processResponse(content);
+    const processedContent = schemaStrategy.processResponse(content);
+
+    // Box the string for WeakMap storage
+    const boxed = boxString(processedContent);
+    responseMetadata.set(boxed, meta);
+
+    return processedContent;
   } catch (error) {
-    handleApiError(error, "Non-streaming API call", options.debug);
-  }
-}
-
-/**
- * Extract content from API response accounting for different formats
- */
-function extractContent(result: any, schemaStrategy: SchemaStrategy): any {
-  // Find tool use content or normal content
-  let content;
-
-  // Extract tool use content if necessary
-  if (
-    schemaStrategy.strategy === "tool_mode" &&
-    result.stop_reason === "tool_use"
-  ) {
-    // Try to find tool_use block in different response formats
-    if (result.content && Array.isArray(result.content)) {
-      const toolUseBlock = result.content.find(
-        (block: any) => block.type === "tool_use",
-      );
-      if (toolUseBlock) {
-        content = toolUseBlock;
-      }
-    }
-
-    if (!content && result.choices && Array.isArray(result.choices)) {
-      const choice = result.choices[0];
-      if (choice.message && Array.isArray(choice.message.content)) {
-        const toolUseBlock = choice.message.content.find(
-          (block: any) => block.type === "tool_use",
-        );
-        if (toolUseBlock) {
-          content = toolUseBlock;
-        }
-      }
-    }
+    await handleApiError(error, "Non-streaming API call", options.debug, {
+      apiKey: options.apiKey,
+      endpoint: options.endpoint,
+      skipRefresh: options.skipRefresh,
+      refreshToken: options.refreshToken,
+      updateRefreshToken: options.updateRefreshToken,
+    });
+    // If we get here, key was refreshed successfully, retry the operation with the new key
+    // Retry with the refreshed key
+    return callAINonStreaming(
+      prompt,
+      {
+        ...options,
+        apiKey: keyStore.current || undefined, // Use the refreshed key from keyStore
+      },
+      true,
+    ); // Set isRetry to true
   }
 
-  // If no tool use content was found, use the standard message content
-  if (!content) {
-    if (!result.choices || !result.choices.length) {
-      throw new Error("Invalid response format from API");
-    }
-
-    content = result.choices[0]?.message?.content || "";
-  }
-
-  return content;
-}
-
-/**
- * Extract response from Claude API with timeout handling
- */
-async function extractClaudeResponse(response: Response): Promise<any> {
-  let textResponse: string;
-  const textPromise = response.text();
-  const timeoutPromise = new Promise<string>((_resolve, reject) => {
-    setTimeout(() => {
-      reject(new Error("Text extraction timed out after 5 seconds"));
-    }, 5000);
-  });
-
-  try {
-    textResponse = (await Promise.race([
-      textPromise,
-      timeoutPromise,
-    ])) as string;
-  } catch (textError) {
-    // Always log timeout errors
-    console.error(`Text extraction timed out or failed:`, textError);
-    throw new Error(
-      "Claude response text extraction timed out. This is likely an issue with the Claude API's response format.",
-    );
-  }
-
-  try {
-    return JSON.parse(textResponse);
-  } catch (err) {
-    // Always log JSON parsing errors
-    console.error(`Failed to parse Claude response as JSON:`, err);
-    throw new Error(`Failed to parse Claude response as JSON: ${err}`);
-  }
-}
-
-/**
- * Generator factory function for streaming API calls
- * This is called after the fetch is made and response is validated
- *
- * Note: Even though we checked response.ok before creating this generator,
- * we need to be prepared for errors that may occur during streaming. Some APIs
- * return a 200 OK initially but then deliver error information in the stream.
- */
-async function* createStreamingGenerator(
-  response: Response,
-  options: CallAIOptions,
-  schemaStrategy: SchemaStrategy,
-  model: string,
-): StreamResponse {
-  if (options.debug) {
-    console.log(
-      `[callAI:${PACKAGE_VERSION}] Starting streaming generator with model: ${model}`,
-    );
-    console.log(
-      `[callAI:${PACKAGE_VERSION}] Response status:`,
-      response.status,
-    );
-    console.log(`[callAI:${PACKAGE_VERSION}] Response type:`, response.type);
-    console.log(
-      `[callAI:${PACKAGE_VERSION}] Response Content-Type:`,
-      response.headers.get("content-type"),
-    );
-  }
-  try {
-    // Handle streaming response
-    if (!response.body) {
-      throw new Error(
-        "Response body is undefined - API endpoint may not support streaming",
-      );
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let completeText = "";
-    let chunkCount = 0;
-    let toolCallsAssembled = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        if (options.debug) {
-          console.log(
-            `[callAI:${PACKAGE_VERSION}] Stream done=true after ${chunkCount} chunks`,
-          );
-          console.log(
-            `[callAI-streaming:complete v${PACKAGE_VERSION}] Stream finished after ${chunkCount} chunks`,
-          );
-        }
-        break;
-      }
-
-      // Increment chunk counter before processing
-      chunkCount++;
-      const chunk = decoder.decode(value);
-      if (options.debug) {
-        console.log(
-          `[callAI:${PACKAGE_VERSION}] Raw chunk #${chunkCount} (${chunk.length} bytes):`,
-          chunk.length > 200 ? chunk.substring(0, 200) + "..." : chunk,
-        );
-      }
-
-      const lines = chunk.split("\n").filter((line) => line.trim() !== "");
-      if (options.debug) {
-        console.log(
-          `[callAI:${PACKAGE_VERSION}] Chunk #${chunkCount} contains ${lines.length} non-empty lines`,
-        );
-      }
-
-      for (const line of lines) {
-        if (options.debug) {
-          console.log(
-            `[callAI:${PACKAGE_VERSION}] Processing line:`,
-            line.length > 100 ? line.substring(0, 100) + "..." : line,
-          );
-        }
-
-        if (line.startsWith("data: ")) {
-          let data = line.slice(6);
-
-          if (data === "[DONE]") {
-            if (options.debug) {
-              console.log(`[callAI:${PACKAGE_VERSION}] Received [DONE] marker`);
-            }
-            break;
-          }
-          if (options.debug) {
-            console.log(`[callAI:raw] ${line}`);
-          }
-
-          // Skip [DONE] marker or OPENROUTER PROCESSING lines
-          if (
-            line.includes("[DONE]") ||
-            line.includes("OPENROUTER PROCESSING")
-          ) {
-            continue;
-          }
-
-          try {
-            const jsonLine = line.replace("data: ", "");
-            if (!jsonLine.trim()) {
-              if (options.debug) {
-                console.log(
-                  `[callAI:${PACKAGE_VERSION}] Empty JSON line after data: prefix`,
-                );
-              }
-              continue;
-            }
-
-            if (options.debug) {
-              console.log(
-                `[callAI:${PACKAGE_VERSION}] JSON line (first 100 chars):`,
-                jsonLine.length > 100
-                  ? jsonLine.substring(0, 100) + "..."
-                  : jsonLine,
-              );
-            }
-
-            // Parse the JSON chunk
-            let json;
-            try {
-              json = JSON.parse(jsonLine);
-              if (options.debug) {
-                console.log(
-                  `[callAI:${PACKAGE_VERSION}] Parsed JSON:`,
-                  JSON.stringify(json).substring(0, 1000),
-                );
-              }
-            } catch (parseError) {
-              if (options.debug) {
-                console.error(
-                  `[callAI:${PACKAGE_VERSION}] JSON parse error:`,
-                  parseError,
-                );
-              }
-              continue;
-            }
-
-            // Enhanced error detection - check for BOTH error and json.error
-            // Some APIs return 200 OK but then deliver errors in the stream
-            if (json.error || (typeof json === "object" && "error" in json)) {
-              if (options.debug) {
-                console.error(
-                  `[callAI:${PACKAGE_VERSION}] Detected error in streaming response:`,
-                  json,
-                );
-              }
-
-              // Create a detailed error object similar to our HTTP error handling
-              const errorMessage =
-                json.error?.message ||
-                json.error?.toString() ||
-                JSON.stringify(json.error || json);
-
-              const detailedError = new Error(
-                `API streaming error: ${errorMessage}`,
-              );
-
-              // Add error metadata
-              (detailedError as any).status = json.error?.status || 400;
-              (detailedError as any).statusText =
-                json.error?.type || "Bad Request";
-              (detailedError as any).details = JSON.stringify(
-                json.error || json,
-              );
-
-              console.error(
-                `[callAI:${PACKAGE_VERSION}] Throwing stream error:`,
-                detailedError,
-              );
-              throw detailedError;
-            }
-
-            // Handle tool use response - Claude with schema cases
-            const isClaudeWithSchema =
-              /claude/i.test(model) && schemaStrategy.strategy === "tool_mode";
-
-            if (isClaudeWithSchema) {
-              // Claude streaming tool calls - need to assemble arguments
-              if (json.choices && json.choices.length > 0) {
-                const choice = json.choices[0];
-
-                // Handle finish reason tool_calls
-                if (choice.finish_reason === "tool_calls") {
-                  try {
-                    // Parse the assembled JSON
-                    completeText = toolCallsAssembled;
-                    yield completeText;
-                    continue;
-                  } catch (e) {
-                    console.error(
-                      "[callAIStreaming] Error parsing assembled tool call:",
-                      e,
-                    );
-                  }
-                }
-
-                // Assemble tool_calls arguments from delta
-                if (choice.delta && choice.delta.tool_calls) {
-                  const toolCall = choice.delta.tool_calls[0];
-                  if (
-                    toolCall &&
-                    toolCall.function &&
-                    toolCall.function.arguments !== undefined
-                  ) {
-                    toolCallsAssembled += toolCall.function.arguments;
-                    // We don't yield here to avoid partial JSON
-                  }
-                }
-              }
-            }
-
-            // Handle tool use response - old format
-            if (
-              isClaudeWithSchema &&
-              (json.stop_reason === "tool_use" || json.type === "tool_use")
-            ) {
-              // First try direct tool use object format
-              if (json.type === "tool_use") {
-                completeText = schemaStrategy.processResponse(json);
-                yield completeText;
-                continue;
-              }
-
-              // Extract the tool use content
-              if (json.content && Array.isArray(json.content)) {
-                const toolUseBlock = json.content.find(
-                  (block: any) => block.type === "tool_use",
-                );
-                if (toolUseBlock) {
-                  completeText = schemaStrategy.processResponse(toolUseBlock);
-                  yield completeText;
-                  continue;
-                }
-              }
-
-              // Find tool_use in assistant's content blocks
-              if (json.choices && Array.isArray(json.choices)) {
-                const choice = json.choices[0];
-                if (choice.message && Array.isArray(choice.message.content)) {
-                  const toolUseBlock = choice.message.content.find(
-                    (block: any) => block.type === "tool_use",
-                  );
-                  if (toolUseBlock) {
-                    completeText = schemaStrategy.processResponse(toolUseBlock);
-                    yield completeText;
-                    continue;
-                  }
-                }
-
-                // Handle case where the tool use is in the delta
-                if (choice.delta && Array.isArray(choice.delta.content)) {
-                  const toolUseBlock = choice.delta.content.find(
-                    (block: any) => block.type === "tool_use",
-                  );
-                  if (toolUseBlock) {
-                    completeText = schemaStrategy.processResponse(toolUseBlock);
-                    yield completeText;
-                    continue;
-                  }
-                }
-              }
-            }
-
-            // Extract content from the delta
-            if (json.choices?.[0]?.delta?.content !== undefined) {
-              const content = json.choices[0].delta.content || "";
-
-              // Treat all models the same - yield as content arrives
-              completeText += content;
-              yield schemaStrategy.processResponse(completeText);
-            }
-            // Handle message content format (non-streaming deltas)
-            else if (json.choices?.[0]?.message?.content !== undefined) {
-              const content = json.choices[0].message.content || "";
-              completeText += content;
-              yield schemaStrategy.processResponse(completeText);
-            }
-            // Handle content blocks for Claude/Anthropic response format
-            else if (
-              json.choices?.[0]?.message?.content &&
-              Array.isArray(json.choices[0].message.content)
-            ) {
-              const contentBlocks = json.choices[0].message.content;
-              // Find text or tool_use blocks
-              for (const block of contentBlocks) {
-                if (block.type === "text") {
-                  completeText += block.text || "";
-                } else if (isClaudeWithSchema && block.type === "tool_use") {
-                  completeText = schemaStrategy.processResponse(block);
-                  break; // We found what we need
-                }
-              }
-
-              yield schemaStrategy.processResponse(completeText);
-            }
-          } catch (e) {
-            if (options.debug) {
-              console.error(`[callAIStreaming] Error parsing JSON chunk:`, e);
-            }
-          }
-        }
-      }
-    }
-
-    // We no longer need special error handling here as errors are thrown immediately
-
-    // No extra error handling needed here - errors are thrown immediately
-
-    // If we have assembled tool calls but haven't yielded them yet
-    if (toolCallsAssembled && (!completeText || completeText.length === 0)) {
-      return toolCallsAssembled;
-    }
-
-    // Ensure the final return has proper, processed content
-    return schemaStrategy.processResponse(completeText);
-  } catch (error) {
-    // Standardize error handling
-    handleApiError(error, "Streaming API call", options.debug);
-  }
+  // This line will never be reached, but it satisfies the linter
+  throw new Error("Unexpected code path in callAINonStreaming");
 }

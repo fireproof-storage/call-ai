@@ -21,6 +21,32 @@ export type Message = {
   content: string | ContentItem[];
 };
 
+/**
+ * Metadata associated with a response
+ * Available through the getMeta() helper function
+ */
+export interface ResponseMeta {
+  /**
+   * The model used for the response
+   */
+  model: string;
+
+  /**
+   * Timing information about the request
+   */
+  timing?: {
+    startTime: number;
+    endTime?: number;
+    duration?: number;
+  };
+
+  /**
+   * Raw response data from the fetch call
+   * Contains the parsed JSON result from the API call
+   */
+  rawResponse?: any;
+}
+
 export interface Schema {
   /**
    * Optional schema name - will be sent to OpenRouter if provided
@@ -116,6 +142,20 @@ export interface CallAIOptions {
   stream?: boolean;
 
   /**
+   * Authentication token for key refresh service
+   * Can also be set via window.CALL_AI_REFRESH_TOKEN, process.env.CALL_AI_REFRESH_TOKEN, or default to "use-vibes"
+   */
+  refreshToken?: string;
+
+  /**
+   * Callback function to update refresh token when current token fails
+   * Gets called with the current failing token and should return a new token
+   * @param currentToken The current refresh token that failed
+   * @returns A Promise that resolves to a new refresh token
+   */
+  updateRefreshToken?: (currentToken: string) => Promise<string>;
+
+  /**
    * Schema for structured output
    */
   schema?: Schema | null;
@@ -131,6 +171,12 @@ export interface CallAIOptions {
    * Useful in testing and cases where retries should be suppressed
    */
   skipRetry?: boolean;
+
+  /**
+   * Skip key refresh on 4xx errors
+   * Useful for testing error conditions or when you want to handle refresh manually
+   */
+  skipRefresh?: boolean;
 
   /**
    * Enable raw response logging without any filtering or processing

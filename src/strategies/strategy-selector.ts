@@ -1,7 +1,7 @@
 /**
  * Strategy selection logic for different AI models
  */
-import { Schema, SchemaStrategy, SchemaStrategyType } from "../types";
+import { Schema, SchemaStrategy } from "../types";
 import {
   claudeStrategy,
   defaultStrategy,

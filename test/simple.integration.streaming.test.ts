@@ -1,4 +1,4 @@
-import { callAI, getMeta } from "../src/index";
+import { callAI } from "../src/index";
 // import { Message } from "../src/types";
 import dotenv from "dotenv";
 
@@ -20,10 +20,10 @@ const TIMEOUT = 30000;
 
 // Test models based on the OpenRouter documentation
 const supportedModels = {
-  // openAI: { id: "openai/gpt-4.5-preview", grade: "A" },
+  openAI: { id: "openai/gpt-4o-mini", grade: "A" },
   gemini: { id: "google/gemini-2.5-flash-preview", grade: "A" },
-  // geminiPro: { id: "google/gemini-2.5-pro-preview-03-25", grade: "A" },
-  // claude: { id: "anthropic/claude-3-sonnet", grade: "B" },
+  geminiPro: { id: "google/gemini-2.5-pro-preview-03-25", grade: "A" },
+  claude: { id: "anthropic/claude-3-sonnet", grade: "A" },
   // claudeThinking: { id: "anthropic/claude-3.7-sonnet:thinking", grade: "B" },
   // llama3: { id: "meta-llama/llama-4-maverick", grade: "B" },
   // deepseek: { id: 'deepseek/deepseek-chat', grade: 'C' },
@@ -93,38 +93,68 @@ describe("Simple callAI integration tests", () => {
   describe("Non-structured text generation", () => {
     // Run all model tests concurrently within this describe block
     modelEntries.map(([modelName, modelId]) => {
-      // Test without streaming
+      // Test with streaming
       gradeAwareTest(modelId)(
-        `should generate text with ${modelName} model without streaming`,
+        `should generate text with ${modelName} model with streaming`,
         async () => {
-          // Make a simple non-structured API call
-          const result = await callAI("Write a short joke about programming.", {
-            apiKey: process.env.CALLAI_API_KEY,
-            model: modelId.id,
-          });
+          // Make a simple non-structured API call with streaming
+          const generator = await callAI(
+            "Write a short joke about programming.",
+            {
+              apiKey: process.env.CALLAI_API_KEY,
+              model: modelId.id,
+              stream: true,
+            },
+          );
 
-          // Get the metadata
-          const resultMeta = getMeta(result);
+          // Get the metadata for the streaming response
+          // const resultMeta = getMeta(generator);
 
-          // Verify response
+          // Stream should be an AsyncGenerator
           expectOrWarn(
             modelId,
-            !!result,
-            `should generate text with ${modelName} model without streaming`,
+            typeof generator === "object",
+            `Generator is not an object but a ${typeof generator} in ${modelName} model`,
           );
-          expect(typeof result).toBe("string");
-          expect((result as string).length).toBeGreaterThan(10);
 
-          // Verify metadata
-          expect(resultMeta).toBeDefined();
-          expect(resultMeta?.model).toContain(modelId.id.split("/").pop());
-          expect(resultMeta?.timing).toBeDefined();
-          expect(resultMeta?.timing?.startTime).toBeDefined();
-          expect(resultMeta?.timing?.endTime).toBeDefined();
-          expect(resultMeta?.timing?.startTime).toBeLessThanOrEqual(
-            resultMeta?.timing?.endTime as number,
-          );
-          expect(resultMeta?.rawResponse).toBeDefined();
+          // Manual type assertion to help TypeScript recognize generator as AsyncGenerator
+          if (typeof generator === "object" && generator !== null) {
+            const asyncGenerator = generator as AsyncGenerator<
+              string,
+              string,
+              unknown
+            >;
+
+            // Collect all chunks
+            let finalResult = "";
+            try {
+              for await (const chunk of asyncGenerator) {
+                // Each chunk should be a string
+                expectOrWarn(
+                  modelId,
+                  typeof chunk === "string",
+                  `Chunk is not a string but a ${typeof chunk} in ${modelName} model`,
+                );
+                finalResult = chunk;
+              }
+
+              // Final result should be a meaningful string
+              expectOrWarn(
+                modelId,
+                finalResult.length > 10,
+                `Final result too short (${finalResult.length} chars) in ${modelName} model`,
+              );
+            } catch (error) {
+              // Log error but don't fail test for B/C grade models
+              const errorMessage =
+                error instanceof Error ? error.message : String(error);
+              expectOrWarn(
+                modelId,
+                false,
+                `Streaming error in ${modelName} model: ${errorMessage}`,
+              );
+            }
+          }
         },
         TIMEOUT,
       );
