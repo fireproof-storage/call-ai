@@ -60,11 +60,8 @@ export function callAI(
     options.schema || null,
   );
 
-  // Ensure max_tokens is set to a high value to avoid truncation
-  // We'll use a consistent property name maxTokens throughout the code
-  if (!options.maxTokens) {
-    options.maxTokens = 100000;
-  }
+  // We no longer set a default maxTokens
+  // Will only include max_tokens in the request if explicitly set by the user
 
   // Handle special case: Claude with tools requires streaming
   if (!options.stream && schemaStrategy.shouldForceStream) {
@@ -470,9 +467,13 @@ function prepareRequestParams(
     messages,
     temperature: options.temperature !== undefined ? options.temperature : 0.7,
     top_p: options.topP !== undefined ? options.topP : 1,
-    max_tokens: options.maxTokens || 2048,
     stream: options.stream !== undefined ? options.stream : false,
   };
+
+  // Only include max_tokens if explicitly set
+  if (options.maxTokens !== undefined) {
+    requestParams.max_tokens = options.maxTokens;
+  }
 
   // Add optional parameters if specified
   if (options.stop) {
