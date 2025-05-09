@@ -134,6 +134,12 @@ describe("Simple callAI integration tests", () => {
               model: modelId.id,
               debug: true,
               refreshToken: "not-a-vibe",
+              updateRefreshToken: async (refreshToken) => {
+                // Assert that the failing token is the one we provided
+                expect(refreshToken).toBe("not-a-vibe");
+                await new Promise(resolve => setTimeout(resolve, 50));
+                return 'use-vibes';
+              },
               max_tokens: 128000 - 200,
               schema: {
                 type: "object",

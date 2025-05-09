@@ -148,6 +148,14 @@ export interface CallAIOptions {
   refreshToken?: string;
 
   /**
+   * Callback function to update refresh token when current token fails
+   * Gets called with the current failing token and should return a new token
+   * @param currentToken The current refresh token that failed
+   * @returns A Promise that resolves to a new refresh token
+   */
+  updateRefreshToken?: (currentToken: string) => Promise<string>;
+
+  /**
    * Schema for structured output
    */
   schema?: Schema | null;
