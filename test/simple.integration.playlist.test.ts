@@ -13,7 +13,7 @@ jest.retryTimes(2, { logErrorsBeforeRetry: true });
 
 // Skip tests if no API key is available
 const haveApiKey = process.env.CALLAI_API_KEY;
-const itif = (condition: boolean) => (condition ? it.concurrent : it.skip);
+// const itif = (condition: boolean) => (condition ? it.concurrent : it.skip);
 
 // Timeout for individual test
 const TIMEOUT = 30000;

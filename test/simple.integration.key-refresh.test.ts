@@ -1,5 +1,5 @@
 import { callAI, getMeta } from "../src/index";
-import { Message } from "../src/types";
+// import { Message } from "../src/types";
 import dotenv from "dotenv";
 
 // Load environment variables from .env file if present
@@ -29,7 +29,7 @@ if (process.env.LOW_BALANCE_OPENROUTER_API_KEY) {
     process.env.CALL_AI_REFRESH_TOKEN = "use-vibes";
   }
 }
-const itif = (condition: boolean) => (condition ? it.concurrent : it.skip);
+// const itif = (condition: boolean) => (condition ? it.concurrent : it.skip);
 
 // Timeout for individual test
 const TIMEOUT = 30000;
@@ -149,7 +149,7 @@ describe("Simple callAI integration tests", () => {
           );
 
           // Get the metadata
-          const resultMeta = getMeta(result);
+          // const resultMeta = getMeta(result);
 
           // Verify response
           expectOrWarn(

@@ -1,5 +1,5 @@
-import { callAI, getMeta } from "../src/index";
-import { Message } from "../src/types";
+import { callAI } from "../src/index";
+// import { Message } from "../src/types";
 import dotenv from "dotenv";
 
 // Load environment variables from .env file if present
@@ -13,7 +13,7 @@ jest.retryTimes(2, { logErrorsBeforeRetry: true });
 
 // Skip tests if no API key is available
 const haveApiKey = process.env.CALLAI_API_KEY;
-const itif = (condition: boolean) => (condition ? it.concurrent : it.skip);
+// const itif = (condition: boolean) => (condition ? it.concurrent : it.skip);
 
 // Timeout for individual test
 const TIMEOUT = 30000;
@@ -108,7 +108,7 @@ describe("Simple callAI integration tests", () => {
           );
 
           // Get the metadata for the streaming response
-          const resultMeta = getMeta(generator);
+          // const resultMeta = getMeta(generator);
 
           // Stream should be an AsyncGenerator
           expectOrWarn(

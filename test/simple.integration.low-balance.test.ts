@@ -1,5 +1,4 @@
-import { callAI, getMeta } from "../src/index";
-import { Message } from "../src/types";
+import { callAI } from "../src/index";
 import dotenv from "dotenv";
 
 // Load environment variables from .env file if present
