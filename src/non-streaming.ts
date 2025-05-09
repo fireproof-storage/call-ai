@@ -26,16 +26,9 @@ async function callAINonStreaming(
     ? prompt
     : [{ role: "user", content: prompt }];
 
-  // Get API key from options, key store, or window global
-  const apiKey = options.apiKey || 
-                 keyStore.current || 
-                 (typeof window !== "undefined" ? (window as any).CALLAI_API_KEY : null);
+  // API key should be provided by options (validation happens in callAI)
+  const apiKey = options.apiKey;
   const model = options.model || "openai/gpt-3.5-turbo";
-  
-  // Validate API key
-  if (!apiKey) {
-    throw new Error("API key is required. Please provide an API key via options.apiKey, environment variable CALLAI_API_KEY, or set window.CALLAI_API_KEY");
-  }
 
   // Default endpoint compatible with OpenAI API
   const endpoint = options.endpoint || "https://openrouter.ai/api/v1";
@@ -138,16 +131,11 @@ async function callAINonStreaming(
   };
 
   try {
+    // Make the API request - matching original implementation structure
     const response = await fetch(url, {
       method: "POST",
       headers,
       body: JSON.stringify(requestBody),
-    }).catch(error => {
-      // Explicitly handle network errors
-      if (error.message && error.message.includes('Network')) {
-        throw new Error(`Network error: ${error.message}`);
-      }
-      throw error;
     });
 
     // Handle HTTP errors
@@ -215,7 +203,22 @@ async function callAINonStreaming(
 
     return resultString;
   } catch (error) {
-    // Handle errors according to our error policy
+    // Check if this is a network/fetch error
+    const isNetworkError = error instanceof Error && 
+      (error.message.includes('Network') || error.name === 'TypeError');
+      
+    if (isNetworkError) {
+      // Direct re-throw for network errors (original implementation pattern)
+      if (debug) {
+        console.error(
+          `[callAI:${PACKAGE_VERSION}] Network error during fetch:`,
+          error,
+        );
+      }
+      throw error;
+    }
+    
+    // For other errors, use API error handling
     await handleApiError(error, "Non-streaming API call", options.debug, {
       apiKey: apiKey || undefined,
       endpoint: options.endpoint || undefined,

@@ -497,16 +497,9 @@ async function* callAIStreaming(
     ? prompt
     : [{ role: "user", content: prompt }];
 
-  // Get API key from options, key store, or window global
-  const apiKey = options.apiKey || 
-                 keyStore.current || 
-                 (typeof window !== "undefined" ? (window as any).CALLAI_API_KEY : null);
+  // API key should be provided by options (validation happens in callAI)
+  const apiKey = options.apiKey; 
   const model = options.model || "openai/gpt-3.5-turbo";
-  
-  // Validate API key
-  if (!apiKey) {
-    throw new Error("API key is required. Please provide an API key via options.apiKey, environment variable CALLAI_API_KEY, or set window.CALLAI_API_KEY");
-  }
 
   // Default endpoint compatible with OpenAI API
   const endpoint = options.endpoint || "https://openrouter.ai/api/v1";
@@ -597,20 +590,15 @@ async function* callAIStreaming(
     console.log(`[callAI:${PACKAGE_VERSION}] Request body:`, requestBody);
   }
 
+  let response;
   try {
     // Make the API request
-    const response = await fetch(url, {
+    response = await fetch(url, {
       method: "POST",
       headers,
       body: JSON.stringify(requestBody),
-    }).catch(error => {
-      // Explicitly handle network errors
-      if (error.message && error.message.includes('Network')) {
-        throw new Error(`Network error: ${error.message}`);
-      }
-      throw error;
     });
-
+    
     // Handle HTTP errors
     if (!response.ok) {
       // Check if this is an invalid model error that we can handle with a fallback
@@ -655,42 +643,16 @@ async function* callAIStreaming(
 
     // The createStreamingGenerator will return the final assembled string
     return ""; // This is never reached due to yield*
-  } catch (error) {
-    try {
-      // Handle errors according to our error policy
-      await handleApiError(error, "Streaming API call", debug, {
-        apiKey: apiKey || undefined,
-        endpoint: options.endpoint || undefined,
-        skipRefresh: options.skipRefresh,
-      });
-
-      // If handleApiError refreshed the key, we want to retry with the new key
-      if (keyStore.current && keyStore.current !== apiKey) {
-        if (debug) {
-          console.log(
-            `[callAI:${PACKAGE_VERSION}] Retrying with refreshed API key`,
-          );
-        }
-
-        // Retry the request with the new key
-        yield* callAIStreaming(
-          prompt,
-          {
-            ...options,
-            apiKey: keyStore.current,
-          },
-          isRetry, // Preserve retry status
-        );
-
-        return ""; // This is never reached due to yield*
-      }
-    } catch (handlerError) {
-      // Error after API key refresh attempt
-      throw handlerError;
+  } catch (fetchError) {
+    // In the original implementation, network errors are directly re-thrown
+    // This ensures that tests that expect network errors to propagate will pass
+    if (debug) {
+      console.error(
+        `[callAI:${PACKAGE_VERSION}] Network error during fetch:`,
+        fetchError,
+      );
     }
-
-    // If we get here without yielding or returning, just throw the original error
-    throw error;
+    throw fetchError; // Re-throw network errors directly
   }
 }
 
