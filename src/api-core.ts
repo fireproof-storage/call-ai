@@ -165,71 +165,76 @@ async function callAI(prompt: string | Message[], options: CallAIOptions = {}) {
     if (debug) {
       console.log(`[callAI:${PACKAGE_VERSION}] Making streaming request`);
     }
-
-    // Create the streamPromise
-    const streamPromise = (async () => {
-      try {
-        // Pass schema strategy through options for consistent validation
-        const optionsWithSchema = {
-          ...options,
-          schemaStrategy
-        };
-          
-        // Direct API call - will throw network errors directly without transformation
-        // exactly matching the behavior in the original implementation
-        return callAIStreaming(prompt, optionsWithSchema);
-      } catch (error) {
-        // Ensure errors are properly propagated
-        if (debug) {
-          console.error(`[callAI:${PACKAGE_VERSION}] Error in streaming:`, error);
-        }
-        throw error;
-      }
-    })();
+    
+    // For network error tests to work correctly, we need to ensure proper error propagation
+    // CRITICAL: The original implementation allows the fetch errors to propagate directly
+    // We need to make sure the error thrown by fetch is accessible through the streaming proxy
+    
+    // WARNING: It is important that we DO NOT await here - this preserves the original behavior
+    // where callAI() immediately returns a Promise/AsyncGenerator hybrid
+    
+    // Just follow the original implementation - keep this simple
+    // Create a streamPromise that will be used with the proxy
+    const streamPromise = Promise.resolve().then(async () => {
+      // Call the streaming implementation directly
+      return await callAIStreaming(prompt, {
+        ...options,
+        schemaStrategy
+      });
+    });
 
     // CRITICAL: For tests that cast directly to AsyncGenerator, we need to return an object
     // that has the required methods directly on it, not behind a proxy
     // This matches the exact shape that the original tests were expecting
     
-    // Create a fake AsyncGenerator with the same interface as the real one
-    const fakeGenerator: any = {};
-    
-    // Define the async iterator methods directly on the return value
-    fakeGenerator.next = async function() {
-      const generator = await streamPromise;
-      return generator.next();
-    };
-    
-    fakeGenerator.return = async function(value?: any) {
-      const generator = await streamPromise;
-      return generator.return!(value);
-    };
-    
-    fakeGenerator.throw = async function(error?: any) {
-      const generator = await streamPromise;
-      return generator.throw!(error);
-    };
-    
-    // Add the Symbol.asyncIterator so it works with for-await-of
-    fakeGenerator[Symbol.asyncIterator] = function() { 
-      return fakeGenerator;
-    };
-    
-    // Make it also respond to Promise methods by delegating to streamPromise
-    fakeGenerator.then = function(resolve: any, reject: any) {
-      return streamPromise.then(resolve, reject);
-    };
-    
-    fakeGenerator.catch = function(reject: any) {
-      return streamPromise.catch(reject);
-    };
-    
-    fakeGenerator.finally = function(onFinally: any) {
-      return streamPromise.finally(onFinally);
-    };
-    
-    // Return this object directly - tests will cast it to AsyncGenerator
-    return fakeGenerator;
+    // Create a proxy that has both AsyncGenerator and Promise interfaces
+    return new Proxy({} as any, {
+      get(target, prop) {
+        // First check if it's an AsyncGenerator method (needed for for-await)
+        if (
+          prop === "next" ||
+          prop === "throw" ||
+          prop === "return" ||
+          prop === Symbol.asyncIterator
+        ) {
+          // Create wrapper functions that await the Promise first
+          if (prop === Symbol.asyncIterator) {
+            return function () {
+              return {
+                // Implement async iterator that gets the generator first
+                async next(value?: unknown) {
+                  try {
+                    const generator = await streamPromise;
+                    return generator.next(value);
+                  } catch (error) {
+                    // This is the critical part for network error handling
+                    // Turn Promise rejection into iterator result with error thrown
+                    return Promise.reject(error);
+                  }
+                },
+              };
+            };
+          }
+
+          // Methods like next, throw, return
+          return async function (value?: unknown) {
+            try {
+              const generator = await streamPromise;
+              return (generator as any)[prop](value);
+            } catch (error) {
+              return Promise.reject(error);
+            }
+          };
+        }
+
+        // Then check if it's a Promise method
+        if (prop === "then" || prop === "catch" || prop === "finally") {
+          return streamPromise[prop].bind(streamPromise);
+        }
+
+        return undefined;
+      },
+    });
   } else {
     if (debug) {
       console.log(`[callAI:${PACKAGE_VERSION}] Making non-streaming request`);
