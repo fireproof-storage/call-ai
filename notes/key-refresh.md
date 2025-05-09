@@ -1,9 +1,11 @@
 # OpenRouter API Key Refresh Documentation
 
-This document outlines the API endpoints and patterns used for managing API keys in the Vibes.diy application. The system uses two primary API interactions:
+This document outlines the API endpoints and patterns used for managing API keys in the Vibes.diy application. The system uses several mechanisms for API key management:
 
 1. Key creation via Cloudflare Function
 2. Credit checking via OpenRouter API
+3. Automatic key refresh on 4xx errors
+4. Refresh token management and dynamic updates
 
 ## 1. Key Creation API
 
@@ -113,3 +115,87 @@ let pendingCreditsCheck: Promise<any> | null = null;
 ```
 
 This ensures that multiple components requesting keys or checking credits will share the same network request, preventing unnecessary API calls and potential rate limiting.
+
+## Refresh Token Management
+
+### Overview
+The API key refresh system uses a refresh token for authentication when requesting new API keys. When the refresh token itself becomes invalid, the system now supports dynamically obtaining a new refresh token through a callback mechanism.
+
+### Configuration Options
+
+```typescript
+interface CallAIOptions {
+  // Other options...
+  
+  /**
+   * Authentication token for key refresh service
+   * Can also be set via window.CALL_AI_REFRESH_TOKEN, process.env.CALL_AI_REFRESH_TOKEN, or default to "use-vibes"
+   */
+  refreshToken?: string;
+
+  /**
+   * Callback function to update refresh token when current token fails
+   * Gets called with the current failing token and should return a new token
+   * @param currentToken The current refresh token that failed
+   * @returns A Promise that resolves to a new refresh token
+   */
+  updateRefreshToken?: (currentToken: string) => Promise<string>;
+}
+```
+
+### How It Works
+
+1. When a 4xx error occurs during a callAI request, the system attempts to refresh the API key
+2. If the refresh token is invalid (e.g., returns a 401 error), the system checks for an `updateRefreshToken` callback
+3. If provided, the callback is invoked with the current failing token
+4. The callback should return a Promise that resolves to a new refresh token
+5. The system retries the key refresh operation with the new token
+6. If successful, the system updates the global keyStore with the new token and retries the original API call
+
+### Example Usage
+
+```typescript
+await callAI("Tell me about France", {
+  model: "anthropic/claude-3-sonnet",
+  refreshToken: "initial-token",
+  updateRefreshToken: async (failedToken) => {
+    console.log(`Token ${failedToken} failed, getting new token...`);
+    
+    // Example implementation: call an authentication service
+    const response = await fetch("https://your-auth-service.com/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ oldToken: failedToken })
+    });
+    
+    const data = await response.json();
+    return data.newToken;
+  },
+  schema: {
+    type: "object",
+    properties: {
+      capital: { type: "string" },
+      population: { type: "number" },
+      languages: { type: "array", items: { type: "string" } }
+    }
+  }
+});
+```
+
+### Implementation Details
+
+- The refresh token system first attempts to use the provided or default token
+- If that fails, it calls the `updateRefreshToken` callback exactly once
+- The callback must return a different token, or the system will continue with the error flow
+- Debug logs document the entire process when debug mode is enabled
+- The update mechanism is only triggered by auth failures (401, 403) during key refresh operations
+- The system prevents concurrent refresh attempts with rate limiting
+
+### Environment Variables
+
+```
+# .env example
+CALLAI_API_KEY=your-api-key
+CALLAI_REFRESH_ENDPOINT=https://vibecode.garden  # Default endpoint for key refresh
+CALL_AI_REFRESH_TOKEN=use-vibes                  # Default auth token for key refresh
+```
