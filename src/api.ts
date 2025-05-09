@@ -366,7 +366,7 @@ async function bufferStreamingResults(
     // For Claude JSON responses, take only the last chunk (the final processed result)
     // For all other cases, concatenate chunks as before
     const isClaudeJson = /claude/.test(options.model || "") && options.schema;
-    
+
     if (isClaudeJson) {
       // For Claude with JSON schema, we only want the last yielded value
       // which will be the complete, properly processed JSON
