@@ -265,7 +265,9 @@ async function refreshApiKey(
     // Parse the response
     const data = await response.json();
     if (!data.key) {
-      throw new Error("Invalid response from key refresh endpoint: missing key");
+      throw new Error(
+        "Invalid response from key refresh endpoint: missing key",
+      );
     }
 
     if (debug) {

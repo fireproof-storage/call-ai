@@ -10,7 +10,12 @@ import {
   ThenableStreamResponse,
 } from "./types";
 import { chooseSchemaStrategy } from "./strategies";
-import { responseMetadata, stringResponseMap, boxString, getMeta } from "./response-metadata";
+import {
+  responseMetadata,
+  stringResponseMap,
+  boxString,
+  getMeta,
+} from "./response-metadata";
 import {
   keyStore,
   globalDebug,
@@ -18,7 +23,7 @@ import {
   isNewKeyError,
   refreshApiKey,
   getHashFromKey,
-  storeKeyMetadata
+  storeKeyMetadata,
 } from "./key-management";
 import { handleApiError, checkForInvalidModelError } from "./error-handling";
 import { recursivelyAddAdditionalProperties } from "./utils";

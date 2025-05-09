@@ -498,7 +498,7 @@ async function* callAIStreaming(
     : [{ role: "user", content: prompt }];
 
   // API key should be provided by options (validation happens in callAI)
-  const apiKey = options.apiKey; 
+  const apiKey = options.apiKey;
   const model = options.model || "openai/gpt-3.5-turbo";
 
   // Default endpoint compatible with OpenAI API
@@ -598,7 +598,7 @@ async function* callAIStreaming(
       headers,
       body: JSON.stringify(requestBody),
     });
-    
+
     // Handle HTTP errors
     if (!response.ok) {
       // Check if this is an invalid model error that we can handle with a fallback
@@ -644,15 +644,16 @@ async function* callAIStreaming(
     // The createStreamingGenerator will return the final assembled string
     return ""; // This is never reached due to yield*
   } catch (fetchError) {
-    // In the original implementation, network errors are directly re-thrown
-    // This ensures that tests that expect network errors to propagate will pass
+    // Network errors must be directly re-thrown without modification
+    // This is exactly how the original implementation handles it
     if (debug) {
       console.error(
         `[callAI:${PACKAGE_VERSION}] Network error during fetch:`,
         fetchError,
       );
     }
-    throw fetchError; // Re-throw network errors directly
+    // Critical: throw the exact same error object without any wrapping
+    throw fetchError;
   }
 }
 

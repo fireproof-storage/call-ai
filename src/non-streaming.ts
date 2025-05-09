@@ -185,7 +185,9 @@ async function callAINonStreaming(
         result = extractContent(json, schemaStrategy);
       }
     } catch (parseError) {
-      throw new Error(`Failed to parse API response: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+      throw new Error(
+        `Failed to parse API response: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+      );
     }
 
     // Update metadata with completion timing
@@ -204,9 +206,10 @@ async function callAINonStreaming(
     return resultString;
   } catch (error) {
     // Check if this is a network/fetch error
-    const isNetworkError = error instanceof Error && 
-      (error.message.includes('Network') || error.name === 'TypeError');
-      
+    const isNetworkError =
+      error instanceof Error &&
+      (error.message.includes("Network") || error.name === "TypeError");
+
     if (isNetworkError) {
       // Direct re-throw for network errors (original implementation pattern)
       if (debug) {
@@ -217,7 +220,7 @@ async function callAINonStreaming(
       }
       throw error;
     }
-    
+
     // For other errors, use API error handling
     await handleApiError(error, "Non-streaming API call", options.debug, {
       apiKey: apiKey || undefined,
@@ -337,7 +340,9 @@ async function extractClaudeResponse(response: Response): Promise<any> {
     // If content not found in expected structure, return the whole JSON
     return json;
   } catch (error) {
-    throw new Error(`Failed to extract Claude response: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `Failed to extract Claude response: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }
 
