@@ -465,6 +465,10 @@ async function* createStreamingGenerator(
     const endTime = Date.now();
     meta.timing.endTime = endTime;
     meta.timing.duration = endTime - meta.timing.startTime;
+    
+    // Add the rawResponse field to match non-streaming behavior
+    // For streaming, we use the final complete text as the raw response
+    (meta as any).rawResponse = completeText;
 
     // Store metadata for this response
     const boxed = boxString(completeText);
