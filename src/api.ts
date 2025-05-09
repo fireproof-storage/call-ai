@@ -363,13 +363,27 @@ async function bufferStreamingResults(
       streamingOptions,
     )) as AsyncGenerator<string, string, unknown>;
 
-    // Buffer all results
-    let result = "";
-    for await (const chunk of generator) {
-      result += chunk;
+    // For Claude JSON responses, take only the last chunk (the final processed result)
+    // For all other cases, concatenate chunks as before
+    const isClaudeJson = /claude/.test(options.model || "") && options.schema;
+    
+    if (isClaudeJson) {
+      // For Claude with JSON schema, we only want the last yielded value
+      // which will be the complete, properly processed JSON
+      let lastChunk = "";
+      for await (const chunk of generator) {
+        // Replace the last chunk entirely instead of concatenating
+        lastChunk = chunk;
+      }
+      return lastChunk;
+    } else {
+      // For all other cases, concatenate chunks
+      let result = "";
+      for await (const chunk of generator) {
+        result += chunk;
+      }
+      return result;
     }
-
-    return result;
   } catch (error) {
     // Handle errors with standard API error handling
     await handleApiError(error, "Buffered streaming", options.debug, {
