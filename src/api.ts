@@ -60,8 +60,10 @@ export function callAI(
     options.schema || null,
   );
 
-  if (!options.max_tokens) {
-    options.max_tokens = 100000;
+  // Ensure max_tokens is set to a high value to avoid truncation
+  // We'll use a consistent property name maxTokens throughout the code
+  if (!options.maxTokens) {
+    options.maxTokens = 100000;
   }
 
   // Handle special case: Claude with tools requires streaming
@@ -516,7 +518,7 @@ function prepareRequestParams(
     },
     body: JSON.stringify(requestParams),
   };
-  
+
   // If we don't have an API key, throw a clear error that can be caught and handled
   // by the error handling system to trigger key fetching
   if (!apiKey) {

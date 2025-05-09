@@ -43,7 +43,7 @@ async function handleApiError(
       status,
       name: error?.name,
       cause: error?.cause,
-      isMissingKey: isMissingKeyError
+      isMissingKey: isMissingKeyError,
     });
   }
 
