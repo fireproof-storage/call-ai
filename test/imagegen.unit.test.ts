@@ -1,7 +1,48 @@
 import { imageGen } from "../src/index";
 
-// Mock global fetch
+// Mock fetch
 global.fetch = jest.fn();
+
+// Create mock objects in setup to avoid TypeScript errors
+let mockBlobInstance: any;
+let mockFileInstance: any;
+
+// Setup mock constructors and instances
+beforeAll(() => {
+  // Create mock instances that will be returned when 'new' is called
+  mockBlobInstance = {
+    size: 0,
+    type: "image/png",
+    arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(0)),
+    text: jest.fn().mockResolvedValue("mock text"),
+  };
+
+  mockFileInstance = {
+    name: "mock-file.png",
+    type: "image/png",
+    size: 0,
+    lastModified: Date.now(),
+  };
+
+  // Use a simple class implementation that Jest's objectContaining can properly match
+  class MockFormData {
+    append = jest.fn();
+    delete = jest.fn();
+    get = jest.fn();
+    getAll = jest.fn();
+    has = jest.fn();
+    set = jest.fn();
+  }
+
+  // Mock constructors
+  global.Blob = jest.fn().mockImplementation(() => mockBlobInstance) as any;
+  global.File = jest.fn().mockImplementation((_, name, options) => {
+    return { ...mockFileInstance, name, type: options?.type || "image/png" };
+  }) as any;
+
+  // For FormData, create a new instance each time
+  global.FormData = MockFormData as any;
+});
 
 // Mock response for successful image generation
 const mockImageResponse = {
