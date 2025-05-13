@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.0 (2025-05-13)
+
+### Changes
+- Renamed `callAI` to `callAi` for consistent casing across the library
+- Added backward compatibility export to support existing code using `callAI` spelling
+- Added tests to ensure backward compatibility works correctly
+
+
 ## 0.5.0 (2024-06-28)
 
 ### Features
