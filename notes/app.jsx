@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import { useFireproof } from "use-fireproof";
-import { callAI, imageGen } from "call-ai";
+import { callAi, imageGen } from "call-ai";
 
 export default function App() {
   const { useDocument, useLiveQuery, database } = useFireproof("social-profile-cards");
@@ -80,7 +80,7 @@ export default function App() {
 
       const prompt = `Write a short, engaging bio (maximum 100 characters) for a ${doc.platform} profile for someone named ${doc.name} who is interested in social media and creativity.`;
       
-      const response = await callAI(prompt, {
+      const response = await callAi(prompt, {
         schema: {
           properties: {
             bio: { type: "string" }
@@ -152,7 +152,7 @@ export default function App() {
     try {
       const prompt = "Generate 4 sample creative profiles with names, handles, bios, and connection counts for these social media platforms: Instagram, Twitter, TikTok, and LinkedIn";
       
-      const response = await callAI(prompt, {
+      const response = await callAi(prompt, {
         schema: {
           properties: {
             profiles: {

@@ -1,4 +1,4 @@
-import { callAI, getMeta } from "../src/index";
+import { callAi, getMeta } from "../src/index";
 import { ResponseMeta } from "../src/types";
 
 // Mock global fetch
@@ -69,7 +69,7 @@ describe("getMeta", () => {
     };
 
     // Call the API
-    const result = await callAI("Hello", options);
+    const result = await callAi("Hello", options);
 
     // Get the metadata
     const meta = getMeta(result);
@@ -89,7 +89,7 @@ describe("getMeta", () => {
   });
 
   it("provides an exported mock for testing with streaming responses", async () => {
-    // This test doesn't use the real callAI with streaming because of the complexity
+    // This test doesn't use the real callAi with streaming because of the complexity
     // of mocking a proper streaming response. Instead, we create a mock of what
     // the streaming response would look like, and test that getMeta() works with it.
 
@@ -137,7 +137,7 @@ describe("getMeta", () => {
   });
 
   it("should return undefined if no metadata is associated with response", () => {
-    // A random string that wasn't returned from callAI
+    // A random string that wasn't returned from callAi
     const randomString = "This string has no metadata";
 
     // Get metadata should return undefined
@@ -153,7 +153,7 @@ describe("getMeta", () => {
     });
 
     // First API call
-    const firstResponse = await callAI("First prompt", {
+    const firstResponse = await callAi("First prompt", {
       apiKey: "test-api-key",
       model: "openai/gpt-4",
     });
@@ -165,7 +165,7 @@ describe("getMeta", () => {
     });
 
     // Second API call with different model
-    const secondResponse = await callAI("Second prompt", {
+    const secondResponse = await callAi("Second prompt", {
       apiKey: "test-api-key",
       model: "openai/gpt-3.5-turbo",
     });

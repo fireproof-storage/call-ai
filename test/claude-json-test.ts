@@ -1,4 +1,4 @@
-import { callAI, getMeta } from "../src/index";
+import { callAi, getMeta } from "../src/index";
 import { Message } from "../src/types";
 import dotenv from "dotenv";
 
@@ -113,7 +113,7 @@ describe("Claude JSON property splitting test", () => {
           `should handle property name splitting across chunks in ${modelName} streaming response`,
           async () => {
             // Make API call with stream enabled to trigger the potential JSON property splitting issue
-            const result = await callAI(
+            const result = await callAi(
               "Provide information about France. Population should be expressed in millions (e.g., 67.5 for 67.5 million people).",
               {
                 apiKey: process.env.CALLAI_API_KEY,

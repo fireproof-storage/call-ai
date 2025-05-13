@@ -1,4 +1,4 @@
-import { callAI, ContentItem } from "../src/index";
+import { callAi, ContentItem } from "../src/index";
 import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
@@ -15,9 +15,9 @@ const TIMEOUT = 30000;
 
 describe("Call-AI Vision Recognition", () => {
   itif(Boolean(haveApiKey))(
-    "should analyze cat.png with callAI function",
+    "should analyze cat.png with callAi function",
     async () => {
-      console.log("Testing vision recognition with callAI");
+      console.log("Testing vision recognition with callAi");
 
       // Read the image file and convert to base64
       const imagePath = path.resolve(__dirname, "fixtures/cat.png");
@@ -41,11 +41,11 @@ describe("Call-AI Vision Recognition", () => {
         },
       ];
 
-      console.log("Calling callAI with vision model");
+      console.log("Calling callAi with vision model");
 
       try {
-        // Call the callAI function with the vision model
-        const result = await callAI([{ role: "user", content }], {
+        // Call the callAi function with the vision model
+        const result = await callAi([{ role: "user", content }], {
           apiKey: process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY,
           model: "openai/gpt-4o-2024-08-06",
         });
@@ -64,7 +64,7 @@ describe("Call-AI Vision Recognition", () => {
           console.warn("Received non-string result in vision test");
         }
       } catch (error) {
-        console.error("Error calling callAI:", error);
+        console.error("Error calling callAi:", error);
         throw error;
       }
     },

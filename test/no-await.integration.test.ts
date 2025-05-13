@@ -1,4 +1,4 @@
-import { callAI } from "../src/index";
+import { callAi } from "../src/index";
 import dotenv from "dotenv";
 
 // Load environment variables from .env file if present
@@ -85,7 +85,7 @@ const gradeAwareTest = (modelId: { id: string; grade: string }) => {
   }
 };
 
-describe("Simple callAI integration tests", () => {
+describe("Simple callAi integration tests", () => {
   // Test basic non-structured requests with all models
   describe("Non-structured text generation", () => {
     // Run all model tests concurrently within this describe block
@@ -95,7 +95,7 @@ describe("Simple callAI integration tests", () => {
         `should generate text with ${modelName} model without streaming`,
         async () => {
           // Make a simple non-structured API call
-          const result = await callAI("Write a short joke about programming.", {
+          const result = await callAi("Write a short joke about programming.", {
             apiKey: process.env.CALLAI_API_KEY,
             model: modelId.id,
           });
@@ -117,7 +117,7 @@ describe("Simple callAI integration tests", () => {
         `should generate text with ${modelName} model with streaming`,
         async () => {
           // Make a simple non-structured API call with streaming
-          const generator = callAI("Write a short joke about programming.", {
+          const generator = callAi("Write a short joke about programming.", {
             apiKey: process.env.CALLAI_API_KEY,
             model: modelId.id,
             stream: true,
@@ -154,7 +154,7 @@ describe("Simple callAI integration tests", () => {
         `should handle message array input with ${modelName} model`,
         async () => {
           // Make the API call with message array
-          const result = await callAI(
+          const result = await callAi(
             [
               {
                 role: "system",
@@ -200,7 +200,7 @@ describe("Simple callAI integration tests", () => {
         `should generate structured data with ${modelName} model using schema`,
         async () => {
           // Make the API call with schema
-          const result = await callAI("Provide information about France.", {
+          const result = await callAi("Provide information about France.", {
             apiKey: process.env.CALLAI_API_KEY,
             model: modelId.id,
             schema: simpleSchema,
@@ -313,7 +313,7 @@ describe("Simple callAI integration tests", () => {
         `should generate and validate complex structured data with ${modelName} model`,
         async () => {
           // Make the API call with the complex schema
-          const result = await callAI(
+          const result = await callAi(
             "Create a detailed travel plan for a weekend trip to a beach destination.",
             {
               apiKey: process.env.CALLAI_API_KEY,
@@ -576,7 +576,7 @@ describe("Simple callAI integration tests", () => {
         `should generate data with complex flat schema using ${modelName} model`,
         async () => {
           // Make the API call with schema
-          const result = await callAI("Create a recipe for a healthy dinner.", {
+          const result = await callAi("Create a recipe for a healthy dinner.", {
             apiKey: process.env.CALLAI_API_KEY,
             model: modelId.id,
             schema: complexFlatSchema,
@@ -773,7 +773,7 @@ describe("Simple callAI integration tests", () => {
         `should generate data with simple nested schema using ${modelName} model`,
         async () => {
           // Make the API call with schema
-          const result = await callAI(
+          const result = await callAi(
             "Create a simple file system structure with a root directory containing two subdirectories, each with two files.",
             {
               apiKey: process.env.CALLAI_API_KEY,

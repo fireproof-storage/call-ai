@@ -26,8 +26,8 @@ function boxString(str: string): object {
 }
 
 /**
- * Retrieve metadata associated with a response from callAI()
- * @param response A response from callAI, either string or AsyncGenerator
+ * Retrieve metadata associated with a response from callAi()
+ * @param response A response from callAi, either string or AsyncGenerator
  * @returns The metadata object if available, undefined otherwise
  */
 function getMeta(

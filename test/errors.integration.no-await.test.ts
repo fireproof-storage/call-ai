@@ -1,4 +1,4 @@
-import { callAI } from "../src/index";
+import { callAi } from "../src/index";
 import dotenv from "dotenv";
 
 // Load environment variables from .env file if present
@@ -20,7 +20,7 @@ describe("Error handling integration tests", () => {
     "should succeed with default model",
     async () => {
       // Make a simple API call with no model specified
-      const result = await callAI("Write a short joke about programming.", {
+      const result = await callAi("Write a short joke about programming.", {
         apiKey: process.env.CALLAI_API_KEY,
         // No model specified - should use default
       });
@@ -38,7 +38,7 @@ describe("Error handling integration tests", () => {
     async () => {
       // Attempt API call with a non-existent model
       await expect(async () => {
-        await callAI("Write a short joke about programming.", {
+        await callAi("Write a short joke about programming.", {
           apiKey: process.env.CALLAI_API_KEY,
           model: "fake-model-that-does-not-exist",
           skipRetry: true, // Skip retry mechanism to force the error
@@ -54,7 +54,7 @@ describe("Error handling integration tests", () => {
     async () => {
       // Attempt streaming API call with a non-existent model
       await expect(async () => {
-        const generator = callAI("Write a short joke about programming.", {
+        const generator = callAi("Write a short joke about programming.", {
           apiKey: process.env.CALLAI_API_KEY,
           model: "fake-model-that-does-not-exist",
           stream: true,
@@ -84,7 +84,7 @@ describe("Error handling integration tests", () => {
 
       // Attempt API call with a non-existent model
       try {
-        await callAI("Write a short joke about programming.", {
+        await callAi("Write a short joke about programming.", {
           apiKey: process.env.CALLAI_API_KEY,
           model: fakeModelId,
           skipRetry: true, // Skip retry mechanism to force the error
@@ -115,7 +115,7 @@ describe("Error handling integration tests", () => {
 
       // Attempt API call with a non-existent model and debug enabled
       try {
-        await callAI("Write a short joke about programming.", {
+        await callAi("Write a short joke about programming.", {
           apiKey: process.env.CALLAI_API_KEY,
           model: "fake-model-that-does-not-exist",
           skipRetry: true, // Skip retry mechanism to force the error
@@ -142,7 +142,7 @@ describe("Error handling integration tests", () => {
     async () => {
       try {
         // Create generator with invalid model in streaming mode
-        const generator = callAI("Write a short joke about programming.", {
+        const generator = callAi("Write a short joke about programming.", {
           apiKey: process.env.CALLAI_API_KEY,
           model: "fake-model-that-does-not-exist",
           stream: true,
@@ -214,7 +214,7 @@ describe("Error handling integration tests", () => {
           try {
             // Create generator with invalid model
             console.log("Creating generator...");
-            const generator = callAI("Write a short joke about programming.", {
+            const generator = callAi("Write a short joke about programming.", {
               apiKey: process.env.CALLAI_API_KEY,
               model: "fake-model-that-does-not-exist",
               stream: true,
@@ -306,7 +306,7 @@ describe("Error handling integration tests", () => {
         // This is closer to how browser environments might handle the code
         console.log("Step 1: Creating generator without immediate usage");
         // Explicitly type as AsyncGenerator to fix TypeScript errors
-        const generator = callAI("Write a haiku", {
+        const generator = callAi("Write a haiku", {
           stream: true,
           debug: true,
           model: "fake-model-that-does-not-exist",

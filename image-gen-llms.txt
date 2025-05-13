@@ -49,7 +49,7 @@ Edit or combine multiple images with a text prompt:
 const imageFiles = [bathBombFile, bodyLotionFile, incenseKitFile, soapFile];
 
 // Request image editing
-// Uses the same async pattern as callAI for consistency
+// Uses the same async pattern as callAi for consistency
 const editResponse = await imageGen(
   'Create a lovely gift basket with these four items in it',
   {

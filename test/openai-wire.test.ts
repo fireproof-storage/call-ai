@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { callAI, Schema } from "../src/index";
+import { callAi, Schema } from "../src/index";
 
 // Mock fetch to use our fixture files
 global.fetch = jest.fn();
@@ -99,7 +99,7 @@ describe("OpenAI Wire Protocol Tests", () => {
     };
 
     // Call the library function with the schema
-    await callAI(
+    await callAi(
       "Give me a short book recommendation in the requested format.",
       {
         apiKey: "test-api-key",
@@ -149,7 +149,7 @@ describe("OpenAI Wire Protocol Tests", () => {
     };
 
     // Call the library with OpenAI model
-    const result = await callAI(
+    const result = await callAi(
       "Give me a short book recommendation in the requested format.",
       {
         apiKey: "test-api-key",
@@ -190,7 +190,7 @@ describe("OpenAI Wire Protocol Tests", () => {
     };
 
     // Call the library with OpenAI model and streaming
-    const generator = (await callAI(
+    const generator = (await callAi(
       "Give me a short book recommendation in the requested format.",
       {
         apiKey: "test-api-key",
@@ -232,7 +232,7 @@ describe("OpenAI Wire Protocol Tests", () => {
     };
 
     // Call the library function with schema
-    await callAI(
+    await callAi(
       "Give me a short book recommendation in the requested format.",
       {
         apiKey: "test-api-key",
@@ -279,7 +279,7 @@ describe("OpenAI Wire Protocol Tests", () => {
     };
 
     // Call the library function with schema
-    await callAI(
+    await callAi(
       "Give me a short book recommendation in the requested format.",
       {
         apiKey: "test-api-key",

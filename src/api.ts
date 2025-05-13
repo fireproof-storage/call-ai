@@ -50,7 +50,7 @@ const FALLBACK_MODEL = "openrouter/auto";
  *          or a Promise that resolves to an AsyncGenerator when streaming is enabled.
  *          The AsyncGenerator yields partial responses as they arrive.
  */
-export function callAI(
+export function callAi(
   prompt: string | Message[],
   options: CallAIOptions = {},
 ): Promise<string | StreamResponse> {
@@ -85,11 +85,11 @@ export function callAI(
     const debug = options.debug || globalDebug;
     if (debug) {
       console.log(
-        `[callAI:${PACKAGE_VERSION}] Making fetch request to: ${endpoint}`,
+        `[callAi:${PACKAGE_VERSION}] Making fetch request to: ${endpoint}`,
       );
-      console.log(`[callAI:${PACKAGE_VERSION}] With model: ${model}`);
+      console.log(`[callAi:${PACKAGE_VERSION}] With model: ${model}`);
       console.log(
-        `[callAI:${PACKAGE_VERSION}] Request headers:`,
+        `[callAi:${PACKAGE_VERSION}] Request headers:`,
         JSON.stringify(requestOptions.headers),
       );
     }
@@ -99,15 +99,15 @@ export function callAI(
       response = await fetch(endpoint, requestOptions);
       if (options.debug) {
         console.log(
-          `[callAI:${PACKAGE_VERSION}] Fetch completed with status:`,
+          `[callAi:${PACKAGE_VERSION}] Fetch completed with status:`,
           response.status,
           response.statusText,
         );
 
         // Log all headers
-        console.log(`[callAI:${PACKAGE_VERSION}] Response headers:`);
+        console.log(`[callAi:${PACKAGE_VERSION}] Response headers:`);
         response.headers.forEach((value, name) => {
-          console.log(`[callAI:${PACKAGE_VERSION}]   ${name}: ${value}`);
+          console.log(`[callAi:${PACKAGE_VERSION}]   ${name}: ${value}`);
         });
 
         // Clone response for diagnostic purposes only
@@ -116,13 +116,13 @@ export function callAI(
           // Try to get the response as text for debugging
           const responseText = await diagnosticResponse.text();
           console.log(
-            `[callAI:${PACKAGE_VERSION}] First 500 chars of response body:`,
+            `[callAi:${PACKAGE_VERSION}] First 500 chars of response body:`,
             responseText.substring(0, 500) +
               (responseText.length > 500 ? "..." : ""),
           );
         } catch (e) {
           console.log(
-            `[callAI:${PACKAGE_VERSION}] Could not read response body for diagnostics:`,
+            `[callAi:${PACKAGE_VERSION}] Could not read response body for diagnostics:`,
             e,
           );
         }
@@ -130,7 +130,7 @@ export function callAI(
     } catch (fetchError) {
       if (options.debug) {
         console.error(
-          `[callAI:${PACKAGE_VERSION}] Network error during fetch:`,
+          `[callAi:${PACKAGE_VERSION}] Network error during fetch:`,
           fetchError,
         );
       }
@@ -142,17 +142,17 @@ export function callAI(
     const contentType = response?.headers?.get?.("content-type") || "";
 
     if (options.debug) {
-      console.log(`[callAI:${PACKAGE_VERSION}] Response.ok =`, response.ok);
+      console.log(`[callAi:${PACKAGE_VERSION}] Response.ok =`, response.ok);
       console.log(
-        `[callAI:${PACKAGE_VERSION}] Response.status =`,
+        `[callAi:${PACKAGE_VERSION}] Response.status =`,
         response.status,
       );
       console.log(
-        `[callAI:${PACKAGE_VERSION}] Response.statusText =`,
+        `[callAi:${PACKAGE_VERSION}] Response.statusText =`,
         response.statusText,
       );
-      console.log(`[callAI:${PACKAGE_VERSION}] Response.type =`, response.type);
-      console.log(`[callAI:${PACKAGE_VERSION}] Content-Type =`, contentType);
+      console.log(`[callAi:${PACKAGE_VERSION}] Response.type =`, response.type);
+      console.log(`[callAi:${PACKAGE_VERSION}] Content-Type =`, contentType);
     }
 
     // Browser-compatible error handling - must check BOTH status code AND content-type
@@ -163,7 +163,7 @@ export function callAI(
     if (hasHttpError || hasJsonError) {
       if (options.debug) {
         console.log(
-          `[callAI:${PACKAGE_VERSION}] ⚠️ Error detected - HTTP Status: ${response.status}, Content-Type: ${contentType}`,
+          `[callAi:${PACKAGE_VERSION}] ⚠️ Error detected - HTTP Status: ${response.status}, Content-Type: ${contentType}`,
         );
       }
 
@@ -184,18 +184,18 @@ export function callAI(
           if (isInvalidModel) {
             if (options.debug) {
               console.log(
-                `[callAI:${PACKAGE_VERSION}] Retrying with fallback model: ${FALLBACK_MODEL}`,
+                `[callAi:${PACKAGE_VERSION}] Retrying with fallback model: ${FALLBACK_MODEL}`,
               );
             }
             // Retry with fallback model
-            return (await callAI(prompt, {
+            return (await callAi(prompt, {
               ...options,
               model: FALLBACK_MODEL,
             })) as StreamResponse;
           }
         } catch (modelCheckError) {
           console.error(
-            `[callAI:${PACKAGE_VERSION}] Error during model check:`,
+            `[callAi:${PACKAGE_VERSION}] Error during model check:`,
             modelCheckError,
           );
           // Continue with normal error handling
@@ -207,14 +207,14 @@ export function callAI(
         // Try to get error details from the response body
         const errorBody = await response.text();
         if (options.debug) {
-          console.log(`[callAI:${PACKAGE_VERSION}] Error body:`, errorBody);
+          console.log(`[callAi:${PACKAGE_VERSION}] Error body:`, errorBody);
         }
 
         try {
           // Try to parse JSON error
           const errorJson = JSON.parse(errorBody);
           if (options.debug) {
-            console.log(`[callAI:${PACKAGE_VERSION}] Parsed error:`, errorJson);
+            console.log(`[callAi:${PACKAGE_VERSION}] Parsed error:`, errorJson);
           }
 
           // Extract message from OpenRouter error format
@@ -246,7 +246,7 @@ export function callAI(
 
           if (options.debug) {
             console.log(
-              `[callAI:${PACKAGE_VERSION}] Extracted error message:`,
+              `[callAi:${PACKAGE_VERSION}] Extracted error message:`,
               errorMessage,
             );
           }
@@ -264,7 +264,7 @@ export function callAI(
           // If JSON parsing fails, extract a useful message from the raw error body
           if (options.debug) {
             console.log(
-              `[callAI:${PACKAGE_VERSION}] JSON parse error:`,
+              `[callAi:${PACKAGE_VERSION}] JSON parse error:`,
               jsonError,
             );
           }
@@ -290,7 +290,7 @@ export function callAI(
 
           if (options.debug) {
             console.log(
-              `[callAI:${PACKAGE_VERSION}] Extracted text error message:`,
+              `[callAi:${PACKAGE_VERSION}] Extracted text error message:`,
               errorMessage,
             );
           }
@@ -321,7 +321,7 @@ export function callAI(
     // Only if response is OK, create and return the streaming generator
     if (options.debug) {
       console.log(
-        `[callAI:${PACKAGE_VERSION}] Response OK, creating streaming generator`,
+        `[callAi:${PACKAGE_VERSION}] Response OK, creating streaming generator`,
       );
     }
     return createStreamingGenerator(response, options, schemaStrategy, model);
@@ -331,7 +331,7 @@ export function callAI(
   if (process.env.NODE_ENV !== "production") {
     if (options.debug) {
       console.warn(
-        `[callAI:${PACKAGE_VERSION}] No await found - using legacy streaming pattern. This will be removed in a future version and may cause issues with certain models.`,
+        `[callAi:${PACKAGE_VERSION}] No await found - using legacy streaming pattern. This will be removed in a future version and may cause issues with certain models.`,
       );
     }
   }
@@ -357,7 +357,7 @@ async function bufferStreamingResults(
 
   try {
     // Get streaming generator
-    const generator = (await callAI(
+    const generator = (await callAi(
       prompt,
       streamingOptions,
     )) as AsyncGenerator<string, string, unknown>;
@@ -530,10 +530,10 @@ function prepareRequestParams(
 
   // Debug logging for request payload
   if (options.debug) {
-    console.log(`[callAI-prepareRequest:raw] Endpoint: ${endpoint}`);
-    console.log(`[callAI-prepareRequest:raw] Model: ${model}`);
+    console.log(`[callAi-prepareRequest:raw] Endpoint: ${endpoint}`);
+    console.log(`[callAi-prepareRequest:raw] Model: ${model}`);
     console.log(
-      `[callAI-prepareRequest:raw] Payload:`,
+      `[callAi-prepareRequest:raw] Payload:`,
       JSON.stringify(requestParams),
     );
   }
@@ -612,7 +612,7 @@ async function callAINonStreaming(
     // Debug logging for raw API response
     if (options.debug) {
       console.log(
-        `[callAI-nonStreaming:raw] Response:`,
+        `[callAi-nonStreaming:raw] Response:`,
         JSON.stringify(result),
       );
     }

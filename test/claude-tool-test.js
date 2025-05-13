@@ -1,6 +1,6 @@
 // Basic test for Claude tool mode
 
-const { callAI } = require('../dist/index.js');
+const { callAi } = require('../dist/index.js');
 require('dotenv').config();
 
 // Helper function with timeout
@@ -48,7 +48,7 @@ async function main() {
   try {
     // Test Claude with tool mode (automatic)
     const claudeResult = await callWithTimeout(async () => {
-      return callAI(
+      return callAi(
         'Create a todo list for a productive day',
         {
           apiKey: apiKey,
@@ -76,7 +76,7 @@ async function main() {
     console.log('Testing OpenAI with json_schema:');
     
     const openaiResult = await callWithTimeout(async () => {
-      return callAI(
+      return callAi(
         'Create a todo list for a productive day',
         {
           apiKey: apiKey,

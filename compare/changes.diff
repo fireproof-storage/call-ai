@@ -704,7 +704,7 @@
 +  }, 30000); // Increase timeout to 30 seconds for API call
 +}); 
 +++ b/test/integration.test.ts
-+import { callAI, Schema } from '../src/index';
++import { callAi, Schema } from '../src/index';
 +import dotenv from 'dotenv';
 +
 +// Load environment variables from .env file if present
@@ -721,7 +721,7 @@
 +  gemini: 'google/gemini-2.0-flash-001'
 +};
 +
-+describe('callAI integration tests', () => {
++describe('callAi integration tests', () => {
 +  // OpenAI GPT-4o Tests
 +  describe('OpenAI GPT-4o tests', () => {
 +    // Test basic schema with OpenAI
@@ -738,7 +738,7 @@
 +      };
 +      
 +      // Make the API call with structured output
-+      const result = await callAI(
++      const result = await callAi(
 +        'Create a todo list for learning programming', 
 +        {
 +          apiKey: process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY,
@@ -783,7 +783,7 @@
 +      
 +      try {
 +        // Make the API call with structured output
-+        const result = await callAI(
++        const result = await callAi(
 +          'Give me a short book recommendation in the requested format.', 
 +          {
 +            apiKey: process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY,
@@ -850,7 +850,7 @@
 +      
 +      try {
 +        // Make the API call with streaming and structured output
-+        const generator = callAI(
++        const generator = callAi(
 +          'Give me a weather forecast for New York in the requested format.', 
 +          {
 +            apiKey: process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY,
@@ -931,7 +931,7 @@
 +      };
 +      
 +      // Make the API call with structured output
-+      const result = await callAI(
++      const result = await callAi(
 +        'Create a todo list for learning programming', 
 +        {
 +          apiKey: process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY,
@@ -964,7 +964,7 @@
 +    // Test system message approach with Claude
 +    itif(!!haveApiKey)('should generate structured data with Claude using system message', async () => {
 +      // Using messages array with system message for structured output
-+      const result = await callAI(
++      const result = await callAi(
 +        [
 +          { 
 +            role: 'system', 
@@ -1033,7 +1033,7 @@
 +      };
 +      
 +      // Make the API call with structured output
-+      const result = await callAI(
++      const result = await callAi(
 +        'Create a todo list for learning programming', 
 +        {
 +          apiKey: process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY,
@@ -1071,7 +1071,7 @@
 +    // Test system message approach with Gemini
 +    itif(!!haveApiKey)('should generate structured data with Gemini using system message', async () => {
 +      // Using messages array with system message for structured output
-+      const result = await callAI(
++      const result = await callAi(
 +        [
 +          { 
 +            role: 'system', 
@@ -1130,9 +1130,9 @@
 +  });
 +}); 
 +++ b/test/unit.test.ts
-+import { callAI, Message, Schema } from '../src/index';
++import { callAi, Message, Schema } from '../src/index';
 +    expect(body.response_format.json_schema.schema.required).toEqual(['name']);
-+    await callAI('Give me a todo list for learning React', options);
++    await callAi('Give me a todo list for learning React', options);
 +    expect(body.response_format.json_schema.schema.properties).toEqual(todoSchema.properties);
 +    expect(body.response_format.json_schema.schema.properties).toEqual(alienSchema.properties);
 +    expect(body.response_format.json_schema.schema.properties).toEqual({});
@@ -1169,7 +1169,7 @@
 +      choices: [{ message: { content: '{"title":"Healthy Living","description":"A playlist to inspire a healthy lifestyle"}' } }]
 +    });
 +    
-+    await callAI('Create a themed music playlist', options);
++    await callAi('Create a themed music playlist', options);
 +    
 +    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
 +    expect(body.response_format.type).toBe('json_schema');

@@ -1,4 +1,4 @@
-import { callAI } from "../src/index";
+import { callAi } from "../src/index";
 import dotenv from "dotenv";
 
 // Load environment variables from .env file if present
@@ -11,7 +11,7 @@ const itif = (condition: boolean) => (condition ? it : it.skip);
 // Timeout for image generation tests
 const TIMEOUT = 20000;
 
-// Define message type for callAI
+// Define message type for callAi
 interface Message {
   role: "user" | "system" | "assistant";
   content: string;
@@ -42,7 +42,7 @@ describe("Vision Model Tests", () => {
 
       try {
         // Call the API with a vision model (OpenRouter supports these)
-        const response = await callAI(messages, {
+        const response = await callAi(messages, {
           apiKey: process.env.CALLAI_API_KEY,
           model: "meta-llama/llama-3.2-11b-vision", // Vision-capable model
           modalities: ["text"],

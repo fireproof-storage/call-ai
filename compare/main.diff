@@ -26,9 +26,9 @@
 --- /dev/null
 --- /dev/null
 --- a/src/index.test.ts
--import { callAI, Message, Schema } from './index';
+-import { callAi, Message, Schema } from './index';
 -    expect(body.response_format.json_schema.required).toEqual(['name']);
--    const result = await callAI('Give me a todo list for learning React', options);
+-    const result = await callAi('Give me a todo list for learning React', options);
 -    expect(result).toBe('{"todos": ["Learn React basics", "Build a simple app", "Master hooks"]}');
 -    expect(body.response_format.json_schema.properties).toEqual(todoSchema.properties);
 -    expect(body.response_format.json_schema.properties).toEqual(alienSchema.properties);

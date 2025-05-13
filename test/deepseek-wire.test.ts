@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { callAI, Schema, Message } from "../src/index";
+import { callAi, Schema, Message } from "../src/index";
 
 // Mock fetch to use our fixture files
 global.fetch = jest.fn();
@@ -60,7 +60,7 @@ describe("DeepSeek Wire Protocol Tests", () => {
     };
 
     // Call the library function with the schema
-    await callAI(
+    await callAi(
       "Give me a short book recommendation in the requested format.",
       {
         apiKey: "test-api-key",
@@ -129,7 +129,7 @@ describe("DeepSeek Wire Protocol Tests", () => {
     };
 
     // Call the library with DeepSeek model
-    const result = await callAI(
+    const result = await callAi(
       "Give me a short book recommendation in the requested format.",
       {
         apiKey: "test-api-key",
@@ -166,7 +166,7 @@ describe("DeepSeek Wire Protocol Tests", () => {
     });
 
     // Call the library with messages array including system message
-    const result = await callAI(
+    const result = await callAi(
       [
         {
           role: "system",

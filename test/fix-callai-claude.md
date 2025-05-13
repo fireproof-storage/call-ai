@@ -50,7 +50,7 @@ const readResponseTextWithTimeout = async (response: Response, timeoutMs: number
 /**
  * Modify the fetch call for Claude API to use the timeout function
  */
-// In the callAI function where the fetch response is processed:
+// In the callAi function where the fetch response is processed:
 let responseText;
 try {
   // Use the timeout function for Claude API with tool mode

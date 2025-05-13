@@ -15,10 +15,10 @@ pnpm add call-ai
 ## Usage
 
 ```typescript
-import { callAI } from 'call-ai';
+import { callAi } from 'call-ai';
 
 // Basic usage with string prompt (non-streaming by default)
-const response = await callAI('Explain quantum computing in simple terms', {
+const response = await callAi('Explain quantum computing in simple terms', {
   apiKey: 'your-api-key',
   model: 'gpt-4'
 });
@@ -27,7 +27,7 @@ const response = await callAI('Explain quantum computing in simple terms', {
 console.log(response);
 
 // With streaming enabled (returns an AsyncGenerator)
-const generator = callAI('Tell me a story', {
+const generator = callAi('Tell me a story', {
   apiKey: 'your-api-key',
   model: 'gpt-4',
   stream: true
@@ -44,7 +44,7 @@ const messages = [
   { role: 'user', content: 'Explain quantum computing in simple terms' }
 ];
 
-const response = await callAI(messages, {
+const response = await callAi(messages, {
   apiKey: 'your-api-key',
   model: 'gpt-4'
 });
@@ -62,7 +62,7 @@ const schema = {
   required: ['title', 'summary']
 };
 
-const response = await callAI('Summarize the benefits of exercise', {
+const response = await callAi('Summarize the benefits of exercise', {
   apiKey: 'your-api-key',
   schema: schema
 });
@@ -87,7 +87,7 @@ const schema = {
   }
 };
 
-const generator = callAI('Create a list of sci-fi books', {
+const generator = callAi('Create a list of sci-fi books', {
   apiKey: 'your-api-key',
   stream: true,
   schema: schema
@@ -155,28 +155,28 @@ You can provide your API key in three ways:
 
 1. Directly in the options:
 ```typescript
-const response = await callAI('Hello', { apiKey: 'your-api-key' });
+const response = await callAi('Hello', { apiKey: 'your-api-key' });
 ```
 
 2. Set globally in the browser:
 ```typescript
 window.CALLAI_API_KEY = 'your-api-key';
-const response = await callAI('Hello');
+const response = await callAi('Hello');
 ```
 
 3. Use environment variables in Node.js (with a custom implementation):
 ```typescript
 // Example of environment variable integration
-import { callAI } from 'call-ai';
+import { callAi } from 'call-ai';
 const apiKey = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY;
-const response = await callAI('Hello', { apiKey });
+const response = await callAi('Hello', { apiKey });
 ```
 
 ## API
 
 ```typescript
 // Main function
-function callAI(
+function callAi(
   prompt: string | Message[],
   options?: CallAIOptions
 ): Promise<string> | AsyncGenerator<string, string, unknown>
