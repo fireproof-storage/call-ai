@@ -1,4 +1,4 @@
-import { callAI } from "../src/index";
+import { callAi } from "../src/index";
 
 // Mock global fetch
 global.fetch = jest.fn();
@@ -99,7 +99,7 @@ describe("Claude Streaming JSON Property Splitting Test", () => {
     // Override the global.fetch mock for this test
     (global.fetch as jest.Mock).mockResolvedValueOnce(mockResponse);
 
-    const generator = (await callAI(
+    const generator = (await callAi(
       "Provide information about France.",
       options,
     )) as AsyncGenerator<string, string, unknown>;
@@ -199,7 +199,7 @@ describe("Claude Streaming JSON Property Splitting Test", () => {
       mockResponseWithSplitValues,
     );
 
-    const generator = (await callAI(
+    const generator = (await callAi(
       "Provide information about France.",
       options,
     )) as AsyncGenerator<string, string, unknown>;
@@ -290,7 +290,7 @@ describe("Claude Streaming JSON Property Splitting Test", () => {
       mockResponseWithMissingValue,
     );
 
-    const generator = (await callAI(
+    const generator = (await callAi(
       "Provide information about France.",
       options,
     )) as AsyncGenerator<string, string, unknown>;

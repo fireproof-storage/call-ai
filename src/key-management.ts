@@ -59,11 +59,11 @@ function initKeyStore() {
   }
   // Initialize from window globals if in browser context
   else if (typeof window !== "undefined") {
-    // Use window.CALLAI_API_KEY or window.callAI.API_KEY if available
+    // Use window.CALLAI_API_KEY or window.callAi.API_KEY if available
     if ((window as any).CALLAI_API_KEY) {
       keyStore.current = (window as any).CALLAI_API_KEY;
-    } else if ((window as any).callAI?.API_KEY) {
-      keyStore.current = (window as any).callAI.API_KEY;
+    } else if ((window as any).callAi?.API_KEY) {
+      keyStore.current = (window as any).callAi.API_KEY;
     }
 
     // Check for debug flag in browser environment
@@ -154,7 +154,7 @@ function isNewKeyError(error: any, debug: boolean = false): boolean {
 
   if (debug && needsNewKey) {
     console.log(
-      `[callAI:key-refresh] Detected error requiring key refresh: ${errorMessage}`,
+      `[callAi:key-refresh] Detected error requiring key refresh: ${errorMessage}`,
     );
   }
 
@@ -242,12 +242,12 @@ async function refreshApiKey(
     };
 
     if (debug) {
-      console.log(`[callAI:key-refresh] Request URL: ${url}`);
-      console.log(`[callAI:key-refresh] Request headers:`, {
+      console.log(`[callAi:key-refresh] Request URL: ${url}`);
+      console.log(`[callAi:key-refresh] Request headers:`, {
         "Content-Type": "application/json",
         Authorization: `Bearer ${refreshToken}`,
       });
-      console.log(`[callAI:key-refresh] Request payload:`, requestPayload);
+      console.log(`[callAi:key-refresh] Request payload:`, requestPayload);
     }
 
     // Make the request
@@ -262,10 +262,10 @@ async function refreshApiKey(
 
     if (debug) {
       console.log(
-        `[callAI:key-refresh] Response status: ${response.status} ${response.statusText}`,
+        `[callAi:key-refresh] Response status: ${response.status} ${response.statusText}`,
       );
       console.log(
-        `[callAI:key-refresh] Response headers:`,
+        `[callAi:key-refresh] Response headers:`,
         Object.fromEntries([...response.headers.entries()]),
       );
     }
@@ -274,7 +274,7 @@ async function refreshApiKey(
       // Try to get the response body for more details
       const errorText = await response.text();
       if (debug) {
-        console.log(`[callAI:key-refresh] Error response body: ${errorText}`);
+        console.log(`[callAi:key-refresh] Error response body: ${errorText}`);
       }
       throw new Error(
         `API key refresh failed: ${response.status} ${response.statusText}${errorText ? ` - ${errorText}` : ""}`,
@@ -287,7 +287,7 @@ async function refreshApiKey(
     // Log the complete response structure for debugging
     if (debug) {
       console.log(
-        `[callAI:key-refresh] Full response structure:`,
+        `[callAi:key-refresh] Full response structure:`,
         JSON.stringify(data, null, 2),
       );
     }

@@ -169,10 +169,10 @@ function storeKeyMetadata(data: any): void {
 }
 ```
 
-### 3. Update the callAI Function to Support skipRefresh
+### 3. Update the callAi Function to Support skipRefresh
 
 ```typescript
-export async function callAI(prompt: string | Message[], options: CallAIOptions = {}): Promise<string> {
+export async function callAi(prompt: string | Message[], options: CallAIOptions = {}): Promise<string> {
   // Only attempt key acquisition if not explicitly skipping refresh
   if (!options.skipRefresh && !options.apiKey && !keyStore.current && keyStore.refreshEndpoint && !keyStore.isRefreshing) {
     try {
@@ -214,7 +214,7 @@ export async function callAI(prompt: string | Message[], options: CallAIOptions 
       // Attempt to refresh the key through handleApiError
       try {
         // This will throw if the refresh fails or can't be attempted
-        await handleApiError(error, 'callAI', options.debug || false, {
+        await handleApiError(error, 'callAi', options.debug || false, {
           apiKey: options.apiKey || keyStore.current,
           endpoint: options.endpoint,
           skipRefresh: options.skipRefresh
@@ -245,7 +245,7 @@ async function handleApiError(
   options: { apiKey?: string; endpoint?: string; skipRefresh?: boolean } = {}
 ): Promise<void> {
   if (debug) {
-    console.error(`[callAI:${context}]:`, error);
+    console.error(`[callAi:${context}]:`, error);
   }
   
   // Skip key refresh if explicitly requested

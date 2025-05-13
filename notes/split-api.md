@@ -8,11 +8,11 @@ We're working on refactoring `src/api.ts` by splitting it into multiple modules 
 
 The refactoring got stuck on two main issues:
 
-1. **No-await pattern compatibility**: The original implementation in `src/api.ts` supported a dual-interface pattern where `callAI()` could be used without awaiting it, and the result would directly provide AsyncGenerator methods (`next`, `throw`, `return`). The tests that rely on this pattern are failing with our refactored implementation in `src/api-core.ts`.
+1. **No-await pattern compatibility**: The original implementation in `src/api.ts` supported a dual-interface pattern where `callAi()` could be used without awaiting it, and the result would directly provide AsyncGenerator methods (`next`, `throw`, `return`). The tests that rely on this pattern are failing with our refactored implementation in `src/api-core.ts`.
 
    ```typescript
    // This pattern works in the original implementation but fails in our refactored version
-   const generator = callAI(prompt, options) as unknown as AsyncGenerator<string, string, unknown>;
+   const generator = callAi(prompt, options) as unknown as AsyncGenerator<string, string, unknown>;
    await generator.next(); // Fails with "generator.next is not a function"
    ```
 
@@ -25,7 +25,7 @@ The refactoring got stuck on two main issues:
      
      try {
        const options = { apiKey: "test-api-key", stream: true };
-       await callAI("Hello", options);
+       await callAi("Hello", options);
        fail("Expected an error to be thrown");
      } catch (error) {
        expect((error as Error).message).toContain("Network error");

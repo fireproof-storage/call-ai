@@ -1,6 +1,6 @@
 # CallAI Helper Function
 
-The `callAI` helper function provides an easy way to make AI requests to OpenAI-compatible model providers.
+The `callAi` helper function provides an easy way to make AI requests to OpenAI-compatible model providers.
 
 ## Installation
 
@@ -16,10 +16,10 @@ You can set the API key in the `window` object:
 window.CALLAI_API_KEY = "your-api-key";
 ```
 
-Or pass it directly to the `callAI` function:
+Or pass it directly to the `callAi` function:
 
 ```javascript
-const response = await callAI("Write a haiku", { apiKey: "your-api-key" });
+const response = await callAi("Write a haiku", { apiKey: "your-api-key" });
 ```
 
 ## Basic Usage
@@ -27,10 +27,10 @@ const response = await callAI("Write a haiku", { apiKey: "your-api-key" });
 By default the function returns a Promise that resolves to the complete response:
 
 ```javascript
-import { callAI } from 'call-ai';
+import { callAi } from 'call-ai';
 
 // Default behavior - returns a Promise<string>
-const response = await callAI("Write a haiku");
+const response = await callAi("Write a haiku");
 
 // Use the complete response directly
 console.log(response); // Complete response text
@@ -41,10 +41,10 @@ console.log(response); // Complete response text
 If you prefer to receive the response incrementally as it's generated, set `stream: true`. This returns an AsyncGenerator which must be awaited:
 
 ```javascript
-import { callAI } from 'call-ai';
+import { callAi } from 'call-ai';
 
 // Enable streaming mode explicitly - returns an AsyncGenerator
-const generator = await callAI("Write an epic poem", { stream: true });
+const generator = await callAi("Write an epic poem", { stream: true });
 // Process the streaming response
 for await (const partialResponse of generator) {
   console.log(partialResponse); // Updates incrementally
@@ -56,9 +56,9 @@ for await (const partialResponse of generator) {
 To get structured JSON responses, provide a schema in the options:
 
 ```javascript
-import { callAI } from 'call-ai';
+import { callAi } from 'call-ai';
 
-const todoResponse = await callAI("Give me a todo list for learning React", {
+const todoResponse = await callAi("Give me a todo list for learning React", {
   schema: {
     name: "todo",  // Optional - defaults to "result" if not provided
     properties: {
@@ -75,13 +75,13 @@ console.log(todoData.todos); // Array of todo items
 
 ## JSON with Streaming
 
-In this example, we're using the `callAI` helper function to get weather data in a structured format with streaming preview:
+In this example, we're using the `callAi` helper function to get weather data in a structured format with streaming preview:
 
 ```javascript
-import { callAI } from 'call-ai';
+import { callAi } from 'call-ai';
 
 // Get weather data with streaming updates
-const generator = await callAI("What's the weather like in Paris today?", {
+const generator = await callAi("What's the weather like in Paris today?", {
   stream: true,
   schema: {
     properties: {
@@ -156,10 +156,10 @@ try {
 By default, the function uses `openrouter/auto` (automatic model selection). You can specify a different model:
 
 ```javascript
-import { callAI } from 'call-ai';
+import { callAi } from 'call-ai';
 
 // Use a specific model via options
-const response = await callAI(
+const response = await callAi(
   "Explain quantum computing in simple terms", 
   { model: "openai/gpt-4o" }
 );
@@ -172,9 +172,9 @@ console.log(response);
 You can pass extra parameters to customize the request:
 
 ```javascript
-import { callAI } from 'call-ai';
+import { callAi } from 'call-ai';
 
-const response = await callAI(
+const response = await callAi(
   "Write a creative story",
   {
     model: "anthropic/claude-3-opus",
@@ -192,7 +192,7 @@ console.log(response);
 For multi-turn conversations, you can pass an array of messages:
 
 ```javascript
-import { callAI } from 'call-ai';
+import { callAi } from 'call-ai';
 
 // Create a conversation
 const messages = [
@@ -203,7 +203,7 @@ const messages = [
 ];
 
 // Pass the entire conversation history
-const response = await callAI(messages);
+const response = await callAi(messages);
 console.log(response);
 
 // To continue the conversation, add the new response and send again
@@ -211,19 +211,19 @@ messages.push({ role: "assistant", content: response });
 messages.push({ role: "user", content: "What about useEffect?" });
 
 // Call again with updated history
-const nextResponse = await callAI(messages);
+const nextResponse = await callAi(messages);
 console.log(nextResponse);
 ```
 
 ## Using with OpenAI API
 
-You can use callAI with OpenAI's API directly by providing the appropriate endpoint and API key:
+You can use callAi with OpenAI's API directly by providing the appropriate endpoint and API key:
 
 ```javascript
-import { callAI } from 'call-ai';
+import { callAi } from 'call-ai';
 
 // Use with OpenAI's API
-const response = await callAI(
+const response = await callAi(
   "Explain the theory of relativity", 
   {
     model: "gpt-4",
@@ -235,7 +235,7 @@ const response = await callAI(
 console.log(response);
 
 // Or with streaming
-const generator = callAI(
+const generator = callAi(
   "Explain the theory of relativity", 
   {
     model: "gpt-4",
@@ -257,10 +257,10 @@ You can specify a custom endpoint for any OpenAI-compatible API in several ways:
 ### Option 1: Using the endpoint parameter
 
 ```javascript
-import { callAI } from 'call-ai';
+import { callAi } from 'call-ai';
 
 // Use with any OpenAI-compatible API
-const response = await callAI(
+const response = await callAi(
   "Generate ideas for a mobile app",
   {
     model: "your-model-name",
@@ -284,7 +284,7 @@ window.CALLAI_CHAT_URL = 'https://your-custom-server.com';
 process.env.CALLAI_CHAT_URL = 'https://your-custom-server.com';
 
 // Or via options
-const response = await callAI("Your prompt", {
+const response = await callAi("Your prompt", {
   chatUrl: 'https://your-custom-server.com'
 });
 ```
@@ -309,7 +309,7 @@ Call-AI has a built-in fallback mechanism that automatically retries with `openr
 If you need to disable this behavior (for example, in test environments), you can use the `skipRetry` option:
 
 ```javascript
-const response = await callAI("Your prompt", {
+const response = await callAi("Your prompt", {
   model: "your-model-name",
   skipRetry: true  // Disable automatic fallback
 });
@@ -318,9 +318,9 @@ const response = await callAI("Your prompt", {
 ## Items with lists
 
 ```javascript
-import { callAI } from 'call-ai';
+import { callAi } from 'call-ai';
 
-const generator = await callAI([
+const generator = await callAi([
   {
     role: "user",
     content: "Generate 3 JSON records with name, description, tags, and priority (0 is highest, 5 is lowest)."
@@ -359,7 +359,7 @@ console.log(recordData.records); // Array of records
 ## Items with properties
 
 ```javascript
-const demoData = await callAI("Generate 4 items with label, status, priority (low, medium, high, critical), and notes. Return as structured JSON with these fields.", {
+const demoData = await callAi("Generate 4 items with label, status, priority (low, medium, high, critical), and notes. Return as structured JSON with these fields.", {
   schema: {
     properties: {
       items: {
@@ -384,11 +384,11 @@ const demoData = await callAI("Generate 4 items with label, status, priority (lo
 Errors are handled through standard JavaScript try/catch blocks:
 
 ```javascript
-import { callAI } from 'call-ai';
+import { callAi } from 'call-ai';
 
 try {
 
-  const response = await callAI("Generate some content", {
+  const response = await callAi("Generate some content", {
     apiKey: "invalid-key" // Invalid or missing API key
   });
   
@@ -406,10 +406,10 @@ try {
 For streaming mode, error handling works the same way:
 
 ```javascript
-import { callAI } from 'call-ai';
+import { callAi } from 'call-ai';
 
 try {
-  const generator = await callAI("Generate some content", {
+  const generator = await callAi("Generate some content", {
     apiKey: "invalid-key", // Invalid or missing API key
     stream: true
   });
@@ -441,7 +441,7 @@ This approach is idiomatic and consistent with standard JavaScript practices. Er
 Call-AI supports image recognition using multimodal models like GPT-4o. You can pass both text and image content to analyze images in the browser:
 
 ```javascript
-import { callAI } from 'call-ai';
+import { callAi } from 'call-ai';
 
 // Function to analyze an image using GPT-4o
 async function analyzeImage(imageFile, prompt = 'Describe this image in detail') {
@@ -454,7 +454,7 @@ async function analyzeImage(imageFile, prompt = 'Describe this image in detail')
   ];
   
   // Call the model with the multimodal content
-  const result = await callAI(
+  const result = await callAi(
     [{ role: 'user', content }],
     {
       model: 'openai/gpt-4o-2024-08-06', // Or 'openai/gpt-4o-latest'

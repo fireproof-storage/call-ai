@@ -145,7 +145,7 @@ interface CallAIOptions {
 
 ### How It Works
 
-1. When a 4xx error occurs during a callAI request, the system attempts to refresh the API key
+1. When a 4xx error occurs during a callAi request, the system attempts to refresh the API key
 2. If the refresh token is invalid (e.g., returns a 401 error), the system checks for an `updateRefreshToken` callback
 3. If provided, the callback is invoked with the current failing token
 4. The callback should return a Promise that resolves to a new refresh token
@@ -155,7 +155,7 @@ interface CallAIOptions {
 ### Example Usage
 
 ```typescript
-await callAI("Tell me about France", {
+await callAi("Tell me about France", {
   model: "anthropic/claude-3-sonnet",
   refreshToken: "initial-token",
   updateRefreshToken: async (failedToken) => {

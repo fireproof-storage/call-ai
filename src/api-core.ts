@@ -26,7 +26,7 @@ const PACKAGE_VERSION = require("../package.json").version;
  * @returns Promise<string> for non-streaming or AsyncGenerator for streaming
  */
 // Main API interface function - must match original signature exactly
-function callAI(prompt: string | Message[], options: CallAIOptions = {}) {
+function callAi(prompt: string | Message[], options: CallAIOptions = {}) {
   // Use the global debug flag if not specified in options
   const debug = options.debug === undefined ? globalDebug : options.debug;
 
@@ -175,7 +175,7 @@ function callAI(prompt: string | Message[], options: CallAIOptions = {}) {
   // Check if this should be a streaming or non-streaming call
   if (options.stream) {
     if (debug) {
-      console.log(`[callAI:${PACKAGE_VERSION}] Making streaming request`);
+      console.log(`[callAi:${PACKAGE_VERSION}] Making streaming request`);
     }
 
     // Handle streaming mode - return a Promise that resolves to an AsyncGenerator
@@ -193,7 +193,7 @@ function callAI(prompt: string | Message[], options: CallAIOptions = {}) {
     return createBackwardCompatStreamingProxy(streamPromise);
   } else {
     if (debug) {
-      console.log(`[callAI:${PACKAGE_VERSION}] Making non-streaming request`);
+      console.log(`[callAi:${PACKAGE_VERSION}] Making non-streaming request`);
     }
 
     // Pass schemaStrategy through options to avoid type error
@@ -210,7 +210,7 @@ function callAI(prompt: string | Message[], options: CallAIOptions = {}) {
 /**
  * Buffers the results of a streaming generator into a single string
  *
- * @param generator The streaming generator returned by callAI
+ * @param generator The streaming generator returned by callAi
  * @returns Promise<string> with the complete response
  */
 async function bufferStreamingResults(
@@ -361,7 +361,7 @@ function prepareRequestParams(
     !options.model.startsWith(options.provider + "/")
   ) {
     console.warn(
-      `[callAI:${PACKAGE_VERSION}] WARNING: Specified provider '${options.provider}' doesn't match model '${options.model}'. Using model as specified.`,
+      `[callAi:${PACKAGE_VERSION}] WARNING: Specified provider '${options.provider}' doesn't match model '${options.model}'. Using model as specified.`,
     );
   }
 
@@ -374,7 +374,7 @@ function prepareRequestParams(
 
 // Export main API functions
 export {
-  callAI,
+  callAi,
   bufferStreamingResults,
   createBackwardCompatStreamingProxy,
   prepareRequestParams,

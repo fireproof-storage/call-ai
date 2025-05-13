@@ -26,7 +26,7 @@ async function callAINonStreaming(
     ? prompt
     : [{ role: "user", content: prompt }];
 
-  // API key should be provided by options (validation happens in callAI)
+  // API key should be provided by options (validation happens in callAi)
   const apiKey = options.apiKey;
   const model = options.model || "openai/gpt-3.5-turbo";
 
@@ -49,9 +49,9 @@ async function callAINonStreaming(
 
   if (debug) {
     console.log(
-      `[callAI:${PACKAGE_VERSION}] Making non-streaming request to: ${url}`,
+      `[callAi:${PACKAGE_VERSION}] Making non-streaming request to: ${url}`,
     );
-    console.log(`[callAI:${PACKAGE_VERSION}] With model: ${model}`);
+    console.log(`[callAi:${PACKAGE_VERSION}] With model: ${model}`);
   }
 
   // Build request body
@@ -115,8 +115,8 @@ async function callAINonStreaming(
   });
 
   if (debug) {
-    console.log(`[callAI:${PACKAGE_VERSION}] Request headers:`, headers);
-    console.log(`[callAI:${PACKAGE_VERSION}] Request body:`, requestBody);
+    console.log(`[callAi:${PACKAGE_VERSION}] Request headers:`, headers);
+    console.log(`[callAi:${PACKAGE_VERSION}] Request body:`, requestBody);
   }
 
   // Create metadata object for this response
@@ -150,7 +150,7 @@ async function callAINonStreaming(
       if (isInvalidModel && !isRetry && !options.skipRetry) {
         if (debug) {
           console.log(
-            `[callAI:${PACKAGE_VERSION}] Invalid model "${model}", falling back to "${FALLBACK_MODEL}"`,
+            `[callAi:${PACKAGE_VERSION}] Invalid model "${model}", falling back to "${FALLBACK_MODEL}"`,
           );
         }
 
@@ -212,7 +212,7 @@ async function callAINonStreaming(
       // Direct re-throw for network errors (original implementation pattern)
       if (debug) {
         console.error(
-          `[callAI:${PACKAGE_VERSION}] Network error during fetch:`,
+          `[callAi:${PACKAGE_VERSION}] Network error during fetch:`,
           error,
         );
       }
@@ -230,7 +230,7 @@ async function callAINonStreaming(
     if (keyStore.current && keyStore.current !== apiKey) {
       if (debug) {
         console.log(
-          `[callAI:${PACKAGE_VERSION}] Retrying with refreshed API key`,
+          `[callAi:${PACKAGE_VERSION}] Retrying with refreshed API key`,
         );
       }
 

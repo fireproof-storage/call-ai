@@ -38,7 +38,7 @@ async function* createStreamingGenerator(
 
   if (options.debug || globalDebug) {
     console.log(
-      `[callAI:${PACKAGE_VERSION}] Starting streaming generator with model: ${model}`,
+      `[callAi:${PACKAGE_VERSION}] Starting streaming generator with model: ${model}`,
     );
   }
 
@@ -59,7 +59,7 @@ async function* createStreamingGenerator(
       if (done) {
         if (options.debug || globalDebug) {
           console.log(
-            `[callAI-streaming:complete v${PACKAGE_VERSION}] Stream finished after ${chunkCount} chunks`,
+            `[callAi-streaming:complete v${PACKAGE_VERSION}] Stream finished after ${chunkCount} chunks`,
           );
         }
         break;
@@ -82,7 +82,7 @@ async function* createStreamingGenerator(
         let jsonStr = message.slice(6); // Remove 'data: ' prefix
         if (jsonStr === "[DONE]") {
           if (options.debug || globalDebug) {
-            console.log(`[callAI:${PACKAGE_VERSION}] Received [DONE] signal`);
+            console.log(`[callAi:${PACKAGE_VERSION}] Received [DONE] signal`);
           }
           continue;
         }
@@ -110,7 +110,7 @@ async function* createStreamingGenerator(
 
             if (options.debug || globalDebug) {
               console.error(
-                `[callAI:${PACKAGE_VERSION}] Detected error in streaming response:`,
+                `[callAi:${PACKAGE_VERSION}] Detected error in streaming response:`,
                 json,
               );
             }
@@ -127,7 +127,7 @@ async function* createStreamingGenerator(
             (detailedError as any).details = JSON.stringify(json.error || json);
 
             console.error(
-              `[callAI:${PACKAGE_VERSION}] Throwing stream error:`,
+              `[callAi:${PACKAGE_VERSION}] Throwing stream error:`,
               detailedError,
             );
             throw detailedError;
@@ -146,7 +146,7 @@ async function* createStreamingGenerator(
               if (choice.finish_reason === "tool_calls") {
                 if (options.debug) {
                   console.log(
-                    `[callAI:${PACKAGE_VERSION}] Received tool_calls finish reason. Assembled JSON:`,
+                    `[callAi:${PACKAGE_VERSION}] Received tool_calls finish reason. Assembled JSON:`,
                     toolCallsAssembled,
                   );
                 }
@@ -162,7 +162,7 @@ async function* createStreamingGenerator(
                     } catch (parseError) {
                       if (options.debug) {
                         console.log(
-                          `[callAI:${PACKAGE_VERSION}] Attempting to fix malformed JSON in tool call:`,
+                          `[callAi:${PACKAGE_VERSION}] Attempting to fix malformed JSON in tool call:`,
                           toolCallsAssembled,
                         );
                       }
@@ -221,7 +221,7 @@ async function* createStreamingGenerator(
 
                       if (options.debug) {
                         console.log(
-                          `[callAI:${PACKAGE_VERSION}] Applied comprehensive JSON fixes:`,
+                          `[callAi:${PACKAGE_VERSION}] Applied comprehensive JSON fixes:`,
                           `\nBefore: ${toolCallsAssembled}`,
                           `\nAfter: ${fixedJson}`,
                         );
@@ -255,7 +255,7 @@ async function* createStreamingGenerator(
                   toolCallsAssembled += toolCall.function.arguments;
                   if (options.debug) {
                     console.log(
-                      `[callAI:${PACKAGE_VERSION}] Accumulated tool call chunk:`,
+                      `[callAi:${PACKAGE_VERSION}] Accumulated tool call chunk:`,
                       toolCall.function.arguments,
                     );
                   }
@@ -358,7 +358,7 @@ async function* createStreamingGenerator(
           ) {
             if (options.debug) {
               console.log(
-                `[callAI:${PACKAGE_VERSION}] Received text delta:`,
+                `[callAi:${PACKAGE_VERSION}] Received text delta:`,
                 json.delta.text,
               );
             }
@@ -392,7 +392,7 @@ async function* createStreamingGenerator(
       } catch (e) {
         if (options.debug) {
           console.log(
-            `[callAI:${PACKAGE_VERSION}] Final JSON validation failed:`,
+            `[callAi:${PACKAGE_VERSION}] Final JSON validation failed:`,
             e,
             `\nAttempting to fix JSON:`,
             result,
@@ -437,7 +437,7 @@ async function* createStreamingGenerator(
 
         if (options.debug) {
           console.log(
-            `[callAI:${PACKAGE_VERSION}] Applied final JSON fixes:`,
+            `[callAi:${PACKAGE_VERSION}] Applied final JSON fixes:`,
             result,
           );
         }
@@ -452,7 +452,7 @@ async function* createStreamingGenerator(
       } catch (finalParseError) {
         if (options.debug) {
           console.error(
-            `[callAI:${PACKAGE_VERSION}] Final JSON validation still failed:`,
+            `[callAi:${PACKAGE_VERSION}] Final JSON validation still failed:`,
             finalParseError,
           );
         }
@@ -479,7 +479,7 @@ async function* createStreamingGenerator(
   } catch (error) {
     // Streaming generators must properly handle errors
     if (options.debug || globalDebug) {
-      console.error(`[callAI:${PACKAGE_VERSION}] Streaming error:`, error);
+      console.error(`[callAi:${PACKAGE_VERSION}] Streaming error:`, error);
     }
 
     // This error will be caught in the caller's try/catch block
@@ -501,7 +501,7 @@ async function* callAIStreaming(
     ? prompt
     : [{ role: "user", content: prompt }];
 
-  // API key should be provided by options (validation happens in callAI)
+  // API key should be provided by options (validation happens in callAi)
   const apiKey = options.apiKey;
   const model = options.model || "openai/gpt-3.5-turbo";
 
@@ -524,9 +524,9 @@ async function* callAIStreaming(
 
   if (debug) {
     console.log(
-      `[callAI:${PACKAGE_VERSION}] Making streaming request to: ${url}`,
+      `[callAi:${PACKAGE_VERSION}] Making streaming request to: ${url}`,
     );
-    console.log(`[callAI:${PACKAGE_VERSION}] With model: ${model}`);
+    console.log(`[callAi:${PACKAGE_VERSION}] With model: ${model}`);
   }
 
   // Build request body
@@ -590,8 +590,8 @@ async function* callAIStreaming(
   });
 
   if (debug) {
-    console.log(`[callAI:${PACKAGE_VERSION}] Request headers:`, headers);
-    console.log(`[callAI:${PACKAGE_VERSION}] Request body:`, requestBody);
+    console.log(`[callAi:${PACKAGE_VERSION}] Request headers:`, headers);
+    console.log(`[callAi:${PACKAGE_VERSION}] Request body:`, requestBody);
   }
 
   let response;
@@ -615,7 +615,7 @@ async function* callAIStreaming(
       if (isInvalidModel && !isRetry && !options.skipRetry) {
         if (debug) {
           console.log(
-            `[callAI:${PACKAGE_VERSION}] Invalid model "${model}", falling back to "${FALLBACK_MODEL}"`,
+            `[callAi:${PACKAGE_VERSION}] Invalid model "${model}", falling back to "${FALLBACK_MODEL}"`,
           );
         }
 
@@ -650,7 +650,7 @@ async function* callAIStreaming(
     // This is exactly how the original implementation handles it
     if (debug) {
       console.error(
-        `[callAI:${PACKAGE_VERSION}] Network error during fetch:`,
+        `[callAi:${PACKAGE_VERSION}] Network error during fetch:`,
         fetchError,
       );
     }

@@ -185,7 +185,7 @@ This approach would make the code more modular, easier to test, and simpler to e
 
 ## Core Values: Hiding Complexity from Callers
 
-The fundamental purpose of `callAI` is to provide a simple, consistent interface that shields users from the underlying complexity of different AI models and their unique implementation requirements.
+The fundamental purpose of `callAi` is to provide a simple, consistent interface that shields users from the underlying complexity of different AI models and their unique implementation requirements.
 
 Key principles:
 - **Simple API, Complex Implementation**: Users should have a straightforward experience while the library handles the intricate details.
@@ -193,4 +193,4 @@ Key principles:
 - **Consistent Results**: The same JSON schema should produce well-structured results across all supported models without requiring model-specific code from users.
 - **Intelligent Defaults**: The library should automatically select the best approach for each model while allowing overrides when needed.
 
-By refactoring to use the strategy pattern and properly abstracting the model-specific details, `callAI` can maintain its promise of simplicity while supporting an increasingly diverse ecosystem of AI models and their unique capabilities. 
+By refactoring to use the strategy pattern and properly abstracting the model-specific details, `callAi` can maintain its promise of simplicity while supporting an increasingly diverse ecosystem of AI models and their unique capabilities. 

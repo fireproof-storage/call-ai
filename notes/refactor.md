@@ -43,7 +43,7 @@ Based on model-chooser-new.md, I'm refactoring the codebase to use a cleaner str
    - Eliminated duplicated JSON extraction logic
    - Delegated response processing to the appropriate strategy
 
-6. Updated `callAI` to properly handle forced streaming for Claude:
+6. Updated `callAi` to properly handle forced streaming for Claude:
    - Added `bufferStreamingResults` function for cases where we need streaming internally but the caller requested non-streaming
    - Preserved the API contract while improving reliability
 

@@ -1,4 +1,4 @@
-import { callAI, getMeta } from "../src/index";
+import { callAi, getMeta } from "../src/index";
 import { Message } from "../src/types";
 import dotenv from "dotenv";
 
@@ -88,7 +88,7 @@ const gradeAwareTest = (modelId: { id: string; grade: string }) => {
   }
 };
 
-describe("Simple callAI integration tests", () => {
+describe("Simple callAi integration tests", () => {
   // Test basic non-structured requests with all models
   describe("Non-structured text generation", () => {
     // Run all model tests concurrently within this describe block
@@ -111,7 +111,7 @@ describe("Simple callAI integration tests", () => {
           ] as Message[];
 
           // Make API call with message array
-          const result = await callAI(messages, {
+          const result = await callAi(messages, {
             apiKey: process.env.CALLAI_API_KEY,
             model: modelId.id,
           });

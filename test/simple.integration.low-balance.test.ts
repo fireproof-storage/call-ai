@@ -1,4 +1,4 @@
-import { callAI } from "../src/index";
+import { callAi } from "../src/index";
 import dotenv from "dotenv";
 
 // Load environment variables from .env file if present
@@ -31,7 +31,7 @@ describe("Low Balance API Key Tests", () => {
     it(`should verify key limit exceeded error occurs with ${modelName} model`, async () => {
       try {
         // Make API call with skipRefresh flag to ensure we get the low balance error
-        await callAI("Provide information about France.", {
+        await callAi("Provide information about France.", {
           apiKey: process.env.CALLAI_API_KEY,
           model: modelInfo.id,
           max_tokens: 200000 - 200,

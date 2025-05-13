@@ -1,4 +1,4 @@
-import { callAI, Message, Schema } from "../src/index";
+import { callAi, Message, Schema } from "../src/index";
 
 // Mock global fetch
 global.fetch = jest.fn();
@@ -32,7 +32,7 @@ const mockResponse = {
   statusText: "OK",
 };
 
-describe("callAI", () => {
+describe("callAi", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
@@ -45,7 +45,7 @@ describe("callAI", () => {
     });
 
     try {
-      await callAI("Hello, AI");
+      await callAi("Hello, AI");
       // If we get here, the test should fail because an error should have been thrown
       fail("Expected an error to be thrown");
     } catch (error) {
@@ -58,7 +58,7 @@ describe("callAI", () => {
     mockReader.read.mockResolvedValueOnce({ done: true });
 
     try {
-      await callAI("Hello, AI", { stream: true });
+      await callAi("Hello, AI", { stream: true });
       // If we get here, the test should fail because an error should have been thrown
       fail("Expected an error to be thrown");
     } catch (error) {
@@ -79,7 +79,7 @@ describe("callAI", () => {
       choices: [{ message: { content: "Hello, I am an AI" } }],
     });
 
-    await callAI(prompt, options);
+    await callAi(prompt, options);
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(global.fetch).toHaveBeenCalledWith(
@@ -114,7 +114,7 @@ describe("callAI", () => {
     // Mock successful response to avoid errors
     mockReader.read.mockResolvedValueOnce({ done: true });
 
-    const generator = callAI(prompt, options) as unknown as AsyncGenerator<
+    const generator = callAi(prompt, options) as unknown as AsyncGenerator<
       string,
       string,
       unknown
@@ -140,7 +140,7 @@ describe("callAI", () => {
     // Mock successful response to avoid errors
     mockReader.read.mockResolvedValueOnce({ done: true });
 
-    const generator = callAI(messages, options) as unknown as AsyncGenerator<
+    const generator = callAi(messages, options) as unknown as AsyncGenerator<
       string,
       string,
       unknown
@@ -170,7 +170,7 @@ describe("callAI", () => {
     // Mock successful response to avoid errors
     mockReader.read.mockResolvedValueOnce({ done: true });
 
-    const generator = callAI(
+    const generator = callAi(
       "Get user info",
       options,
     ) as unknown as AsyncGenerator<string, string, unknown>;
@@ -208,7 +208,7 @@ describe("callAI", () => {
       ],
     });
 
-    await callAI("Give me a todo list for learning React", options);
+    await callAi("Give me a todo list for learning React", options);
 
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
     expect(body.response_format.type).toBe("json_schema");
@@ -256,7 +256,7 @@ describe("callAI", () => {
     // Mock successful response
     mockReader.read.mockResolvedValueOnce({ done: true });
 
-    const generator = callAI(messages, options) as unknown as AsyncGenerator<
+    const generator = callAi(messages, options) as unknown as AsyncGenerator<
       string,
       string,
       unknown
@@ -291,7 +291,7 @@ describe("callAI", () => {
       skipRetry: true, // Prevent fallback retry mechanism for tests
     };
 
-    const result = await callAI("Hello", options);
+    const result = await callAi("Hello", options);
 
     expect(result).toBe("Hello, I am an AI");
     expect(mockResponse.json).toHaveBeenCalledTimes(1);
@@ -315,7 +315,7 @@ describe("callAI", () => {
       choices: [{ message: { content: '{"result": "Test successful"}' } }],
     });
 
-    await callAI("Test with schema name", options);
+    await callAi("Test with schema name", options);
 
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
     expect(body.response_format.type).toBe("json_schema");
@@ -339,7 +339,7 @@ describe("callAI", () => {
       choices: [{ message: { content: '{"result": "Test successful"}' } }],
     });
 
-    await callAI("Test without schema name", options);
+    await callAi("Test without schema name", options);
 
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
     expect(body.response_format.type).toBe("json_schema");
@@ -363,7 +363,7 @@ describe("callAI", () => {
       choices: [{ message: { content: '{"data": "Some content"}' } }],
     });
 
-    await callAI("Generate content with schema", options);
+    await callAi("Generate content with schema", options);
 
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
     expect(body.response_format.type).toBe("json_schema");
@@ -385,7 +385,7 @@ describe("callAI", () => {
       choices: [{ message: { content: "{}" } }],
     });
 
-    await callAI("Test with empty schema", options);
+    await callAi("Test with empty schema", options);
 
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
     expect(body.response_format.type).toBe("json_schema");
@@ -419,7 +419,7 @@ describe("callAI", () => {
       ],
     });
 
-    await callAI("Test with additionalProperties", options);
+    await callAi("Test with additionalProperties", options);
 
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
     expect(body.response_format.json_schema.schema.additionalProperties).toBe(
@@ -432,7 +432,7 @@ describe("callAI", () => {
 
     try {
       const options = { apiKey: "test-api-key" };
-      await callAI("Hello", options);
+      await callAi("Hello", options);
       // If we get here, the test should fail because an error should have been thrown
       fail("Expected an error to be thrown");
     } catch (error) {
@@ -446,7 +446,7 @@ describe("callAI", () => {
 
     try {
       const options = { apiKey: "test-api-key", stream: true };
-      await callAI("Hello", options);
+      await callAi("Hello", options);
       // If we get here, the test should fail because an error should have been thrown
       fail("Expected an error to be thrown");
     } catch (error) {
@@ -462,7 +462,7 @@ describe("callAI", () => {
       choices: [{ message: { content: "Hello, I am an AI" } }],
     });
 
-    await callAI("Hello", options);
+    await callAi("Hello", options);
 
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
     expect(body.stream).toBe(false);
@@ -507,7 +507,7 @@ describe("callAI", () => {
       ],
     });
 
-    await callAI("Create a themed music playlist", options);
+    await callAi("Create a themed music playlist", options);
 
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
     expect(body.response_format.type).toBe("json_schema");
@@ -583,7 +583,7 @@ describe("callAI", () => {
     // Override the global.fetch mock for this test
     (global.fetch as jest.Mock).mockResolvedValueOnce(mockResponseWithBody);
 
-    const generator = callAI(
+    const generator = callAi(
       "What is the weather?",
       options,
     ) as unknown as AsyncGenerator<string, string, unknown>;

@@ -1,4 +1,4 @@
-import { callAI, getMeta } from "../src/index";
+import { callAi, getMeta } from "../src/index";
 import { Message } from "../src/types";
 import dotenv from "dotenv";
 
@@ -88,7 +88,7 @@ const gradeAwareTest = (modelId: { id: string; grade: string }) => {
   }
 };
 
-describe("Simple callAI integration tests", () => {
+describe("Simple callAi integration tests", () => {
   // Test basic non-structured requests with all models
   describe("Non-structured text generation", () => {
     // Run all model tests concurrently within this describe block
@@ -99,7 +99,7 @@ describe("Simple callAI integration tests", () => {
         `should create playlist with ${modelName} model using schema`,
         async () => {
           // Make API call with the music schema
-          const result = await callAI(
+          const result = await callAi(
             [
               {
                 role: "user" as const,

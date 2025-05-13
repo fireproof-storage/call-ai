@@ -36,7 +36,7 @@ Tests integration of schema handling with OpenAI and Claude APIs.
 - **OpenAI useToolMode test**: ✅ PASS - Successfully returns valid structured data with tool mode option
 
 ## unit.test.ts
-Unit tests for the core functions of the callAI library.
+Unit tests for the core functions of the callAi library.
 - **API key requirement tests**: ✅ PASS - Properly handles API key requirements for both streaming and non-streaming
 - **Request parameter tests**: ✅ PASS - Correctly formats POST request parameters
 - **Schema handling tests**: ✅ PASS - Correctly processes various schema formats and structures

@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { callAI, Schema } from "../src/index";
+import { callAi, Schema } from "../src/index";
 
 // Mock fetch to use our fixture files
 global.fetch = jest.fn();
@@ -85,7 +85,7 @@ describe("OpenAI Weather Streaming Tests", () => {
     };
 
     // Call the library with OpenAI model and streaming
-    const generator = (await callAI(
+    const generator = (await callAi(
       "Give me a weather forecast for New York in the requested format.",
       {
         apiKey: "test-api-key",

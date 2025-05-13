@@ -38,7 +38,7 @@ async function handleApiError(
   const isMissingKeyError = errorMessage.includes("API key is required");
 
   if (debug) {
-    console.error(`[callAI:error] ${context} error:`, {
+    console.error(`[callAi:error] ${context} error:`, {
       message: errorMessage,
       status,
       name: error?.name,
@@ -60,7 +60,7 @@ async function handleApiError(
   if (needsNewKey) {
     if (debug) {
       console.log(
-        `[callAI:key-refresh] Error suggests API key issue, attempting refresh...`,
+        `[callAi:key-refresh] Error suggests API key issue, attempting refresh...`,
       );
     }
 
@@ -86,7 +86,7 @@ async function handleApiError(
 
         if (debug) {
           console.log(
-            `[callAI:key-refresh] ${topup ? "Topped up" : "Refreshed"} API key successfully`,
+            `[callAi:key-refresh] ${topup ? "Topped up" : "Refreshed"} API key successfully`,
           );
         }
 
@@ -97,7 +97,7 @@ async function handleApiError(
         if (options.updateRefreshToken && refreshToken) {
           if (debug) {
             console.log(
-              `[callAI:key-refresh] Initial refresh failed, attempting to update refresh token`,
+              `[callAi:key-refresh] Initial refresh failed, attempting to update refresh token`,
             );
           }
 
@@ -109,7 +109,7 @@ async function handleApiError(
             if (newRefreshToken && newRefreshToken !== refreshToken) {
               if (debug) {
                 console.log(
-                  `[callAI:key-refresh] Got new refresh token, retrying key refresh`,
+                  `[callAi:key-refresh] Got new refresh token, retrying key refresh`,
                 );
               }
 
@@ -131,7 +131,7 @@ async function handleApiError(
 
               if (debug) {
                 console.log(
-                  `[callAI:key-refresh] ${topup ? "Topped up" : "Refreshed"} API key successfully with new refresh token`,
+                  `[callAi:key-refresh] ${topup ? "Topped up" : "Refreshed"} API key successfully with new refresh token`,
                 );
               }
 
@@ -140,7 +140,7 @@ async function handleApiError(
             } else {
               if (debug) {
                 console.log(
-                  `[callAI:key-refresh] No new refresh token provided or same token returned, cannot retry`,
+                  `[callAi:key-refresh] No new refresh token provided or same token returned, cannot retry`,
                 );
               }
               // Continue to error handling
@@ -149,7 +149,7 @@ async function handleApiError(
           } catch (tokenUpdateError) {
             if (debug) {
               console.error(
-                `[callAI:key-refresh] Failed to update refresh token:`,
+                `[callAi:key-refresh] Failed to update refresh token:`,
                 tokenUpdateError,
               );
             }
@@ -165,7 +165,7 @@ async function handleApiError(
       // Log refresh failure but throw the original error
       if (debug) {
         console.error(
-          `[callAI:key-refresh] API key refresh failed:`,
+          `[callAi:key-refresh] API key refresh failed:`,
           refreshError,
         );
       }
@@ -242,7 +242,7 @@ async function checkForInvalidModelError(
 
   if (debug && isInvalidModelError) {
     console.log(
-      `[callAI:model-fallback] Detected invalid model error for "${model}":`,
+      `[callAi:model-fallback] Detected invalid model error for "${model}":`,
       errorData,
     );
   }

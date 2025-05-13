@@ -1,4 +1,4 @@
-import { callAI, getMeta } from "../src/index";
+import { callAi, getMeta } from "../src/index";
 import { Message } from "../src/types";
 import dotenv from "dotenv";
 
@@ -88,7 +88,7 @@ const gradeAwareTest = (modelId: { id: string; grade: string }) => {
   }
 };
 
-describe("Simple callAI integration tests", () => {
+describe("Simple callAi integration tests", () => {
   // Test basic non-structured requests with all models
   describe("Non-structured text generation", () => {
     // Run all model tests concurrently within this describe block
@@ -98,7 +98,7 @@ describe("Simple callAI integration tests", () => {
         `should handle nested schema with ${modelName} model`,
         async () => {
           // API call with a nested schema
-          const result = await callAI(
+          const result = await callAi(
             [
               {
                 role: "user" as const,

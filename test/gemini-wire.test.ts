@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { callAI, Schema, Message } from "../src/index";
+import { callAi, Schema, Message } from "../src/index";
 
 // Mock fetch to use our fixture files
 global.fetch = jest.fn();
@@ -60,7 +60,7 @@ describe("Gemini Wire Protocol Tests", () => {
     };
 
     // Call the library function with the schema
-    await callAI(
+    await callAi(
       "Give me a short book recommendation in the requested format.",
       {
         apiKey: "test-api-key",
@@ -120,7 +120,7 @@ describe("Gemini Wire Protocol Tests", () => {
     };
 
     // Call the library with Gemini model
-    const result = await callAI(
+    const result = await callAi(
       "Give me a short book recommendation in the requested format.",
       {
         apiKey: "test-api-key",
@@ -175,7 +175,7 @@ describe("Gemini Wire Protocol Tests", () => {
       },
     ];
 
-    await callAI(messages, {
+    await callAi(messages, {
       apiKey: "test-api-key",
       model: "google/gemini-2.0-flash-001",
     });
@@ -194,7 +194,7 @@ describe("Gemini Wire Protocol Tests", () => {
 
   it("should correctly handle Gemini response with system message", async () => {
     // Call the library with messages array including system message
-    const result = await callAI(
+    const result = await callAi(
       [
         {
           role: "system",
@@ -269,7 +269,7 @@ describe("Gemini Wire Protocol Tests", () => {
     };
 
     // Call the library function with schema format set to true to test fallback
-    await callAI(
+    await callAi(
       "Give me a short book recommendation in the requested format.",
       {
         apiKey: "test-api-key",

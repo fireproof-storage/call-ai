@@ -6,8 +6,9 @@
 export * from "./types";
 
 // Export API functions
-export { callAI, getMeta } from "./api";
+export { callAi, getMeta } from "./api";
+// Backward compatibility for callAI (uppercase AI)
+export { callAi as callAI } from "./api";
 
 // Export image generation function
 export { imageGen } from "./image";
-

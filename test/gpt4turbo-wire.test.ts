@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { callAI, Schema, Message } from "../src/index";
+import { callAi, Schema, Message } from "../src/index";
 
 // Mock fetch to use our fixture files
 global.fetch = jest.fn();
@@ -48,7 +48,7 @@ describe("GPT-4 Turbo Wire Protocol Tests", () => {
     };
 
     // Call the library function with the schema using system message approach
-    await callAI(
+    await callAi(
       "Give me a short book recommendation in the requested format.",
       {
         apiKey: "test-api-key",
@@ -92,7 +92,7 @@ describe("GPT-4 Turbo Wire Protocol Tests", () => {
 
   it("should correctly handle GPT-4 Turbo response with system message", async () => {
     // Call the library with system messages
-    const result = await callAI(
+    const result = await callAi(
       [
         {
           role: "system",
@@ -144,7 +144,7 @@ describe("GPT-4 Turbo Wire Protocol Tests", () => {
     };
 
     // Call the library function with the schema
-    const result = await callAI(
+    const result = await callAi(
       "Give me a short book recommendation in the requested format.",
       {
         apiKey: "test-api-key",
@@ -187,7 +187,7 @@ describe("GPT-4 Turbo Wire Protocol Tests", () => {
     };
 
     // Call the library function with the schema
-    await callAI(
+    await callAi(
       "Give me a short book recommendation in the requested format.",
       {
         apiKey: "test-api-key",

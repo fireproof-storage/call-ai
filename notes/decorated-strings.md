@@ -2,7 +2,7 @@
 
 ## Problem Statement
 
-The `callAI` function returns either a string or a streaming response (AsyncGenerator), but we want to make the raw/internal API response object available to users without changing the API signature.
+The `callAi` function returns either a string or a streaming response (AsyncGenerator), but we want to make the raw/internal API response object available to users without changing the API signature.
 
 ## Requirements
 
@@ -24,11 +24,11 @@ Since we can successfully add properties to AsyncGenerator objects (they're prop
 
 ```typescript
 // Regular usage - returns a string as before
-const result = await callAI("What's the weather?", { model: "gpt-4" });
+const result = await callAi("What's the weather?", { model: "gpt-4" });
 console.log(result); // "The weather is sunny today."
 
 // AsyncGenerator usage with rawResponse
-const stream = await callAI("Count to 10", { stream: true });
+const stream = await callAi("Count to 10", { stream: true });
 // Now has a non-enumerable rawResponse property
 console.log(stream.rawResponse); // Full response object with headers, etc.
 

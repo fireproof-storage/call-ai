@@ -6,7 +6,7 @@
 export * from "./types";
 
 // Export API functions
-export { callAI, getMeta } from "./api";
+export { callAi, getMeta } from "./api";
 
 // Export image generation function
 export { imageGen } from "./image";

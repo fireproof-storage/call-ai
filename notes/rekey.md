@@ -32,7 +32,7 @@ export function isNewKeyError(error: any, debug: boolean = false): boolean {
   const is4xx = status >= 400 && status < 500;
   
   if (is4xx && debug) {
-    console.log(`[callAI:debug] Key error detected: status=${status}, message=${String(error)}`);
+    console.log(`[callAi:debug] Key error detected: status=${status}, message=${String(error)}`);
   }
   
   return is4xx;
@@ -119,7 +119,7 @@ async function handleApiError(
   options: { apiKey?: string; endpoint?: string } = {}
 ): Promise<void> {
   if (debug) {
-    console.error(`[callAI:${context}]:`, error);
+    console.error(`[callAi:${context}]:`, error);
   }
   
   // Check if this error indicates we need a new key
@@ -236,10 +236,10 @@ async function refreshApiKey(
 
 ### 5. Update the API Calling Functions
 
-Modify the main callAI function to retry once with the new key:
+Modify the main callAi function to retry once with the new key:
 
 ```typescript
-export async function callAI(prompt: string | Message[], options: CallAIOptions = {}): Promise<string> {
+export async function callAi(prompt: string | Message[], options: CallAIOptions = {}): Promise<string> {
   // Try to get an initial key if we don't have one and refreshEndpoint is configured
   if (!options.apiKey && !keyStore.current && keyStore.refreshEndpoint && !keyStore.isRefreshing) {
     try {
@@ -276,7 +276,7 @@ export async function callAI(prompt: string | Message[], options: CallAIOptions 
       // Attempt to refresh the key through handleApiError
       try {
         // This will throw if the refresh fails or can't be attempted
-        await handleApiError(error, 'callAI', options.debug || false, {
+        await handleApiError(error, 'callAi', options.debug || false, {
           apiKey: options.apiKey || keyStore.current,
           endpoint: options.endpoint
         });
