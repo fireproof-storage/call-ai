@@ -22,6 +22,7 @@ export async function imageGen(
     model = "gpt-image-1",
     apiKey = "VIBES_DIY",
     debug = false,
+    size = "1024x1024",
   } = options;
 
   if (debug) {
@@ -58,7 +59,7 @@ export async function imageGen(
         body: JSON.stringify({
           model,
           prompt,
-          ...(options.size && { size: options.size }),
+          size,
           ...(options.quality && { quality: options.quality }),
           ...(options.style && { style: options.style }),
         }),
@@ -84,8 +85,8 @@ export async function imageGen(
         formData.append(`image_${index}`, image);
       });
 
-      // Add optional parameters if provided
-      if (options.size) formData.append("size", options.size);
+      // Add parameters
+      formData.append("size", size);
       if (options.quality) formData.append("quality", options.quality);
       if (options.style) formData.append("style", options.style);
 
