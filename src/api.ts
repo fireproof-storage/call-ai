@@ -465,10 +465,18 @@ function prepareRequestParams(
   const requestParams: any = {
     model,
     messages,
-    temperature: options.temperature !== undefined ? options.temperature : 0.7,
-    top_p: options.topP !== undefined ? options.topP : 1,
     stream: options.stream !== undefined ? options.stream : false,
   };
+
+  // Only include temperature if explicitly set
+  if (options.temperature !== undefined) {
+    requestParams.temperature = options.temperature;
+  }
+
+  // Only include top_p if explicitly set
+  if (options.topP !== undefined) {
+    requestParams.top_p = options.topP;
+  }
 
   // Only include max_tokens if explicitly set
   if (options.maxTokens !== undefined) {
