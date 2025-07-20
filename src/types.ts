@@ -2,24 +2,34 @@
  * Type definitions for call-ai
  */
 
+export type Falsy = false | null | undefined | 0 | ""; 
+
+export interface OriginalError {
+  readonly originalError: Error;
+  readonly refreshError: Error;
+  readonly status: number;
+}
+
 /**
  * Content types for multimodal messages
  */
-export type ContentItem = {
-  type: "text" | "image_url";
-  text?: string;
-  image_url?: {
-    url: string;
+export interface ContentItem {
+  readonly type: "text" | "image_url";
+  readonly text?: string;
+  readonly image_url?: {
+    readonly url: string;
   };
-};
+}
 
 /**
  * Message type supporting both simple string content and multimodal content
  */
-export type Message = {
-  role: "user" | "system" | "assistant";
-  content: string | ContentItem[];
-};
+export interface Message {
+  readonly role: "user" | "system" | "assistant";
+  readonly content: string | ContentItem[];
+}
+
+
 
 /**
  * Metadata associated with a response
@@ -34,8 +44,8 @@ export interface ResponseMeta {
   /**
    * Timing information about the request
    */
-  timing?: {
-    startTime: number;
+  readonly timing?: {
+    readonly startTime: number;
     endTime?: number;
     duration?: number;
   };
@@ -44,7 +54,7 @@ export interface ResponseMeta {
    * Raw response data from the fetch call
    * Contains the parsed JSON result from the API call
    */
-  rawResponse?: any;
+  rawResponse?: NonNullable<Partial<{model: string, id: string}>>;
 }
 
 export interface Schema {
@@ -52,33 +62,100 @@ export interface Schema {
    * Optional schema name - will be sent to OpenRouter if provided
    * If not specified, defaults to "result"
    */
-  name?: string;
+  readonly name?: string;
   /**
    * Properties defining the structure of your schema
    */
-  properties: Record<string, any>;
+  readonly properties: Record<string, unknown>;
   /**
    * Fields that are required in the response (defaults to all properties)
    */
-  required?: string[];
+  readonly required?: string[];
   /**
    * Whether to allow fields not defined in properties (defaults to false)
    */
-  additionalProperties?: boolean;
+  readonly additionalProperties?: boolean;
   /**
    * Any additional schema properties to pass through
    */
-  [key: string]: any;
+  readonly [key: string]: unknown;
+}
+
+export interface ToolUseType {
+  readonly type: "tool_use";
+  readonly input: unknown;
+}
+export function isToolUseType(obj: unknown): obj is ToolUseType {
+  return !!obj && (obj as ToolUseType).type === "tool_use";
+}
+
+export interface ToolUseResponse {
+  readonly tool_use: {
+    readonly input: unknown;
+  };
+}
+export function isToolUseResponse(obj: unknown): obj is ToolUseResponse {
+  return !!obj && (obj as ToolUseResponse).tool_use !== undefined;
+}
+
+export interface AIResult {
+  choices: {
+    message: {
+      content?: string;
+      function_call: string | ToolUseType | ToolUseResponse;
+      tool_calls?: string
+    };
+    text?: string;
+  }[];
+}
+
+interface OpenAIFunctionCall {
+  readonly function: {
+    readonly arguments: unknown;
+  };
+}
+
+export function isOpenAIArray(obj: unknown): obj is OpenAIFunctionCall[] {
+  return Array.isArray(obj) && obj.length > 0 && obj[0].function !== undefined;
 }
 
 /**
  * Strategy interface for handling different model types
  */
 export interface ModelStrategy {
-  name: string;
-  prepareRequest: (schema: Schema | null, messages: Message[]) => any;
-  processResponse: (content: string | any) => string;
-  shouldForceStream?: boolean;
+  readonly name: string;
+  readonly prepareRequest: (schema: Schema | Falsy , messages: Message[]) => Request | undefined;
+  readonly processResponse: (content: string | ToolUseType | ToolUseResponse| OpenAIFunctionCall[]) => string;
+  readonly shouldForceStream?: boolean;
+}
+
+export interface CallAIErrorParams {
+  readonly message: string;
+  readonly status: number;
+  readonly statusText: string;
+  readonly details: unknown;
+  readonly contentType: string;
+  readonly statusCode?: number;
+  readonly response?: {
+    readonly status: number;
+  };
+  readonly name?: string;
+  readonly cause?: unknown;
+}
+export class CallAIError {
+  readonly message: string;
+  readonly status: number;
+  readonly statusText: string;
+  readonly details: unknown;
+  readonly contentType: string;
+
+  constructor(params: CallAIErrorParams) {
+    this.message = params.message;
+    this.status = params.status;
+    this.statusText = params.statusText;
+    this.details = params.details;
+    this.contentType = params.contentType;
+  }
 }
 
 /**
@@ -94,11 +171,11 @@ export type SchemaStrategyType =
  * Strategy selection result
  */
 export interface SchemaStrategy {
-  strategy: SchemaStrategyType;
-  model: string;
-  prepareRequest: ModelStrategy["prepareRequest"];
-  processResponse: ModelStrategy["processResponse"];
-  shouldForceStream: boolean;
+  readonly strategy: SchemaStrategyType;
+  readonly model: string;
+  readonly prepareRequest: ModelStrategy["prepareRequest"];
+  readonly processResponse: ModelStrategy["processResponse"];
+  readonly shouldForceStream: boolean;
 }
 
 /**
@@ -118,23 +195,23 @@ export interface CallAIOptions {
   /**
    * API key for authentication
    */
-  apiKey?: string;
+  readonly apiKey?: string;
 
   /**
    * Model ID to use for the request
    */
-  model?: string;
+  readonly model?: string;
 
   /**
    * API endpoint to send the request to
    */
-  endpoint?: string;
+  readonly endpoint?: string;
 
   /**
    * Custom origin for chat API
-   * Can also be set via window.CALLAI_CHAT_URL or process.env.CALLAI_CHAT_URL
+   * Can also be set via window.CALLAI_CHAT_URL or callAiEnv.CALLAI_CHAT_URL
    */
-  chatUrl?: string;
+  readonly chatUrl?: string;
 
   /**
    * Whether to stream the response
@@ -143,7 +220,7 @@ export interface CallAIOptions {
 
   /**
    * Authentication token for key refresh service
-   * Can also be set via window.CALL_AI_REFRESH_TOKEN, process.env.CALL_AI_REFRESH_TOKEN, or default to "use-vibes"
+   * Can also be set via window.CALL_AI_REFRESH_TOKEN, callAiEnv.CALL_AI_REFRESH_TOKEN, or default to "use-vibes"
    */
   refreshToken?: string;
 
@@ -153,61 +230,67 @@ export interface CallAIOptions {
    * @param currentToken The current refresh token that failed
    * @returns A Promise that resolves to a new refresh token
    */
-  updateRefreshToken?: (currentToken: string) => Promise<string>;
+  readonly updateRefreshToken?: (currentToken: string) => Promise<string>;
 
   /**
    * Schema for structured output
    */
-  schema?: Schema | null;
+  readonly schema?: Schema | null;
 
   /**
    * Modalities to enable in the response (e.g., ["image", "text"])
    * Used for multimodal models that can generate images
    */
-  modalities?: string[];
+  readonly modalities?: string[];
 
   /**
    * Whether to skip retry with fallback model when model errors occur
    * Useful in testing and cases where retries should be suppressed
    */
-  skipRetry?: boolean;
+  readonly skipRetry?: boolean;
 
   /**
    * Skip key refresh on 4xx errors
    * Useful for testing error conditions or when you want to handle refresh manually
    */
-  skipRefresh?: boolean;
+  readonly skipRefresh?: boolean;
 
   /**
    * Enable raw response logging without any filtering or processing
    */
-  debug?: boolean;
+  readonly debug?: boolean;
+
+
+  readonly referer?: string;
+  readonly title?: string;
+
+  readonly schemaStrategy?: SchemaStrategy;
 
   /**
    * Any additional options to pass to the API
    */
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface AIResponse {
-  text: string;
-  usage?: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
+  readonly text: string;
+  readonly usage?: {
+    readonly promptTokens: number;
+    readonly completionTokens: number;
+    readonly totalTokens: number;
   };
-  model: string;
+  readonly model: string;
 }
 
 /**
  * Response from image generation API
  */
 export interface ImageResponse {
-  created: number;
-  data: {
-    b64_json: string;
-    url?: string;
-    revised_prompt?: string;
+  readonly created: number;
+  readonly data: {
+    readonly b64_json: string;
+    readonly url?: string;
+    readonly revised_prompt?: string;
   }[];
 }
 
@@ -219,47 +302,48 @@ export interface ImageGenOptions {
    * API key for authentication
    * Defaults to "VIBES_DIY"
    */
-  apiKey?: string;
+  readonly apiKey?: string;
 
   /**
    * Model to use for image generation
    * Defaults to "gpt-image-1"
    */
-  model?: string;
+  readonly model?: string;
 
   /**
    * Size of the generated image
    */
-  size?: string;
+  readonly size?: string;
 
   /**
    * Quality of the generated image
    */
-  quality?: string;
+  readonly quality?: string;
 
   /**
    * Style of the generated image
    */
-  style?: string;
+  readonly style?: string;
 
   /**
    * For image editing: array of File objects to be edited
    */
-  images?: File[];
+  readonly images?: File[];
 
   /**
    * Custom base URL for the image generation API
-   * Can also be set via window.CALLAI_IMG_URL or process.env.CALLAI_IMG_URL
+   * Can also be set via window.CALLAI_IMG_URL or callAiEnv.CALLAI_IMG_URL
    */
-  imgUrl?: string;
+  readonly imgUrl?: string;
 
   /**
    * Enable debug logging
    */
-  debug?: boolean;
+  readonly debug?: boolean;
 }
 
 /**
  * @deprecated Use ImageGenOptions instead
  */
-export interface ImageEditOptions extends ImageGenOptions {}
+export type ImageEditOptions = ImageGenOptions;
+

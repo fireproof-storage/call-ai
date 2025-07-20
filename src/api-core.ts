@@ -9,14 +9,17 @@ import {
   Schema,
   StreamResponse,
   ThenableStreamResponse,
-} from "./types";
-import { globalDebug } from "./key-management";
-import { callAINonStreaming } from "./non-streaming";
-import { callAIStreaming } from "./streaming";
+  isToolUseType,
+  isToolUseResponse,
+  isOpenAIArray,
+} from "./types.js";
+import { globalDebug } from "./key-management.js";
+import { callAINonStreaming } from "./non-streaming.js";
+import { callAIStreaming } from "./streaming.js";
+import { PACKAGE_VERSION } from "./version.js";
+import { callAiEnv } from "./utils.js";
 
 // Import package version for debugging
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const PACKAGE_VERSION = require("../package.json").version;
 
 /**
  * Main API interface function for making AI API calls
@@ -38,11 +41,14 @@ function callAi(prompt: string | Message[], options: CallAIOptions = {}) {
   let schemaStrategy: SchemaStrategy = {
     strategy: "none" as const,
     model: options.model || "openai/gpt-3.5-turbo",
-    prepareRequest: () => ({}),
-    processResponse: (response: any) => {
+    prepareRequest: () => (undefined),
+    processResponse: (response) => {
       // If response is an object, stringify it to match expected test output
       if (response && typeof response === "object") {
         return JSON.stringify(response);
+      }
+      if (typeof response !== "string") {
+        throw new Error(`Unexpected response type: ${typeof response}`);
       }
       return response;
     },
@@ -61,11 +67,16 @@ function callAi(prompt: string | Message[], options: CallAIOptions = {}) {
         shouldForceStream: false,
         prepareRequest: (schema) => {
           // Parse the schema to extract the function definition
-          let toolDef: any = {};
+          let toolDef: {
+            name?: string;
+            description?: string;
+            parameters?: unknown;
+          } = {};
 
           if (typeof schema === "string") {
             try {
               toolDef = JSON.parse(schema);
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             } catch (e) {
               // If it's not valid JSON, we'll use it as a plain description
               toolDef = { description: schema };
@@ -104,17 +115,17 @@ function callAi(prompt: string | Message[], options: CallAIOptions = {}) {
           }
 
           // Handle direct tool_use format
-          if (response && response.type === "tool_use") {
+          if (isToolUseType(response)) {
             return response.input || "{}";
           }
 
           // Handle object with tool_use property
-          if (response && response.tool_use) {
+          if (isToolUseResponse(response)) {
             return response.tool_use.input || "{}";
           }
 
           // Handle array of tool calls (OpenAI format)
-          if (Array.isArray(response)) {
+          if (isOpenAIArray(response)) {
             if (
               response.length > 0 &&
               response[0].function &&
@@ -308,9 +319,7 @@ function prepareRequestParams(
   options: CallAIOptions = {},
 ) {
   // Get API key from options or window.CALLAI_API_KEY (exactly matching original)
-  const apiKey =
-    options.apiKey ||
-    (typeof window !== "undefined" ? (window as any).CALLAI_API_KEY : null);
+  const apiKey = options.apiKey || callAiEnv.CALLAI_API_KEY
 
   // Validate API key with original error message
   if (!apiKey) {

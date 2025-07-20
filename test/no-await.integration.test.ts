@@ -1,5 +1,7 @@
-import { callAi } from "../src/index";
-import dotenv from "dotenv";
+import { callAi } from "../src/index.js";
+import { dotenv } from "zx";
+import { callAiEnv } from "../src/utils.js";
+import { expectOrWarn } from "./test-helper.js";
 
 // Load environment variables from .env file if present
 dotenv.config();
@@ -11,7 +13,7 @@ jest.retryTimes(2, { logErrorsBeforeRetry: true });
 // jest.setTimeout(60000);
 
 // Skip tests if no API key is available
-const haveApiKey = process.env.CALLAI_API_KEY;
+const haveApiKey = callAiEnv.CALLAI_API_KEY;
 const itif = (condition: boolean) => (condition ? it.concurrent : it.skip);
 
 // Timeout for individual test
@@ -29,19 +31,6 @@ const supportedModels = {
 
 // Define the model names as an array for looping
 const modelEntries = Object.entries(supportedModels);
-
-// Function to handle test expectations based on model grade
-const expectOrWarn = (
-  model: { id: string; grade: string },
-  condition: boolean,
-  message: string,
-) => {
-  if (model.grade === "A") {
-    expect(condition).toBe(true);
-  } else if (!condition) {
-    console.warn(`Warning (${model.id}): ${message}`);
-  }
-};
 
 // Create a test function that won't fail on timeouts for B and C grade models
 const gradeAwareTest = (modelId: { id: string; grade: string }) => {
@@ -96,7 +85,7 @@ describe("Simple callAi integration tests", () => {
         async () => {
           // Make a simple non-structured API call
           const result = await callAi("Write a short joke about programming.", {
-            apiKey: process.env.CALLAI_API_KEY,
+            apiKey: callAiEnv.CALLAI_API_KEY,
             model: modelId.id,
           });
 
@@ -118,7 +107,7 @@ describe("Simple callAi integration tests", () => {
         async () => {
           // Make a simple non-structured API call with streaming
           const generator = callAi("Write a short joke about programming.", {
-            apiKey: process.env.CALLAI_API_KEY,
+            apiKey: callAiEnv.CALLAI_API_KEY,
             model: modelId.id,
             stream: true,
           }) as unknown as AsyncGenerator<string, string, unknown>;
@@ -163,7 +152,7 @@ describe("Simple callAi integration tests", () => {
               { role: "user", content: "What is the capital of France?" },
             ],
             {
-              apiKey: process.env.CALLAI_API_KEY,
+              apiKey: callAiEnv.CALLAI_API_KEY,
               model: modelId.id,
             },
           );
@@ -201,7 +190,7 @@ describe("Simple callAi integration tests", () => {
         async () => {
           // Make the API call with schema
           const result = await callAi("Provide information about France.", {
-            apiKey: process.env.CALLAI_API_KEY,
+            apiKey: callAiEnv.CALLAI_API_KEY,
             model: modelId.id,
             schema: simpleSchema,
           });
@@ -316,7 +305,7 @@ describe("Simple callAi integration tests", () => {
           const result = await callAi(
             "Create a detailed travel plan for a weekend trip to a beach destination.",
             {
-              apiKey: process.env.CALLAI_API_KEY,
+              apiKey: callAiEnv.CALLAI_API_KEY,
               model: modelId.id,
               schema: complexSchema,
             },
@@ -410,7 +399,7 @@ describe("Simple callAi integration tests", () => {
                 data.activities.length > 0,
                 `'activities' array is empty in ${modelName} model response`,
               );
-              data.activities.forEach((activity: any) => {
+              data.activities.forEach((activity: unknown) => {
                 expectOrWarn(
                   modelId,
                   typeof activity === "string",
@@ -468,7 +457,7 @@ describe("Simple callAi integration tests", () => {
                 );
 
               if (Array.isArray(data.accommodation.features)) {
-                data.accommodation.features.forEach((feature: any) => {
+                data.accommodation.features.forEach((feature: unknown) => {
                   expectOrWarn(
                     modelId,
                     typeof feature === "string",
@@ -577,7 +566,7 @@ describe("Simple callAi integration tests", () => {
         async () => {
           // Make the API call with schema
           const result = await callAi("Create a recipe for a healthy dinner.", {
-            apiKey: process.env.CALLAI_API_KEY,
+            apiKey: callAiEnv.CALLAI_API_KEY,
             model: modelId.id,
             schema: complexFlatSchema,
           });
@@ -776,7 +765,7 @@ describe("Simple callAi integration tests", () => {
           const result = await callAi(
             "Create a simple file system structure with a root directory containing two subdirectories, each with two files.",
             {
-              apiKey: process.env.CALLAI_API_KEY,
+              apiKey: callAiEnv.CALLAI_API_KEY,
               model: modelId.id,
               schema: simpleNestedSchema,
             },

@@ -2,11 +2,11 @@
  * Streaming response handling for call-ai
  */
 
-import { CallAIOptions, SchemaStrategy } from "./types";
-import { globalDebug } from "./key-management";
-import { responseMetadata, boxString } from "./response-metadata";
-import { checkForInvalidModelError } from "./error-handling";
-import { PACKAGE_VERSION, FALLBACK_MODEL } from "./non-streaming";
+import { CallAIError, CallAIOptions, SchemaStrategy, ToolUseType } from "./types.js";
+import { globalDebug } from "./key-management.js";
+import { responseMetadata, boxString } from "./response-metadata.js";
+import { checkForInvalidModelError } from "./error-handling.js";
+import { PACKAGE_VERSION, FALLBACK_MODEL } from "./non-streaming.js";
 
 // Generator factory function for streaming API calls
 // This is called after the fetch is made and response is validated
@@ -70,7 +70,7 @@ async function* createStreamingGenerator(
       buffer += chunk;
 
       // Split on double newlines to find complete SSE messages
-      let messages = buffer.split(/\n\n/);
+      const messages = buffer.split(/\n\n/);
       buffer = messages.pop() || ""; // Keep the last incomplete chunk in the buffer
 
       for (const message of messages) {
@@ -79,7 +79,7 @@ async function* createStreamingGenerator(
         }
 
         // Extract the JSON payload
-        let jsonStr = message.slice(6); // Remove 'data: ' prefix
+        const jsonStr = message.slice(6); // Remove 'data: ' prefix
         if (jsonStr === "[DONE]") {
           if (options.debug || globalDebug) {
             console.log(`[callAi:${PACKAGE_VERSION}] Received [DONE] signal`);
@@ -116,16 +116,15 @@ async function* createStreamingGenerator(
             }
 
             // Create a detailed error to throw
-            const detailedError = new Error(
-              `API streaming error: ${errorMessage}`,
+            const detailedError = new CallAIError(
+              {
+                message: `API streaming error: ${errorMessage}`,
+                status: json.error?.status || 400,
+                statusText: json.error?.type || "Bad Request",
+                details: JSON.stringify(json.error || json),
+                contentType: "application/json",
+              }
             );
-
-            // Add error metadata
-            (detailedError as any).status = json.error?.status || 400;
-            (detailedError as any).statusText =
-              json.error?.type || "Bad Request";
-            (detailedError as any).details = JSON.stringify(json.error || json);
-
             console.error(
               `[callAi:${PACKAGE_VERSION}] Throwing stream error:`,
               detailedError,
@@ -159,7 +158,8 @@ async function* createStreamingGenerator(
                     try {
                       // First try parsing as-is
                       JSON.parse(toolCallsAssembled);
-                    } catch (parseError) {
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    } catch (e) {
                       if (options.debug) {
                         console.log(
                           `[callAi:${PACKAGE_VERSION}] Attempting to fix malformed JSON in tool call:`,
@@ -279,7 +279,7 @@ async function* createStreamingGenerator(
             // Extract the tool use content
             if (json.content && Array.isArray(json.content)) {
               const toolUseBlock = json.content.find(
-                (block: any) => block.type === "tool_use",
+                (block: ToolUseType) => block.type === "tool_use",
               );
               if (toolUseBlock) {
                 completeText = schemaStrategy.processResponse(toolUseBlock);
@@ -293,7 +293,7 @@ async function* createStreamingGenerator(
               const choice = json.choices[0];
               if (choice.message && Array.isArray(choice.message.content)) {
                 const toolUseBlock = choice.message.content.find(
-                  (block: any) => block.type === "tool_use",
+                  (block: ToolUseType) => block.type === "tool_use",
                 );
                 if (toolUseBlock) {
                   completeText = schemaStrategy.processResponse(toolUseBlock);
@@ -305,7 +305,7 @@ async function* createStreamingGenerator(
               // Handle case where the tool use is in the delta
               if (choice.delta && Array.isArray(choice.delta.content)) {
                 const toolUseBlock = choice.delta.content.find(
-                  (block: any) => block.type === "tool_use",
+                  (block: ToolUseType) => block.type === "tool_use",
                 );
                 if (toolUseBlock) {
                   completeText = schemaStrategy.processResponse(toolUseBlock);
@@ -494,7 +494,7 @@ async function* createStreamingGenerator(
 async function* callAIStreaming(
   prompt: string | any[],
   options: CallAIOptions = {},
-  isRetry: boolean = false,
+  isRetry = false,
 ): AsyncGenerator<string, string, unknown> {
   // Convert simple string prompts to message array format
   const messages = Array.isArray(prompt)
@@ -513,6 +513,9 @@ async function* callAIStreaming(
 
   // Choose a schema strategy based on model
   const schemaStrategy = options.schemaStrategy;
+  if (!schemaStrategy) {
+    throw new Error("Schema strategy is required for streaming");
+  }
 
   // Default to JSON response for certain models
   const responseFormat =
@@ -548,7 +551,7 @@ async function* callAIStreaming(
   if (options.schema) {
     Object.assign(
       requestBody,
-      schemaStrategy.prepareRequest(options.schema, messages),
+      schemaStrategy?.prepareRequest(options.schema, messages),
     );
   }
 
@@ -585,7 +588,7 @@ async function* callAIStreaming(
         "debug",
       ].includes(key)
     ) {
-      requestBody[key] = (options as any)[key];
+      requestBody[key] = (options)[key];
     }
   });
 

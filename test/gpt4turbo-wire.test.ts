@@ -1,18 +1,19 @@
 import fs from "fs";
 import path from "path";
-import { callAi, Schema, Message } from "../src/index";
+import { callAi, Schema, Message } from "../src/index.js";
+import { Mock, vitest } from "vitest";
 
 // Mock fetch to use our fixture files
-global.fetch = jest.fn();
+global.fetch = vitest.fn();
 
 describe("GPT-4 Turbo Wire Protocol Tests", () => {
   // Read fixtures
-  const gpt4turboSystemRequestFixture = JSON.parse(
-    fs.readFileSync(
-      path.join(__dirname, "fixtures/gpt4turbo-system-request.json"),
-      "utf8",
-    ),
-  );
+  // const gpt4turboSystemRequestFixture = JSON.parse(
+  //   fs.readFileSync(
+  //     path.join(__dirname, "fixtures/gpt4turbo-system-request.json"),
+  //     "utf8",
+  //   ),
+  // );
 
   const gpt4turboSystemResponseFixture = fs.readFileSync(
     path.join(__dirname, "fixtures/gpt4turbo-system-response.json"),
@@ -24,7 +25,7 @@ describe("GPT-4 Turbo Wire Protocol Tests", () => {
     (global.fetch as jest.Mock).mockClear();
 
     // Mock successful response
-    (global.fetch as jest.Mock).mockImplementation(async (url, options) => {
+    (global.fetch as jest.Mock).mockImplementation(async () => {
       return {
         ok: true,
         status: 200,
@@ -63,7 +64,7 @@ describe("GPT-4 Turbo Wire Protocol Tests", () => {
 
     // Get the request body that was passed to fetch
     const actualRequestBody = JSON.parse(
-      (global.fetch as jest.Mock).mock.calls[0][1].body,
+      (global.fetch as Mock).mock.calls[0][1].body,
     );
 
     // Check that we're using system messages
@@ -72,7 +73,7 @@ describe("GPT-4 Turbo Wire Protocol Tests", () => {
 
     // Find the system message
     const systemMessage = actualRequestBody.messages.find(
-      (m: any) => m.role === "system",
+      (m: { role: string }) => m.role === "system",
     );
     expect(systemMessage).toBeTruthy();
     expect(systemMessage.content).toContain("title");
@@ -82,7 +83,7 @@ describe("GPT-4 Turbo Wire Protocol Tests", () => {
 
     // Verify user message is included
     const userMessage = actualRequestBody.messages.find(
-      (m: any) => m.role === "user",
+      (m: { role: string }) => m.role === "user",
     );
     expect(userMessage).toBeTruthy();
     expect(userMessage.content).toBe(
@@ -210,7 +211,7 @@ describe("GPT-4 Turbo Wire Protocol Tests", () => {
 
     // Verify user message is included
     const userMessage = actualRequestBody.messages.find(
-      (m: any) => m.role === "user",
+      (m: { role: string }) => m.role === "user",
     );
     expect(userMessage).toBeTruthy();
     expect(userMessage.content).toBe(

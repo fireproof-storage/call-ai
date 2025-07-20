@@ -1,24 +1,22 @@
 /**
  * Non-streaming API call implementation for call-ai
  */
-import { CallAIOptions, Message, SchemaStrategy } from "./types";
-import { globalDebug, keyStore } from "./key-management";
-import { handleApiError, checkForInvalidModelError } from "./error-handling";
-import { responseMetadata, boxString } from "./response-metadata";
+import { AIResult, CallAIErrorParams, CallAIOptions, Message, SchemaStrategy } from "./types.js";
+import { globalDebug, keyStore, initKeyStore } from "./key-management.js";
+import { handleApiError, checkForInvalidModelError } from "./error-handling.js";
+import { responseMetadata, boxString } from "./response-metadata.js";
+import { PACKAGE_VERSION } from "./version.js";
 
 // Import package version for debugging
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const PACKAGE_VERSION = require("../package.json").version;
 const FALLBACK_MODEL = "openrouter/auto";
 
 // Internal implementation for non-streaming API calls
 async function callAINonStreaming(
   prompt: string | Message[],
   options: CallAIOptions = {},
-  isRetry: boolean = false,
+  isRetry = false,
 ): Promise<string> {
   // Ensure keyStore is initialized first
-  const { initKeyStore } = require("./key-management");
   initKeyStore();
 
   // Convert simple string prompts to message array format
@@ -38,6 +36,9 @@ async function callAINonStreaming(
 
   // Choose a schema strategy based on model
   const schemaStrategy = options.schemaStrategy;
+  if (!schemaStrategy) {
+    throw new Error("Schema strategy is required for non-streaming calls");
+  }
 
   // Default to JSON response for certain models
   const responseFormat =
@@ -110,7 +111,7 @@ async function callAINonStreaming(
         "debug",
       ].includes(key)
     ) {
-      requestBody[key] = (options as any)[key];
+      requestBody[key] = options[key];
     }
   });
 
@@ -220,7 +221,7 @@ async function callAINonStreaming(
     }
 
     // For other errors, use API error handling
-    await handleApiError(error, "Non-streaming API call", options.debug, {
+    await handleApiError(error as CallAIErrorParams, "Non-streaming API call", options.debug, {
       apiKey: apiKey || undefined,
       endpoint: options.endpoint || undefined,
       skipRefresh: options.skipRefresh,
@@ -252,7 +253,7 @@ async function callAINonStreaming(
 }
 
 // Extract content from API response accounting for different formats
-function extractContent(result: any, schemaStrategy: SchemaStrategy): any {
+function extractContent(result: AIResult, schemaStrategy: SchemaStrategy): string {
   // Debug output has been removed for brevity
 
   if (!result) {
@@ -307,13 +308,16 @@ function extractContent(result: any, schemaStrategy: SchemaStrategy): any {
       return schemaStrategy.processResponse(choice.text);
     }
   }
+  if (typeof result !== "string") {
+    throw new Error(`Failed to extract content from API response: ${JSON.stringify(result)}`);
+  }
 
   // Return raw result if we couldn't extract content
   return result;
 }
 
 // Extract response from Claude API with timeout handling
-async function extractClaudeResponse(response: Response): Promise<any> {
+async function extractClaudeResponse(response: Response): Promise<NonNullable<unknown>> {
   try {
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => {

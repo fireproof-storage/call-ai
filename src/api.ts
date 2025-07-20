@@ -2,19 +2,22 @@
  * Core API implementation for call-ai
  */
 import {
+  CallAIError,
   CallAIOptions,
   Message,
   ResponseMeta,
   SchemaStrategy,
   StreamResponse,
-} from "./types";
-import { chooseSchemaStrategy } from "./strategies";
-import { responseMetadata, boxString, getMeta } from "./response-metadata";
-import { keyStore, globalDebug } from "./key-management";
-import { handleApiError, checkForInvalidModelError } from "./error-handling";
-import { createBackwardCompatStreamingProxy } from "./api-core";
-import { extractContent, extractClaudeResponse } from "./non-streaming";
-import { createStreamingGenerator } from "./streaming";
+} from "./types.js";
+import { chooseSchemaStrategy } from "./strategies/index.js";
+import { responseMetadata, boxString } from "./response-metadata.js";
+import { keyStore, globalDebug } from "./key-management.js";
+import { handleApiError, checkForInvalidModelError } from "./error-handling.js";
+import { createBackwardCompatStreamingProxy } from "./api-core.js";
+import { extractContent, extractClaudeResponse } from "./non-streaming.js";
+import { createStreamingGenerator } from "./streaming.js";
+import { PACKAGE_VERSION } from "./version.js";
+import { callAiEnv } from "./utils.js";
 
 // Key management is now imported from ./key-management
 
@@ -33,11 +36,10 @@ import { createStreamingGenerator } from "./streaming";
 
 // boxString and getMeta functions are now imported from ./response-metadata
 // Re-export getMeta to maintain backward compatibility
-export { getMeta };
+// export { getMeta };
 
 // Import package version for debugging
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const PACKAGE_VERSION = require("../package.json").version;
+ 
 
 // Default fallback model when the primary model fails or is unavailable
 const FALLBACK_MODEL = "openrouter/auto";
@@ -252,13 +254,13 @@ export function callAi(
           }
 
           // Create error with standard format
-          const error = new Error(errorMessage);
-
-          // Add useful metadata
-          (error as any).status = response.status;
-          (error as any).statusText = response.statusText;
-          (error as any).details = errorJson;
-          (error as any).contentType = contentType;
+          const error = new CallAIError({
+            message: errorMessage,
+            status: response.status,
+            statusText: response.statusText,
+            details: errorJson,
+            contentType,
+          })
           throw error;
         } catch (jsonError) {
           // If JSON parsing fails, extract a useful message from the raw error body
@@ -295,11 +297,13 @@ export function callAi(
             );
           }
 
-          const error = new Error(errorMessage);
-          (error as any).status = response.status;
-          (error as any).statusText = response.statusText;
-          (error as any).details = errorBody;
-          (error as any).contentType = contentType;
+          const error = new CallAIError({
+            message: errorMessage,
+            status: response.status,
+            statusText: response.statusText,
+            details: errorBody,
+            contentType,
+          })
           throw error;
         }
       } catch (responseError) {
@@ -309,12 +313,14 @@ export function callAi(
         }
 
         // Fallback error
-        const error = new Error(
-          `API returned ${response.status}: ${response.statusText}`,
-        );
-        (error as any).status = response.status;
-        (error as any).statusText = response.statusText;
-        (error as any).contentType = contentType;
+        const error = new CallAIError(
+          {
+            message: `API returned ${response.status}: ${response.statusText}`,
+            status: response.status,
+            statusText: response.statusText,
+            details: undefined,
+            contentType,
+          })
         throw error;
       }
     }
@@ -328,7 +334,7 @@ export function callAi(
   })();
 
   // For backward compatibility with v0.6.x where users didn't await the result
-  if (process.env.NODE_ENV !== "production") {
+  if (callAiEnv.NODE_ENV !== "production") {
     if (options.debug) {
       console.warn(
         `[callAi:${PACKAGE_VERSION}] No await found - using legacy streaming pattern. This will be removed in a future version and may cause issues with certain models.`,
@@ -337,7 +343,7 @@ export function callAi(
   }
 
   // Create a proxy object that acts both as a Promise and an AsyncGenerator for backward compatibility
-  // @ts-ignore - We're deliberately implementing a proxy with dual behavior
+  //... @ts-ignore - We're deliberately implementing a proxy with dual behavior
   return createBackwardCompatStreamingProxy(streamPromise);
 }
 
@@ -414,6 +420,7 @@ async function bufferStreamingResults(
 
 // checkForInvalidModelError is imported from error-handling.ts
 
+
 /**
  * Prepare request parameters common to both streaming and non-streaming calls
  */
@@ -428,10 +435,9 @@ function prepareRequestParams(
   schemaStrategy: SchemaStrategy;
 } {
   // First try to get the API key from options or window globals
-  let apiKey =
+  const apiKey =
     options.apiKey ||
-    keyStore.current || // Try keyStore first in case it was refreshed in a previous call
-    (typeof window !== "undefined" ? (window as any).CALLAI_API_KEY : null);
+    keyStore.current || callAiEnv.CALLAI_API_KEY() // Try keyStore first in case it was refreshed in a previous call
   const schema = options.schema || null;
 
   // If no API key exists, we won't throw immediately. We'll continue and let handleApiError
@@ -442,12 +448,7 @@ function prepareRequestParams(
   const model = schemaStrategy.model;
 
   // Get custom chat API origin if set
-  const customChatOrigin =
-    options.chatUrl ||
-    (typeof window !== "undefined" ? (window as any).CALLAI_CHAT_URL : null) ||
-    (typeof process !== "undefined" && process.env
-      ? process.env.CALLAI_CHAT_URL
-      : null);
+  const customChatOrigin = options.chatUrl || callAiEnv.CALLAI_CHAT_URL;
 
   // Use custom origin or default OpenRouter URL
   const endpoint =
@@ -462,14 +463,14 @@ function prepareRequestParams(
     : [{ role: "user", content: prompt }];
 
   // Common parameters for both streaming and non-streaming
-  const requestParams: any = {
+  const requestParams: CallAIOptions = {
     model,
     messages,
     stream: options.stream !== undefined ? options.stream : false,
   };
 
   // Only include temperature if explicitly set
-  if (options.temperature !== undefined) {
+  if (options.temperature) {
     requestParams.temperature = options.temperature;
   }
 
@@ -555,7 +556,7 @@ function prepareRequestParams(
 async function callAINonStreaming(
   prompt: string | Message[],
   options: CallAIOptions = {},
-  isRetry: boolean = false,
+  isRetry = false,
 ): Promise<string> {
   try {
     // Start timing for metadata
@@ -593,10 +594,13 @@ async function callAINonStreaming(
       }
 
       // Create a proper error object with the status code preserved
-      const error: any = new Error(`HTTP error! Status: ${response.status}`);
-      // Add status code as a property of the error object
-      error.status = response.status;
-      error.statusCode = response.status; // Add statusCode for compatibility with different error patterns
+      const error = new CallAIError({
+        message: `HTTP error! Status: ${response.status}`,
+        status: response.status,
+        statusText: response.statusText,
+        details: undefined,
+        contentType: "text/plain",
+      })
       throw error;
     }
 

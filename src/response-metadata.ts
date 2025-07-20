@@ -2,7 +2,7 @@
  * Response metadata handling for call-ai
  */
 
-import { ResponseMeta } from "./types";
+import { ResponseMeta } from "./types.js";
 
 // WeakMap to store metadata for responses without modifying the response objects
 const responseMetadata = new WeakMap<object, ResponseMeta>();
@@ -17,7 +17,7 @@ const stringResponseMap = new Map<string, object>();
 function boxString(str: string): object {
   // Check if already boxed
   if (stringResponseMap.has(str)) {
-    return stringResponseMap.get(str)!;
+    return stringResponseMap.get(str) as object;
   }
   // Create a new box
   const box = Object.create(null);

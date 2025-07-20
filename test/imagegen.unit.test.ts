@@ -1,23 +1,24 @@
-import { imageGen } from "../src/index";
+import { Mock, vitest } from "vitest";
+import { imageGen } from "../src/index.js";
 
 // Mock fetch
-global.fetch = jest.fn();
+global.fetch = vitest.fn();
 
 // Create mock objects in setup to avoid TypeScript errors
-let mockBlobInstance: any;
-let mockFileInstance: any;
+// let mockBlobInstance: any;
+// let mockFileInstance: any;
 
 // Setup mock constructors and instances
 beforeAll(() => {
   // Create mock instances that will be returned when 'new' is called
-  mockBlobInstance = {
+  const mockBlobInstance = {
     size: 0,
     type: "image/png",
-    arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(0)),
-    text: jest.fn().mockResolvedValue("mock text"),
+    arrayBuffer: vitest.fn().mockResolvedValue(new ArrayBuffer(0)),
+    text: vitest.fn().mockResolvedValue("mock text"),
   };
 
-  mockFileInstance = {
+  const mockFileInstance = {
     name: "mock-file.png",
     type: "image/png",
     size: 0,
@@ -26,22 +27,22 @@ beforeAll(() => {
 
   // Use a simple class implementation that Jest's objectContaining can properly match
   class MockFormData {
-    append = jest.fn();
-    delete = jest.fn();
-    get = jest.fn();
-    getAll = jest.fn();
-    has = jest.fn();
-    set = jest.fn();
+    append = vitest.fn();
+    delete = vitest.fn();
+    get = vitest.fn();
+    getAll = vitest.fn();
+    has = vitest.fn();
+    set = vitest.fn();
   }
 
   // Mock constructors
-  global.Blob = jest.fn().mockImplementation(() => mockBlobInstance) as any;
-  global.File = jest.fn().mockImplementation((_, name, options) => {
+  global.Blob = vitest.fn().mockImplementation(() => mockBlobInstance) //as any;
+  global.File = vitest.fn().mockImplementation((_, name, options) => {
     return { ...mockFileInstance, name, type: options?.type || "image/png" };
-  }) as any;
+  }) //as any;
 
   // For FormData, create a new instance each time
-  global.FormData = MockFormData as any;
+  global.FormData = MockFormData as unknown  as typeof FormData;
 });
 
 // Mock response for successful image generation
@@ -58,12 +59,12 @@ const mockImageResponse = {
 
 describe("imageGen", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    (global.fetch as jest.Mock).mockResolvedValue({
+    vitest.clearAllMocks();
+    (global.fetch as Mock).mockResolvedValue({
       ok: true,
       status: 200,
       statusText: "OK",
-      json: jest.fn().mockResolvedValue(mockImageResponse),
+      json: vitest.fn().mockResolvedValue(mockImageResponse),
     });
   });
 
@@ -93,7 +94,7 @@ describe("imageGen", () => {
 
     // Check request body
     const requestBody = JSON.parse(
-      (global.fetch as jest.Mock).mock.calls[0][1].body,
+      (global.fetch as Mock).mock.calls[0][1].body,
     );
     expect(requestBody).toEqual({
       model: "gpt-image-1",
@@ -147,7 +148,7 @@ describe("imageGen", () => {
 
   it("should handle errors from the image generation API", async () => {
     // Mock a failed response
-    (global.fetch as jest.Mock).mockResolvedValue({
+    (global.fetch as Mock).mockResolvedValue({
       ok: false,
       status: 400,
       statusText: "Bad Request",
@@ -169,7 +170,7 @@ describe("imageGen", () => {
 
   it("should handle errors from the image editing API", async () => {
     // Mock a failed response
-    (global.fetch as jest.Mock).mockResolvedValue({
+    (global.fetch as Mock).mockResolvedValue({
       ok: false,
       status: 400,
       statusText: "Bad Request",

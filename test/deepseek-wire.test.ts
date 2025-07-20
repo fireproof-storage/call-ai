@@ -1,30 +1,31 @@
 import fs from "fs";
 import path from "path";
-import { callAi, Schema, Message } from "../src/index";
+import { callAi, Schema, Message } from "../src/index.js";
+import { Mock, vitest } from "vitest";
 
 // Mock fetch to use our fixture files
-global.fetch = jest.fn();
+global.fetch = vitest.fn();
 
 describe("DeepSeek Wire Protocol Tests", () => {
   // Read fixtures
-  const deepseekRequestFixture = JSON.parse(
-    fs.readFileSync(
-      path.join(__dirname, "fixtures/deepseek-request.json"),
-      "utf8",
-    ),
-  );
+  // const deepseekRequestFixture = JSON.parse(
+  //   fs.readFileSync(
+  //     path.join(__dirname, "fixtures/deepseek-request.json"),
+  //     "utf8",
+  //   ),
+  // );
 
   const deepseekResponseFixture = fs.readFileSync(
     path.join(__dirname, "fixtures/deepseek-response.json"),
     "utf8",
   );
 
-  const deepseekSystemRequestFixture = JSON.parse(
-    fs.readFileSync(
-      path.join(__dirname, "fixtures/deepseek-system-request.json"),
-      "utf8",
-    ),
-  );
+  // const deepseekSystemRequestFixture = JSON.parse(
+  //   fs.readFileSync(
+  //     path.join(__dirname, "fixtures/deepseek-system-request.json"),
+  //     "utf8",
+  //   ),
+  // );
 
   const deepseekSystemResponseFixture = fs.readFileSync(
     path.join(__dirname, "fixtures/deepseek-system-response.json"),
@@ -33,10 +34,10 @@ describe("DeepSeek Wire Protocol Tests", () => {
 
   beforeEach(() => {
     // Reset mocks
-    (global.fetch as jest.Mock).mockClear();
+    (global.fetch as Mock).mockClear();
 
     // Mock successful response
-    (global.fetch as jest.Mock).mockImplementation(async (url, options) => {
+    (global.fetch as Mock).mockImplementation(async () => {
       return {
         ok: true,
         status: 200,
@@ -74,7 +75,7 @@ describe("DeepSeek Wire Protocol Tests", () => {
 
     // Get the request body that was passed to fetch
     const actualRequestBody = JSON.parse(
-      (global.fetch as jest.Mock).mock.calls[0][1].body,
+      (global.fetch as Mock).mock.calls[0][1].body,
     );
 
     // Check that we're using system message approach rather than JSON schema format
@@ -83,7 +84,7 @@ describe("DeepSeek Wire Protocol Tests", () => {
 
     // Check for system message with schema info
     const systemMessage = actualRequestBody.messages.find(
-      (m: any) => m.role === "system",
+      (m: { role: string }) => m.role === "system",
     );
     expect(systemMessage).toBeTruthy();
     expect(systemMessage.content).toContain("title");
@@ -94,7 +95,7 @@ describe("DeepSeek Wire Protocol Tests", () => {
 
     // Verify user message is included
     const userMessage = actualRequestBody.messages.find(
-      (m: any) => m.role === "user",
+      (m: { role: string }) => m.role === "user",
     );
     expect(userMessage).toBeTruthy();
     expect(userMessage.content).toBe(
@@ -107,7 +108,7 @@ describe("DeepSeek Wire Protocol Tests", () => {
 
   it("should correctly handle DeepSeek response with schema", async () => {
     // Update mock to return proper response
-    (global.fetch as jest.Mock).mockImplementationOnce(async (url, options) => {
+    (global.fetch as Mock).mockImplementationOnce(async () => {
       return {
         ok: true,
         status: 200,
@@ -139,8 +140,8 @@ describe("DeepSeek Wire Protocol Tests", () => {
     );
 
     // Parse the DeepSeek response fixture to get expected content
-    const responseObj = JSON.parse(deepseekResponseFixture);
-    const responseContent = responseObj.choices[0].message.content;
+    // const responseObj = JSON.parse(deepseekResponseFixture);
+    // const responseContent = responseObj.choices[0].message.content;
 
     // Verify the result
     expect(result).toBeTruthy();
@@ -156,7 +157,7 @@ describe("DeepSeek Wire Protocol Tests", () => {
 
   it("should handle system message approach with DeepSeek", async () => {
     // Update mock to return system message response
-    (global.fetch as jest.Mock).mockImplementationOnce(async (url, options) => {
+    (global.fetch as jest.Mock).mockImplementationOnce(async () => {
       return {
         ok: true,
         status: 200,

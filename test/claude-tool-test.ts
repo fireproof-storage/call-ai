@@ -1,31 +1,32 @@
 // Basic test for Claude tool mode
 
-const { callAi } = require('../dist/index.js');
-require('dotenv').config();
+import { callAi } from '../src/index.js';
+import { dotenv } from "zx";
+import { callAiEnv } from '../src/utils.js';
+
+dotenv.config();
 
 // Helper function with timeout
-const callWithTimeout = async (promiseFn, timeout = 30000) => {
-  return new Promise(async (resolve, reject) => {
+async function callWithTimeout(promiseFn: () => Promise<unknown>, timeout = 30000) {
+  return new Promise((resolve, reject) => {
     // Create a timeout that will reject the promise
     const timeoutId = setTimeout(() => {
       reject(new Error(`Operation timed out after ${timeout}ms`));
     }, timeout);
     
-    try {
-      // Try to execute the function
-      const result = await promiseFn();
+    promiseFn().then(() => promiseFn()).then((result) => {
       clearTimeout(timeoutId);
       resolve(result);
-    } catch (error) {
+    }).catch((error) => {
       clearTimeout(timeoutId);
       reject(error);
-    }
+    });
   });
 };
 
 async function main() {
   // Get API key from environment, trying both variables
-  const apiKey = process.env.CALLAI_API_KEY || process.env.OPENROUTER_API_KEY;
+  const apiKey = callAiEnv.CALLAI_API_KEY;
   
   if (!apiKey) {
     console.error('Error: No API key found. Please set CALLAI_API_KEY or OPENROUTER_API_KEY in your .env file.');
@@ -65,7 +66,7 @@ async function main() {
         const parsedJson = JSON.parse(claudeResult);
         console.log('Parsed JSON:', parsedJson);
       } catch (e) {
-        console.log('Failed to parse JSON:', e.message);
+        console.log('Failed to parse JSON:', (e as Error).message);
       }
     } else {
       console.log('Result is not a string:', typeof claudeResult);
@@ -93,7 +94,7 @@ async function main() {
         const parsedJson = JSON.parse(openaiResult);
         console.log('Parsed JSON:', parsedJson);
       } catch (e) {
-        console.log('Failed to parse JSON:', e.message);
+        console.log('Failed to parse JSON:', (e as Error).message);
       }
     } else {
       console.log('Result is not a string:', typeof openaiResult);

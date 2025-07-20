@@ -1,30 +1,31 @@
 import fs from "fs";
 import path from "path";
-import { callAi, Schema, Message } from "../src/index";
+import { callAi, Schema, Message } from "../src/index.js";
+import { Mock, vitest } from "vitest";
 
 // Mock fetch to use our fixture files
-global.fetch = jest.fn();
+global.fetch = vitest.fn();
 
 describe("Gemini Wire Protocol Tests", () => {
   // Read fixtures
-  const geminiSystemRequestFixture = JSON.parse(
-    fs.readFileSync(
-      path.join(__dirname, "fixtures/gemini-system-request.json"),
-      "utf8",
-    ),
-  );
+  // const geminiSystemRequestFixture = JSON.parse(
+  //   fs.readFileSync(
+  //     path.join(__dirname, "fixtures/gemini-system-request.json"),
+  //     "utf8",
+  //   ),
+  // );
 
   const geminiSystemResponseFixture = fs.readFileSync(
     path.join(__dirname, "fixtures/gemini-system-response.json"),
     "utf8",
   );
 
-  const geminiRequestFixture = JSON.parse(
-    fs.readFileSync(
-      path.join(__dirname, "fixtures/gemini-request.json"),
-      "utf8",
-    ),
-  );
+  // const geminiRequestFixture = JSON.parse(
+  //   fs.readFileSync(
+  //     path.join(__dirname, "fixtures/gemini-request.json"),
+  //     "utf8",
+  //   ),
+  // );
 
   const geminiResponseFixture = fs.readFileSync(
     path.join(__dirname, "fixtures/gemini-response.json"),
@@ -33,10 +34,10 @@ describe("Gemini Wire Protocol Tests", () => {
 
   beforeEach(() => {
     // Reset mocks
-    (global.fetch as jest.Mock).mockClear();
+    (global.fetch as Mock).mockClear();
 
     // Mock successful response
-    (global.fetch as jest.Mock).mockImplementation(async (url, options) => {
+    (global.fetch as Mock).mockImplementation(async () => {
       return {
         ok: true,
         status: 200,
@@ -74,7 +75,7 @@ describe("Gemini Wire Protocol Tests", () => {
 
     // Get the request body that was passed to fetch
     const actualRequestBody = JSON.parse(
-      (global.fetch as jest.Mock).mock.calls[0][1].body,
+      (global.fetch as Mock).mock.calls[0][1].body,
     );
 
     // Check that we're using JSON Schema format since Gemini is not Claude
@@ -98,7 +99,7 @@ describe("Gemini Wire Protocol Tests", () => {
 
   it("should correctly handle Gemini response with schema", async () => {
     // Update mock to return proper response
-    (global.fetch as jest.Mock).mockImplementationOnce(async (url, options) => {
+    (global.fetch as Mock).mockImplementationOnce(async () => {
       return {
         ok: true,
         status: 200,
@@ -130,8 +131,8 @@ describe("Gemini Wire Protocol Tests", () => {
     );
 
     // Parse the Gemini response fixture to get expected content
-    const responseObj = JSON.parse(geminiResponseFixture);
-    const responseContent = responseObj.choices[0].message.content;
+    // const responseObj = JSON.parse(geminiResponseFixture);
+    // const responseContent = responseObj.choices[0].message.content;
 
     // Verify the result
     expect(result).toBeTruthy();
@@ -185,7 +186,7 @@ describe("Gemini Wire Protocol Tests", () => {
 
     // Get the request body that was passed to fetch
     const actualRequestBody = JSON.parse(
-      (global.fetch as jest.Mock).mock.calls[0][1].body,
+      (global.fetch as Mock).mock.calls[0][1].body,
     );
 
     // Verify messages are passed through correctly
@@ -247,7 +248,7 @@ describe("Gemini Wire Protocol Tests", () => {
 
   it("should handle schema when response_format schema is supported", async () => {
     // Override the mock for this specific test
-    (global.fetch as jest.Mock).mockImplementationOnce(async (url, options) => {
+    (global.fetch as Mock).mockImplementationOnce(async () => {
       return {
         ok: true,
         status: 200,
@@ -283,7 +284,7 @@ describe("Gemini Wire Protocol Tests", () => {
 
     // Get the request body that was passed to fetch
     const actualRequestBody = JSON.parse(
-      (global.fetch as jest.Mock).mock.calls[0][1].body,
+      (global.fetch as Mock).mock.calls[0][1].body,
     );
 
     // Check that we're using response_format.json_schema approach instead

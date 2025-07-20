@@ -1,4 +1,4 @@
-import { callAi } from "../src/index";
+import { callAi } from "../src/index.js";
 
 // Mock global fetch
 global.fetch = jest.fn();
@@ -61,14 +61,14 @@ describe("Claude JSON Property Splitting Test", () => {
             .mockResolvedValueOnce({
               done: false,
               value: new TextEncoder().encode(
-                `data: {"type":"content_block_delta","delta":{"text":"{\\\"capital\\\":\\\"Paris\\\", \\\"popul"}}\n\n`,
+                `data: {"type":"content_block_delta","delta":{"text":"{"capital":"Paris", "popul"}}\n\n`,
               ),
             })
             // Second part with "ation" completing the property name
             .mockResolvedValueOnce({
               done: false,
               value: new TextEncoder().encode(
-                `data: {"type":"content_block_delta","delta":{"text":"ation\\\":67.5, \\\"languages\\\":[\\\"French\\\"]}"}}\n\n`,
+                `data: {"type":"content_block_delta","delta":{"text":"ation":67.5, "languages":["French"]}"}}\n\n`,
               ),
             })
             // Final chunk with tool_calls completion signal

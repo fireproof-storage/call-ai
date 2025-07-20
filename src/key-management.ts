@@ -2,20 +2,33 @@
  * Key management functionality for call-ai
  */
 
+import { entriesHeaders } from "../test/test-helper.js";
+import { CallAIErrorParams, Falsy } from "./types.js";
+import { callAiEnv } from "./utils.js";
+
+export interface KeyMetadata {
+  key: string;
+  hash: string 
+  created: Date;
+  expires: Date;
+  remaining: number;
+  limit: number;
+}
+
 // Internal key store to keep track of the latest key
 const keyStore = {
   // Default key from environment or config
   current: null as string | null,
   // The refresh endpoint URL - defaults to vibecode.garden
-  refreshEndpoint: "https://vibecode.garden" as string | null,
+  refreshEndpoint: "https://vibecode.garden", 
   // Authentication token for refresh endpoint - defaults to use-vibes
-  refreshToken: "use-vibes" as string | null,
+  refreshToken: "use-vibes" as string | Falsy,
   // Flag to prevent concurrent refresh attempts
   isRefreshing: false,
   // Timestamp of last refresh attempt (to prevent too frequent refreshes)
   lastRefreshAttempt: 0,
   // Storage for key metadata (useful for future top-up implementation)
-  metadata: {} as Record<string, any>,
+  metadata:  {} as Record<string, Partial<KeyMetadata>>
 };
 
 // Global debug flag
@@ -26,55 +39,11 @@ let globalDebug = false;
  */
 function initKeyStore() {
   // Initialize with environment variables if available
-  if (typeof process !== "undefined" && process.env) {
-    if (process.env.CALLAI_API_KEY) {
-      keyStore.current = process.env.CALLAI_API_KEY;
-    }
+  keyStore.current = callAiEnv.CALLAI_API_KEY;
+  keyStore.refreshEndpoint = callAiEnv.CALLAI_REFRESH_ENDPOINT ?? "https://vibecode.garden";
+  keyStore.refreshToken = callAiEnv.CALL_AI_REFRESH_TOKEN ?? "use-vibes";
+  globalDebug = !!callAiEnv.CALLAI_DEBUG;
 
-    // Support both CALLAI_REFRESH_ENDPOINT and CALLAI_REKEY_ENDPOINT for backward compatibility
-    if (process.env.CALLAI_REFRESH_ENDPOINT) {
-      keyStore.refreshEndpoint = process.env.CALLAI_REFRESH_ENDPOINT;
-    } else if (process.env.CALLAI_REKEY_ENDPOINT) {
-      keyStore.refreshEndpoint = process.env.CALLAI_REKEY_ENDPOINT;
-    } else {
-      // Default to vibecode.garden if not specified
-      keyStore.refreshEndpoint = "https://vibecode.garden";
-    }
-
-    // Support both CALL_AI_REFRESH_TOKEN and CALL_AI_KEY_TOKEN for backward compatibility
-    if (process.env.CALL_AI_REFRESH_TOKEN) {
-      keyStore.refreshToken = process.env.CALL_AI_REFRESH_TOKEN;
-    } else if (process.env.CALL_AI_KEY_TOKEN) {
-      keyStore.refreshToken = process.env.CALL_AI_KEY_TOKEN;
-    } else {
-      // Default to use-vibes if not specified - this is the default token for vibecode.garden
-      keyStore.refreshToken = "use-vibes";
-    }
-
-    // Check for CALLAI_DEBUG environment variable (any truthy value works)
-    if (process.env.CALLAI_DEBUG) {
-      // Set the global debug flag
-      globalDebug = true;
-    }
-  }
-  // Initialize from window globals if in browser context
-  else if (typeof window !== "undefined") {
-    // Use window.CALLAI_API_KEY or window.callAi.API_KEY if available
-    if ((window as any).CALLAI_API_KEY) {
-      keyStore.current = (window as any).CALLAI_API_KEY;
-    } else if ((window as any).callAi?.API_KEY) {
-      keyStore.current = (window as any).callAi.API_KEY;
-    }
-
-    // Check for debug flag in browser environment
-    if ((window as any).CALLAI_DEBUG) {
-      globalDebug = true;
-    }
-    keyStore.refreshEndpoint =
-      (window as any).CALLAI_REFRESH_ENDPOINT || keyStore.refreshEndpoint;
-    keyStore.refreshToken =
-      (window as any).CALL_AI_REFRESH_TOKEN || keyStore.refreshToken;
-  }
 }
 
 // Initialize on module load
@@ -86,9 +55,10 @@ initKeyStore();
  * @param debug Whether to log debug information
  * @returns True if the error suggests we need a new key
  */
-function isNewKeyError(error: any, debug: boolean = false): boolean {
+function isNewKeyError(ierror: unknown, debug = false): boolean {
+  const error = ierror as CallAIErrorParams;
   // Extract status from error object or message text
-  let status = error?.status || error?.statusCode || error?.response?.status;
+  let status = error?.status || error?.statusCode || error?.response?.status || 450;
   const errorMessage = String(error || "").toLowerCase();
 
   // Extract status code from error message if not found in the object properties
@@ -169,9 +139,9 @@ function isNewKeyError(error: any, debug: boolean = false): boolean {
  * @returns Object containing the API key and topup flag
  */
 async function refreshApiKey(
-  currentKey: string | null,
-  endpoint: string | null,
-  refreshToken: string | null,
+  currentKey: string | Falsy,
+  endpoint: string | Falsy,
+  refreshToken: string | Falsy,
   debug: boolean = globalDebug,
 ): Promise<{ apiKey: string; topup: boolean }> {
   // Ensure we have an endpoint and refreshToken
@@ -221,7 +191,7 @@ async function refreshApiKey(
   keyStore.lastRefreshAttempt = Date.now();
 
   // Process API paths
-  let apiPath = "/api/keys";
+  const apiPath = "/api/keys";
 
   // Normalize endpoint URL to remove any trailing slashes
   const baseUrl = endpoint.endsWith("/") ? endpoint.slice(0, -1) : endpoint;
@@ -264,9 +234,10 @@ async function refreshApiKey(
       console.log(
         `[callAi:key-refresh] Response status: ${response.status} ${response.statusText}`,
       );
+
       console.log(
         `[callAi:key-refresh] Response headers:`,
-        Object.fromEntries([...response.headers.entries()]),
+        Object.fromEntries([...entriesHeaders(response.headers)]),
       );
     }
 
@@ -362,16 +333,16 @@ function getHashFromKey(key: string): string | null {
 /**
  * Helper function to store key metadata for future reference
  */
-function storeKeyMetadata(data: any): void {
+function storeKeyMetadata(data: KeyMetadata): void {
   if (!data || !data.key) return;
 
   // Store metadata with the key as the dictionary key
   keyStore.metadata[data.key] = {
-    hash: data.hash || null,
+    hash: data.hash, 
     created: data.created || Date.now(),
-    expires: data.expires || null,
-    remaining: data.remaining || null,
-    limit: data.limit || null,
+    expires: data.expires,
+    remaining: data.remaining,
+    limit: data.limit,
   };
 }
 

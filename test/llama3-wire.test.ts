@@ -1,30 +1,30 @@
 import fs from "fs";
 import path from "path";
-import { callAi, Schema, Message } from "../src/index";
+import { callAi, Schema, Message } from "../src/index.js";
 
 // Mock fetch to use our fixture files
 global.fetch = jest.fn();
 
 describe("Llama3 Wire Protocol Tests", () => {
   // Read fixtures
-  const llama3RequestFixture = JSON.parse(
-    fs.readFileSync(
-      path.join(__dirname, "fixtures/llama3-request.json"),
-      "utf8",
-    ),
-  );
+  // const llama3RequestFixture = JSON.parse(
+  //   fs.readFileSync(
+  //     path.join(__dirname, "fixtures/llama3-request.json"),
+  //     "utf8",
+  //   ),
+  // );
 
   const llama3ResponseFixture = fs.readFileSync(
     path.join(__dirname, "fixtures/llama3-response.json"),
     "utf8",
   );
 
-  const llama3SystemRequestFixture = JSON.parse(
-    fs.readFileSync(
-      path.join(__dirname, "fixtures/llama3-system-request.json"),
-      "utf8",
-    ),
-  );
+  // const llama3SystemRequestFixture = JSON.parse(
+  //   fs.readFileSync(
+  //     path.join(__dirname, "fixtures/llama3-system-request.json"),
+  //     "utf8",
+  //   ),
+  // );
 
   const llama3SystemResponseFixture = fs.readFileSync(
     path.join(__dirname, "fixtures/llama3-system-response.json"),
@@ -36,7 +36,7 @@ describe("Llama3 Wire Protocol Tests", () => {
     (global.fetch as jest.Mock).mockClear();
 
     // Mock successful response
-    (global.fetch as jest.Mock).mockImplementation(async (url, options) => {
+    (global.fetch as jest.Mock).mockImplementation(async () => {
       return {
         ok: true,
         status: 200,
@@ -83,7 +83,7 @@ describe("Llama3 Wire Protocol Tests", () => {
 
     // Check for system message with schema info
     const systemMessage = actualRequestBody.messages.find(
-      (m: any) => m.role === "system",
+      (m: { role: string }) => m.role === "system",
     );
     expect(systemMessage).toBeTruthy();
     expect(systemMessage.content).toContain("title");
@@ -94,7 +94,7 @@ describe("Llama3 Wire Protocol Tests", () => {
 
     // Verify user message is included
     const userMessage = actualRequestBody.messages.find(
-      (m: any) => m.role === "user",
+      (m: { role: string }) => m.role === "user",
     );
     expect(userMessage).toBeTruthy();
     expect(userMessage.content).toBe(
@@ -107,7 +107,7 @@ describe("Llama3 Wire Protocol Tests", () => {
 
   it("should correctly handle Llama3 response with schema", async () => {
     // Update mock to return proper response
-    (global.fetch as jest.Mock).mockImplementationOnce(async (url, options) => {
+    (global.fetch as jest.Mock).mockImplementationOnce(async () => {
       return {
         ok: true,
         status: 200,
@@ -139,8 +139,8 @@ describe("Llama3 Wire Protocol Tests", () => {
     );
 
     // Parse the Llama3 response fixture to get expected content
-    const responseObj = JSON.parse(llama3ResponseFixture);
-    const responseContent = responseObj.choices[0].message.content;
+    // const responseObj = JSON.parse(llama3ResponseFixture);
+    // const responseContent = responseObj.choices[0].message.content;
 
     // Verify the result
     expect(result).toBeTruthy();
@@ -156,7 +156,7 @@ describe("Llama3 Wire Protocol Tests", () => {
 
   it("should handle system message approach with Llama3", async () => {
     // Update mock to return system message response
-    (global.fetch as jest.Mock).mockImplementationOnce(async (url, options) => {
+    (global.fetch as jest.Mock).mockImplementationOnce(async () => {
       return {
         ok: true,
         status: 200,

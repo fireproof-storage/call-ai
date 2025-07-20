@@ -6,7 +6,8 @@ import {
   globalDebug,
   isNewKeyError,
   refreshApiKey,
-} from "./key-management";
+} from "./key-management.js";
+import { CallAIError, CallAIErrorParams } from "./types.js";
 
 // Standardized API error handler
 // @param error The error object
@@ -14,7 +15,7 @@ import {
 // @param debug Whether to log debug information
 // @param options Options for error handling including key refresh control
 async function handleApiError(
-  error: any,
+  error: CallAIErrorParams,
   context: string,
   debug: boolean = globalDebug,
   options: {
@@ -32,7 +33,7 @@ async function handleApiError(
     error?.statusCode ||
     error?.response?.status ||
     (errorMessage.match(/status: (\d+)/i)?.[1] &&
-      parseInt(errorMessage.match(/status: (\d+)/i)![1]));
+      parseInt(errorMessage.match(/status: (\d+)/i)?.[1] ?? "500"));
 
   // Check if this is a missing API key error
   const isMissingKeyError = errorMessage.includes("API key is required");
@@ -68,7 +69,7 @@ async function handleApiError(
       // Use provided key/endpoint/refreshToken or fallback to global configuration
       const currentKey = options.apiKey || keyStore.current;
       const endpoint = options.endpoint || keyStore.refreshEndpoint;
-      let refreshToken = options.refreshToken || keyStore.refreshToken;
+      const refreshToken = options.refreshToken || keyStore.refreshToken;
 
       // First attempt to refresh the API key
       try {
@@ -170,13 +171,12 @@ async function handleApiError(
         );
       }
       // Create a more detailed error from the original one
-      const detailedError = new Error(
-        `${errorMessage} (Key refresh failed: ${refreshError instanceof Error ? refreshError.message : String(refreshError)})`,
-      );
-      // Preserve error metadata from the original error
-      (detailedError as any).originalError = error;
-      (detailedError as any).refreshError = refreshError;
-      (detailedError as any).status = status || 401;
+      const detailedError = new CallAIError( {
+          message: `${errorMessage} (Key refresh failed: ${refreshError instanceof Error ? refreshError.message : String(refreshError)})`,
+          originalError: error,
+          refreshError: refreshError,
+          status: status || 401
+      })
 
       throw detailedError;
     }

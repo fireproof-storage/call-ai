@@ -1,16 +1,17 @@
 {
   "compilerOptions": {
     "target": "es2020",
-    "module": "commonjs",
+    "lib": ["DOM"],
+    "module": "nodenext",
     "declaration": true,
     "outDir": "./dist",
     "strict": true,
-    "esModuleInterop": true,
     "skipLibCheck": true,
+    "moduleResolution": "nodenext",
     "forceConsistentCasingInFileNames": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "**/*.test.ts"]
+  "include": ["src/**/*", "test/**/*"],
+  "exclude": ["node_modules"]
 } 

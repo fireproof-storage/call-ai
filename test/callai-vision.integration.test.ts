@@ -1,14 +1,15 @@
-import { callAi, ContentItem } from "../src/index";
-import dotenv from "dotenv";
+import { callAi, ContentItem } from "../src/index.js";
+import { dotenv } from "zx";
 import fs from "fs";
 import path from "path";
+import { callAiEnv } from "../src/utils.js";
+import { itif } from "./test-helper.js";
 
 // Load environment variables from .env file if present
 dotenv.config();
 
 // Skip tests if no API key is available
-const haveApiKey = process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY;
-const itif = (condition: boolean) => (condition ? it : it.skip);
+const haveApiKey = callAiEnv.CALLAI_API_KEY;
 
 // Timeout for image recognition tests
 const TIMEOUT = 30000;
@@ -46,7 +47,7 @@ describe("Call-AI Vision Recognition", () => {
       try {
         // Call the callAi function with the vision model
         const result = await callAi([{ role: "user", content }], {
-          apiKey: process.env.OPENROUTER_API_KEY || process.env.CALLAI_API_KEY,
+          apiKey: callAiEnv.CALLAI_API_KEY,
           model: "openai/gpt-4o-2024-08-06",
         });
 

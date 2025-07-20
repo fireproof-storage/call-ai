@@ -1,14 +1,14 @@
 /**
  * Strategy selection logic for different AI models
  */
-import { Schema, SchemaStrategy } from "../types";
+import { Schema, SchemaStrategy } from "../types.js";
 import {
   claudeStrategy,
   defaultStrategy,
   geminiStrategy,
   openAIStrategy,
   systemMessageStrategy,
-} from "./model-strategies";
+} from "./model-strategies.js";
 
 /**
  * Choose the appropriate schema strategy based on model and schema

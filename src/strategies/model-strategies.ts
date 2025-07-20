@@ -1,8 +1,8 @@
 /**
  * Model strategies for different AI models
  */
-import { Message, ModelStrategy } from "../types";
-import { recursivelyAddAdditionalProperties } from "../utils";
+import { Message, ModelStrategy } from "../types.js";
+import { recursivelyAddAdditionalProperties } from "../utils.js";
 
 /**
  * OpenAI/GPT strategy for handling JSON schema

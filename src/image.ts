@@ -2,11 +2,12 @@
  * Image generation API implementation for call-ai
  * Integration with custom image generation API
  */
-import { ImageGenOptions, ImageResponse } from "./types";
+import { ImageGenOptions, ImageResponse } from "./types.js";
+import { callAiEnv } from "./utils.js";
+import { PACKAGE_VERSION } from "./version.js";
 
 // Import package version for debugging (same as main API)
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const PACKAGE_VERSION = require("../package.json").version;
+ 
 
 /**
  * Generate images using a custom API that mimics OpenAI's image generation capabilities
@@ -33,12 +34,7 @@ export async function imageGen(
   }
 
   // Get custom origin if set
-  const customOrigin =
-    options.imgUrl ||
-    (typeof window !== "undefined" ? (window as any).CALLAI_IMG_URL : null) ||
-    (typeof process !== "undefined" && process.env
-      ? process.env.CALLAI_IMG_URL
-      : null);
+  const customOrigin = options.imgUrl || callAiEnv.CALLAI_IMG_URL 
 
   try {
     // Handle image generation

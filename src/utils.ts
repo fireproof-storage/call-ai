@@ -59,3 +59,53 @@ export function recursivelyAddAdditionalProperties(schema: any): any {
 
   return result;
 }
+
+class CallAIEnv {
+
+  private getEnv(key: string): string | undefined {
+    if (window && key in window) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (window as any)[key];
+    }
+    if (process && process.env) {
+      return process.env[key];
+    }
+    console.warn("[callAi] Environment variable not found:", key);
+    return undefined;
+  }
+
+  get CALLAI_IMG_URL() {
+    return this.getEnv("CALLAI_IMG_URL");
+  }
+
+  get CALLAI_CHAT_URL() {
+    return this.getEnv("CALLAI_CHAT_URL");
+  }
+
+  get CALLAI_API_KEY() {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return this.getEnv("CALLAI_API_KEY") ?? this.getEnv("OPENROUTER_API_KEY") ?? (window as any).callAi?.API_KEY ??
+      this.getEnv("LOW_BALANCE_OPENROUTER_API_KEY");
+  }
+  get CALLAI_REFRESH_ENDPOINT() {
+    return this.getEnv("CALLAI_REFRESH_ENDPOINT");
+  }
+  get CALL_AI_REFRESH_TOKEN() {
+    return this.getEnv("CALL_AI_REFRESH_TOKEN");
+  }
+
+  get CALLAI_REKEY_ENDPOINT() {
+    return this.getEnv("CALLAI_REKEY_ENDPOINT");
+  }
+  get CALL_AI_KEY_TOKEN() {
+    return this.getEnv("CALL_AI_KEY_TOKEN");
+  }
+  get CALLAI_REFRESH_TOKEN() {
+    return this.getEnv("CALLAI_REFRESH_TOKEN");
+  }
+  get CALLAI_DEBUG() {
+    return !!this.getEnv("CALLAI_DEBUG") ;
+  }
+}
+
+export const callAiEnv = new CallAIEnv();

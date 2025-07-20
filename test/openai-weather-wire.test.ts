@@ -1,18 +1,19 @@
 import fs from "fs";
 import path from "path";
-import { callAi, Schema } from "../src/index";
+import { callAi, Schema } from "../src/index.js";
+import { Mock } from "vitest";
 
 // Mock fetch to use our fixture files
 global.fetch = jest.fn();
 
 describe("OpenAI Weather Streaming Tests", () => {
   // Read fixtures
-  const weatherRequestFixture = JSON.parse(
-    fs.readFileSync(
-      path.join(__dirname, "fixtures/openai-weather-request.json"),
-      "utf8",
-    ),
-  );
+  // const weatherRequestFixture = JSON.parse(
+  //   fs.readFileSync(
+  //     path.join(__dirname, "fixtures/openai-weather-request.json"),
+  //     "utf8",
+  //   ),
+  // );
 
   const weatherResponseFixture = fs.readFileSync(
     path.join(__dirname, "fixtures/openai-weather-response.json"),
@@ -21,10 +22,10 @@ describe("OpenAI Weather Streaming Tests", () => {
 
   beforeEach(() => {
     // Reset mocks
-    (global.fetch as jest.Mock).mockClear();
+    (global.fetch as Mock).mockClear();
 
     // Mock successful response for streaming request
-    (global.fetch as jest.Mock).mockImplementation(async (url, options) => {
+    (global.fetch as Mock).mockImplementation(async (_url, options) => {
       const requestBody = JSON.parse(options.body as string);
 
       if (requestBody.stream) {
@@ -100,7 +101,7 @@ describe("OpenAI Weather Streaming Tests", () => {
     expect(generator[Symbol.asyncIterator]).toBeDefined();
 
     // Collect all chunks
-    let chunks: string[] = [];
+    const chunks: string[] = [];
     for await (const chunk of generator) {
       chunks.push(chunk);
     }

@@ -1,14 +1,16 @@
-import { callAi } from "../src/index";
-import dotenv from "dotenv";
+import { callAi } from "../src/index.js";
+import { dotenv } from "zx";
+import { callAiEnv } from "../src/utils.js";
+// import { vitest } from "vitest";
 
 // Load environment variables from .env file if present
 dotenv.config();
 
 // Configure retry settings for flaky tests
-jest.retryTimes(2, { logErrorsBeforeRetry: true });
+// vitest.retryTimes(2, { logErrorsBeforeRetry: true });
 
 // Skip tests if no API key is available
-const haveApiKey = process.env.CALLAI_API_KEY;
+const haveApiKey = callAiEnv.CALLAI_API_KEY;
 const itif = (condition: boolean) => (condition ? it : it.skip);
 
 // Timeout for individual test
@@ -21,7 +23,7 @@ describe("Error handling integration tests", () => {
     async () => {
       // Make a simple API call with no model specified
       const result = await callAi("Write a short joke about programming.", {
-        apiKey: process.env.CALLAI_API_KEY,
+        apiKey: callAiEnv.CALLAI_API_KEY,
         // No model specified - should use default
       });
 
@@ -39,7 +41,7 @@ describe("Error handling integration tests", () => {
       // Attempt API call with a non-existent model
       await expect(async () => {
         await callAi("Write a short joke about programming.", {
-          apiKey: process.env.CALLAI_API_KEY,
+          apiKey: callAiEnv.CALLAI_API_KEY,
           model: "fake-model-that-does-not-exist",
           skipRetry: true, // Skip retry mechanism to force the error
         });
@@ -57,7 +59,7 @@ describe("Error handling integration tests", () => {
         const generator = await callAi(
           "Write a short joke about programming.",
           {
-            apiKey: process.env.CALLAI_API_KEY,
+            apiKey: callAiEnv.CALLAI_API_KEY,
             model: "fake-model-that-does-not-exist",
             stream: true,
             skipRetry: true, // Skip retry mechanism to force the error
@@ -71,6 +73,7 @@ describe("Error handling integration tests", () => {
           string,
           unknown
         >;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         for await (const _ of asyncGenerator) {
           // This should throw before yielding any chunks
         }
@@ -88,7 +91,7 @@ describe("Error handling integration tests", () => {
       // Attempt API call with a non-existent model
       try {
         await callAi("Write a short joke about programming.", {
-          apiKey: process.env.CALLAI_API_KEY,
+          apiKey: callAiEnv.CALLAI_API_KEY,
           model: fakeModelId,
           skipRetry: true, // Skip retry mechanism to force the error
         });
@@ -119,7 +122,7 @@ describe("Error handling integration tests", () => {
       // Attempt API call with a non-existent model and debug enabled
       try {
         await callAi("Write a short joke about programming.", {
-          apiKey: process.env.CALLAI_API_KEY,
+          apiKey: callAiEnv.CALLAI_API_KEY,
           model: "fake-model-that-does-not-exist",
           debug: true,
           skipRetry: true, // Skip retry mechanism to force the error
@@ -147,7 +150,7 @@ describe("Error handling integration tests", () => {
         const generator = await callAi(
           "Write a short joke about programming.",
           {
-            apiKey: process.env.CALLAI_API_KEY,
+            apiKey: callAiEnv.CALLAI_API_KEY,
             model: "fake-model-that-does-not-exist",
             stream: true,
             skipRetry: true, // Skip retry mechanism to force the error
@@ -221,7 +224,7 @@ describe("Error handling integration tests", () => {
         try {
           console.log("Creating generator in React-like pattern");
           const generator = await callAi("Write a haiku about programming.", {
-            apiKey: process.env.CALLAI_API_KEY,
+            apiKey: callAiEnv.CALLAI_API_KEY,
             model: "fake-model-that-does-not-exist",
             stream: true,
             skipRetry: true, // Skip retry mechanism to force the error
@@ -298,7 +301,7 @@ describe("Error handling integration tests", () => {
           debug: true,
           model: "fake-model-that-does-not-exist",
           skipRetry: true,
-          apiKey: process.env.CALLAI_API_KEY,
+          apiKey: callAiEnv.CALLAI_API_KEY,
         })) as AsyncGenerator<string, string, unknown>;
 
         console.log(

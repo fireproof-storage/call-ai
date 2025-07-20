@@ -1,5 +1,5 @@
 /**
  * Strategy exports
  */
-export * from "./model-strategies";
-export * from "./strategy-selector";
+export * from "./model-strategies.js";
+export * from "./strategy-selector.js";

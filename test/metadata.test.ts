@@ -1,5 +1,5 @@
-import { callAi, getMeta } from "../src/index";
-import { ResponseMeta } from "../src/types";
+import { callAi, getMeta } from "../src/index.js";
+import { ResponseMeta } from "../src/types.js";
 
 // Mock global fetch
 global.fetch = jest.fn();
@@ -80,7 +80,7 @@ describe("getMeta", () => {
 
     // Verify raw response data
     expect(meta?.rawResponse).toBeDefined();
-    expect(meta?.rawResponse.model).toBe("openai/gpt-4o");
+    expect(meta?.rawResponse?.model).toBe("openai/gpt-4o");
 
     // Verify timing information
     expect(meta?.timing).toBeDefined();
@@ -126,7 +126,7 @@ describe("getMeta", () => {
     testMap.set(generator, mockMeta);
 
     // Mock the getMeta function for this test to use our test map
-    const originalGetMeta = getMeta;
+    // const originalGetMeta = getMeta;
     const mockedGetMeta = jest.fn((resp) => testMap.get(resp));
 
     // Check that we can get metadata from our mocked streaming response

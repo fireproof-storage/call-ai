@@ -3,12 +3,14 @@
  */
 
 // Export public types
-export * from "./types";
+export * from "./types.js";
 
 // Export API functions
-export { callAi, getMeta } from "./api";
+export { callAi, } from "./api.js";
 // Backward compatibility for callAI (uppercase AI)
-export { callAi as callAI } from "./api";
+export { callAi as callAI } from "./api.js";
+
+export { getMeta } from "./response-metadata.js";
 
 // Export image generation function
-export { imageGen } from "./image";
+export { imageGen } from "./image.js";

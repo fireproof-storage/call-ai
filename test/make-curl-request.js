@@ -1,7 +1,10 @@
 // Script to make a curl request using API key from .env
-const fs = require('fs');
-const { execSync } = require('child_process');
-require('dotenv').config();
+import * as fs from 'node:fs';
+import { execSync } from 'child_process';
+import { dotenv } from 'zx';
+import * as process from 'node:process';
+
+dotenv.config();
 
 // Get API key from environment, trying both variables
 const apiKey = process.env.CALLAI_API_KEY || process.env.OPENROUTER_API_KEY;

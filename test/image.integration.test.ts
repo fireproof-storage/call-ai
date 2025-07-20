@@ -1,11 +1,12 @@
-import { callAi } from "../src/index";
-import dotenv from "dotenv";
+import { callAi } from "../src/index.js";
+import { dotenv } from "zx";
+import { callAiEnv } from "../src/utils.js";
 
 // Load environment variables from .env file if present
 dotenv.config();
 
 // Skip tests if no API key is available
-const haveApiKey = process.env.CALLAI_API_KEY;
+const haveApiKey = callAiEnv.CALLAI_API_KEY;
 const itif = (condition: boolean) => (condition ? it : it.skip);
 
 // Timeout for image generation tests
@@ -43,7 +44,7 @@ describe("Vision Model Tests", () => {
       try {
         // Call the API with a vision model (OpenRouter supports these)
         const response = await callAi(messages, {
-          apiKey: process.env.CALLAI_API_KEY,
+          apiKey: callAiEnv.CALLAI_API_KEY,
           model: "meta-llama/llama-3.2-11b-vision", // Vision-capable model
           modalities: ["text"],
         });

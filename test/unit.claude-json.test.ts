@@ -1,4 +1,4 @@
-import { describe, it, expect } from "@jest/globals";
+import { describe, it, expect } from "vitest";
 
 // Import the relevant function or create a test-specific version of it
 // This test focuses directly on the JSON property splitting fix

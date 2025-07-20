@@ -1,5 +1,5 @@
-import { callAi, Message, Schema } from "../src/index";
-import dotenv from "dotenv";
+import { callAi, Message, Schema } from "../src/index.js";
+import { dotenv } from "zx";
 
 dotenv.config();
 
@@ -221,7 +221,7 @@ describe("callAi", () => {
   });
 
   it("should handle aliens schema example", async () => {
-    const alienSchema: Schema = {
+    const alienSchema = {
       properties: {
         aliens: {
           type: "array",
@@ -239,7 +239,7 @@ describe("callAi", () => {
           },
         },
       },
-    };
+    } satisfies Schema;
 
     const messages: Message[] = [
       {

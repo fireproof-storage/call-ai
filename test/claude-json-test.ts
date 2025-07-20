@@ -1,6 +1,7 @@
-import { callAi, getMeta } from "../src/index";
-import { Message } from "../src/types";
-import dotenv from "dotenv";
+import { callAi, getMeta } from "../src/index.js";
+import { dotenv } from "zx";
+import { callAiEnv } from "../src/utils.js";
+import { expectOrWarn } from "./test-helper.js";
 
 // Load environment variables from .env file if present
 dotenv.config();
@@ -12,8 +13,7 @@ dotenv.config();
 // jest.setTimeout(60000);
 
 // Skip tests if no API key is available
-const haveApiKey = process.env.CALLAI_API_KEY;
-const itif = (condition: boolean) => (condition ? it.concurrent : it.skip);
+const haveApiKey = callAiEnv.CALLAI_API_KEY;
 
 // Timeout for individual test
 const TIMEOUT = 30000;
@@ -32,32 +32,6 @@ const supportedModels = {
 
 // Define the model names as an array for looping
 const modelEntries = Object.entries(supportedModels);
-
-// Function to handle test expectations based on model grade
-const expectOrWarn = (
-  model: { id: string; grade: string },
-  condition: boolean,
-  message: string,
-  debugValue?: any, // Added optional debug value parameter
-) => {
-  if (model.grade === "A") {
-    if (!condition) {
-      // Enhanced debug logging for failures
-      console.log(`DETAILED FAILURE for ${model.id}: ${message}`);
-      if (debugValue !== undefined) {
-        console.log(
-          "Debug value:",
-          typeof debugValue === "object"
-            ? JSON.stringify(debugValue, null, 2)
-            : debugValue,
-        );
-      }
-    }
-    expect(condition).toBe(true);
-  } else if (!condition) {
-    console.warn(`Warning (${model.id}): ${message}`);
-  }
-};
 
 // Create a test function that won't fail on timeouts for B and C grade models
 const gradeAwareTest = (modelId: { id: string; grade: string }) => {
@@ -116,7 +90,7 @@ describe("Claude JSON property splitting test", () => {
             const result = await callAi(
               "Provide information about France. Population should be expressed in millions (e.g., 67.5 for 67.5 million people).",
               {
-                apiKey: process.env.CALLAI_API_KEY,
+                apiKey: callAiEnv.CALLAI_API_KEY,
                 model: modelId.id,
                 stream: true, // Streaming must be enabled to trigger the property splitting issue
                 schema: {
@@ -134,7 +108,7 @@ describe("Claude JSON property splitting test", () => {
             );
 
             // Get the metadata
-            const resultMeta = getMeta(result);
+            // const resultMeta = getMeta(result);
 
             // Verify response
             expectOrWarn(

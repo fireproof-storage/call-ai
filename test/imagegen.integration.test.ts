@@ -1,15 +1,11 @@
-import { imageGen } from "../src/index";
-import dotenv from "dotenv";
-// Import jest fetch mock
-import "jest-fetch-mock";
+import { vitest } from "vitest";
+import { imageGen } from "../src/index.js";
+import { dotenv } from "zx";
 
 // Add type declaration for Node.js require
-// @ts-ignore - using require for jest-fetch-mock
-const fetchMock = require("jest-fetch-mock");
 
 // Configure fetch mock
-global.fetch = fetchMock;
-fetchMock.enableMocks();
+const fetch = vitest.fn();
 
 // Load environment variables from .env file if present
 dotenv.config();
@@ -29,12 +25,13 @@ const mockImageResponse = {
 describe("Image Generation Integration Tests", () => {
   beforeEach(() => {
     // Reset fetch mocks before each test
-    fetchMock.resetMocks();
+    fetch.mockClear();
   });
 
   it("should generate an image with a text prompt", async () => {
     // Set up fetch mock for image generation
-    fetchMock.mockResponseOnce(JSON.stringify(mockImageResponse), {
+    fetch.mockResolvedValueOnce({
+      json: async () => JSON.stringify(mockImageResponse), 
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
@@ -62,8 +59,8 @@ describe("Image Generation Integration Tests", () => {
     expect(imageBase64.length).toBeGreaterThan(0);
 
     // Verify the request was made correctly
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith(
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledWith(
       expect.stringMatching(/.*\/api\/openai-image\/generate$/),
       expect.objectContaining({
         method: "POST",
@@ -76,7 +73,7 @@ describe("Image Generation Integration Tests", () => {
     );
 
     // Verify request body content
-    const mockCall = fetchMock.mock.calls[0];
+    const mockCall = fetch.mock.calls[0];
     const requestBody = JSON.parse(mockCall[1].body as string);
     expect(requestBody.prompt).toBe(testPrompt);
     expect(requestBody.model).toBe("gpt-image-1");
@@ -86,7 +83,8 @@ describe("Image Generation Integration Tests", () => {
 
   it("should handle image editing with multiple input images", async () => {
     // Set up fetch mock for image editing
-    fetchMock.mockResponseOnce(JSON.stringify(mockImageResponse), {
+    fetch.mockResolvedValueOnce({
+      json: async () => JSON.stringify(mockImageResponse), 
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
@@ -116,8 +114,8 @@ describe("Image Generation Integration Tests", () => {
     expect(result.data[0].b64_json).toBeDefined();
 
     // Verify the request was made correctly
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith(
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledWith(
       expect.stringMatching(/.*\/api\/openai-image\/edit$/),
       expect.objectContaining({
         method: "POST",

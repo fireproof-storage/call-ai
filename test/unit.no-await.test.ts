@@ -1,7 +1,5 @@
-import { callAi, Message, Schema } from "../src/index";
-import dotenv from "dotenv";
-
-dotenv.config();
+import { callAi, Message, Schema } from "../src/index.js";
+import { dotenv } from "zx";
 
 // Mock global fetch
 global.fetch = jest.fn();
@@ -221,10 +219,18 @@ describe("callAi", () => {
   });
 
   it("should handle aliens schema example", async () => {
-    const alienSchema: Schema = {
+    const alienSchema = {
       properties: {
         aliens: {
           type: "array",
+          properties: {
+            aliens: {
+              items: {
+                properties: {
+                },
+              }
+            }
+          },
           items: {
             type: "object",
             properties: {
@@ -239,7 +245,7 @@ describe("callAi", () => {
           },
         },
       },
-    };
+    } satisfies Schema;
 
     const messages: Message[] = [
       {

@@ -1,15 +1,16 @@
-import { callAi } from "../src/index";
-import dotenv from "dotenv";
+import { dotenv } from "zx";
+import { callAi } from "../src/index.js";
+import { callAiEnv } from "../src/utils.js";
 
 // Load environment variables from .env file if present
 dotenv.config();
 
 // Skip tests if no API key is available
-const haveApiKey = process.env.LOW_BALANCE_OPENROUTER_API_KEY;
+const haveApiKey = callAiEnv.LOW_BALANCE_OPENROUTER_API_KEY;
 
 // Copy LOW_BALANCE_OPENROUTER_API_KEY to CALLAI_API_KEY for this test
-if (process.env.LOW_BALANCE_OPENROUTER_API_KEY) {
-  process.env.CALLAI_API_KEY = process.env.LOW_BALANCE_OPENROUTER_API_KEY;
+if (callAiEnv.LOW_BALANCE_OPENROUTER_API_KEY) {
+  callAiEnv.CALLAI_API_KEY = callAiEnv.LOW_BALANCE_OPENROUTER_API_KEY;
 }
 
 // Test models based on the OpenRouter documentation
@@ -32,7 +33,7 @@ describe("Low Balance API Key Tests", () => {
       try {
         // Make API call with skipRefresh flag to ensure we get the low balance error
         await callAi("Provide information about France.", {
-          apiKey: process.env.CALLAI_API_KEY,
+          apiKey: callAiEnv.CALLAI_API_KEY,
           model: modelInfo.id,
           max_tokens: 200000 - 200,
           // When implemented, this will skip the automatic key refresh

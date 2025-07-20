@@ -1,18 +1,19 @@
-import { callAi } from "../src/index";
+import { dotenv } from "zx";
+import { callAi } from "../src/index.js";
+import { callAiEnv } from "../src/utils.js";
+import { expectOrWarn } from "./test-helper.js";
 // import { Message } from "../src/types";
-import dotenv from "dotenv";
 
 // Load environment variables from .env file if present
 dotenv.config();
 
 // Configure retry settings for flaky tests - use fewer retries with faster failures
-jest.retryTimes(2, { logErrorsBeforeRetry: true });
 
 // Increase Jest's default timeout to handle all parallel requests
 // jest.setTimeout(60000);
 
 // Skip tests if no API key is available
-const haveApiKey = process.env.CALLAI_API_KEY;
+const haveApiKey = callAiEnv.CALLAI_API_KEY;
 // const itif = (condition: boolean) => (condition ? it.concurrent : it.skip);
 
 // Timeout for individual test
@@ -32,19 +33,6 @@ const supportedModels = {
 
 // Define the model names as an array for looping
 const modelEntries = Object.entries(supportedModels);
-
-// Function to handle test expectations based on model grade
-const expectOrWarn = (
-  model: { id: string; grade: string },
-  condition: boolean,
-  message: string,
-) => {
-  if (model.grade === "A") {
-    expect(condition).toBe(true);
-  } else if (!condition) {
-    console.warn(`Warning (${model.id}): ${message}`);
-  }
-};
 
 // Create a test function that won't fail on timeouts for B and C grade models
 const gradeAwareTest = (modelId: { id: string; grade: string }) => {
@@ -101,7 +89,7 @@ describe("Simple callAi integration tests", () => {
           const generator = await callAi(
             "Write a short joke about programming.",
             {
-              apiKey: process.env.CALLAI_API_KEY,
+              apiKey: callAiEnv.CALLAI_API_KEY,
               model: modelId.id,
               stream: true,
             },
