@@ -1,5 +1,5 @@
 export function itif(condition: boolean) {
-    return (condition ? it : it.skip);
+  return condition ? it : it.skip;
 }
 
 // Function to handle test expectations based on model grade
@@ -8,7 +8,7 @@ export function expectOrWarn(
   condition: boolean,
   message: string,
   debugValue?: unknown, // Added optional debug value parameter
-)  {
+) {
   if (model.grade === "A") {
     if (!condition) {
       // Enhanced debug logging for failures
@@ -26,7 +26,7 @@ export function expectOrWarn(
   } else if (!condition) {
     console.warn(`Warning (${model.id}): ${message}`);
   }
-};
+}
 
 export function entriesHeaders(headers: Headers) {
   const entries: [string, string][] = [];

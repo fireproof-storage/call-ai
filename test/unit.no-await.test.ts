@@ -226,10 +226,9 @@ describe("callAi", () => {
           properties: {
             aliens: {
               items: {
-                properties: {
-                },
-              }
-            }
+                properties: {},
+              },
+            },
           },
           items: {
             type: "object",

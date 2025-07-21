@@ -6,7 +6,7 @@
 export * from "./types.js";
 
 // Export API functions
-export { callAi, } from "./api.js";
+export { callAi } from "./api.js";
 // Backward compatibility for callAI (uppercase AI)
 export { callAi as callAI } from "./api.js";
 

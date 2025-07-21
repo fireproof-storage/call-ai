@@ -7,7 +7,6 @@ import { callAiEnv } from "./utils.js";
 import { PACKAGE_VERSION } from "./version.js";
 
 // Import package version for debugging (same as main API)
- 
 
 /**
  * Generate images using a custom API that mimics OpenAI's image generation capabilities
@@ -34,7 +33,7 @@ export async function imageGen(
   }
 
   // Get custom origin if set
-  const customOrigin = options.imgUrl || callAiEnv.CALLAI_IMG_URL 
+  const customOrigin = options.imgUrl || callAiEnv.CALLAI_IMG_URL;
 
   try {
     // Handle image generation

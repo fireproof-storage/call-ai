@@ -3,6 +3,7 @@
  */
 import {
   CallAIError,
+  CallAIErrorParams,
   CallAIOptions,
   Message,
   ResponseMeta,
@@ -39,7 +40,6 @@ import { callAiEnv } from "./utils.js";
 // export { getMeta };
 
 // Import package version for debugging
- 
 
 // Default fallback model when the primary model fails or is unavailable
 const FALLBACK_MODEL = "openrouter/auto";
@@ -260,7 +260,7 @@ export function callAi(
             statusText: response.statusText,
             details: errorJson,
             contentType,
-          })
+          });
           throw error;
         } catch (jsonError) {
           // If JSON parsing fails, extract a useful message from the raw error body
@@ -303,7 +303,7 @@ export function callAi(
             statusText: response.statusText,
             details: errorBody,
             contentType,
-          })
+          });
           throw error;
         }
       } catch (responseError) {
@@ -313,14 +313,13 @@ export function callAi(
         }
 
         // Fallback error
-        const error = new CallAIError(
-          {
-            message: `API returned ${response.status}: ${response.statusText}`,
-            status: response.status,
-            statusText: response.statusText,
-            details: undefined,
-            contentType,
-          })
+        const error = new CallAIError({
+          message: `API returned ${response.status}: ${response.statusText}`,
+          status: response.status,
+          statusText: response.statusText,
+          details: undefined,
+          contentType,
+        });
         throw error;
       }
     }
@@ -391,13 +390,18 @@ async function bufferStreamingResults(
     }
   } catch (error) {
     // Handle errors with standard API error handling
-    await handleApiError(error, "Buffered streaming", options.debug, {
-      apiKey: options.apiKey,
-      endpoint: options.endpoint,
-      skipRefresh: options.skipRefresh,
-      refreshToken: options.refreshToken,
-      updateRefreshToken: options.updateRefreshToken,
-    });
+    await handleApiError(
+      error as CallAIErrorParams,
+      "Buffered streaming",
+      options.debug,
+      {
+        apiKey: options.apiKey,
+        endpoint: options.endpoint,
+        skipRefresh: options.skipRefresh,
+        refreshToken: options.refreshToken,
+        updateRefreshToken: options.updateRefreshToken,
+      },
+    );
     // If we get here, key was refreshed successfully, retry the operation with the new key
     // Retry with the refreshed key
     return bufferStreamingResults(prompt, {
@@ -420,7 +424,6 @@ async function bufferStreamingResults(
 
 // checkForInvalidModelError is imported from error-handling.ts
 
-
 /**
  * Prepare request parameters common to both streaming and non-streaming calls
  */
@@ -436,8 +439,7 @@ function prepareRequestParams(
 } {
   // First try to get the API key from options or window globals
   const apiKey =
-    options.apiKey ||
-    keyStore.current || callAiEnv.CALLAI_API_KEY() // Try keyStore first in case it was refreshed in a previous call
+    options.apiKey || keyStore.current || callAiEnv.CALLAI_API_KEY(); // Try keyStore first in case it was refreshed in a previous call
   const schema = options.schema || null;
 
   // If no API key exists, we won't throw immediately. We'll continue and let handleApiError
@@ -600,7 +602,7 @@ async function callAINonStreaming(
         statusText: response.statusText,
         details: undefined,
         contentType: "text/plain",
-      })
+      });
       throw error;
     }
 
@@ -612,7 +614,7 @@ async function callAINonStreaming(
         result = await extractClaudeResponse(response);
       } catch (error) {
         handleApiError(
-          error,
+          error as CallAIErrorParams,
           "Claude API response processing failed",
           options.debug,
         );

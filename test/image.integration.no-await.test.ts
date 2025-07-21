@@ -69,6 +69,7 @@ describe("Vision Model Tests", () => {
               console.log("Received a valid response from the vision model");
               expect(parsed).toBeTruthy();
             }
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
           } catch (e) {
             // If not valid JSON, it might be a direct text response
             console.log("Direct text response:", response.substring(0, 150));

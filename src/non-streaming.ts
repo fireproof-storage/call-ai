@@ -1,7 +1,14 @@
 /**
  * Non-streaming API call implementation for call-ai
  */
-import { AIResult, CallAIErrorParams, CallAIOptions, Message, SchemaStrategy } from "./types.js";
+import {
+  AIResult,
+  CallAIErrorParams,
+  CallAIOptions,
+  Message,
+  SchemaAIMessageRequest,
+  SchemaStrategy,
+} from "./types.js";
 import { globalDebug, keyStore, initKeyStore } from "./key-management.js";
 import { handleApiError, checkForInvalidModelError } from "./error-handling.js";
 import { responseMetadata, boxString } from "./response-metadata.js";
@@ -22,7 +29,7 @@ async function callAINonStreaming(
   // Convert simple string prompts to message array format
   const messages = Array.isArray(prompt)
     ? prompt
-    : [{ role: "user", content: prompt }];
+    : [{ role: "user", content: prompt } satisfies Message];
 
   // API key should be provided by options (validation happens in callAi)
   const apiKey = options.apiKey;
@@ -56,7 +63,7 @@ async function callAINonStreaming(
   }
 
   // Build request body
-  const requestBody: any = {
+  const requestBody: SchemaAIMessageRequest = {
     model,
     messages,
     max_tokens: options.maxTokens || 2048,
@@ -221,11 +228,16 @@ async function callAINonStreaming(
     }
 
     // For other errors, use API error handling
-    await handleApiError(error as CallAIErrorParams, "Non-streaming API call", options.debug, {
-      apiKey: apiKey || undefined,
-      endpoint: options.endpoint || undefined,
-      skipRefresh: options.skipRefresh,
-    });
+    await handleApiError(
+      error as CallAIErrorParams,
+      "Non-streaming API call",
+      options.debug,
+      {
+        apiKey: apiKey || undefined,
+        endpoint: options.endpoint || undefined,
+        skipRefresh: options.skipRefresh,
+      },
+    );
 
     // If handleApiError refreshed the key, we want to retry with the new key
     if (keyStore.current && keyStore.current !== apiKey) {
@@ -253,7 +265,10 @@ async function callAINonStreaming(
 }
 
 // Extract content from API response accounting for different formats
-function extractContent(result: AIResult, schemaStrategy: SchemaStrategy): string {
+function extractContent(
+  result: AIResult,
+  schemaStrategy: SchemaStrategy,
+): string {
   // Debug output has been removed for brevity
 
   if (!result) {
@@ -309,7 +324,9 @@ function extractContent(result: AIResult, schemaStrategy: SchemaStrategy): strin
     }
   }
   if (typeof result !== "string") {
-    throw new Error(`Failed to extract content from API response: ${JSON.stringify(result)}`);
+    throw new Error(
+      `Failed to extract content from API response: ${JSON.stringify(result)}`,
+    );
   }
 
   // Return raw result if we couldn't extract content
@@ -317,7 +334,9 @@ function extractContent(result: AIResult, schemaStrategy: SchemaStrategy): strin
 }
 
 // Extract response from Claude API with timeout handling
-async function extractClaudeResponse(response: Response): Promise<NonNullable<unknown>> {
+async function extractClaudeResponse(
+  response: Response,
+): Promise<NonNullable<unknown>> {
   try {
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => {

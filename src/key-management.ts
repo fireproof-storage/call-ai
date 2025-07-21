@@ -8,7 +8,7 @@ import { callAiEnv } from "./utils.js";
 
 export interface KeyMetadata {
   key: string;
-  hash: string 
+  hash: string;
   created: Date;
   expires: Date;
   remaining: number;
@@ -20,7 +20,7 @@ const keyStore = {
   // Default key from environment or config
   current: null as string | null,
   // The refresh endpoint URL - defaults to vibecode.garden
-  refreshEndpoint: "https://vibecode.garden", 
+  refreshEndpoint: "https://vibecode.garden",
   // Authentication token for refresh endpoint - defaults to use-vibes
   refreshToken: "use-vibes" as string | Falsy,
   // Flag to prevent concurrent refresh attempts
@@ -28,7 +28,7 @@ const keyStore = {
   // Timestamp of last refresh attempt (to prevent too frequent refreshes)
   lastRefreshAttempt: 0,
   // Storage for key metadata (useful for future top-up implementation)
-  metadata:  {} as Record<string, Partial<KeyMetadata>>
+  metadata: {} as Record<string, Partial<KeyMetadata>>,
 };
 
 // Global debug flag
@@ -40,10 +40,10 @@ let globalDebug = false;
 function initKeyStore() {
   // Initialize with environment variables if available
   keyStore.current = callAiEnv.CALLAI_API_KEY;
-  keyStore.refreshEndpoint = callAiEnv.CALLAI_REFRESH_ENDPOINT ?? "https://vibecode.garden";
+  keyStore.refreshEndpoint =
+    callAiEnv.CALLAI_REFRESH_ENDPOINT ?? "https://vibecode.garden";
   keyStore.refreshToken = callAiEnv.CALL_AI_REFRESH_TOKEN ?? "use-vibes";
   globalDebug = !!callAiEnv.CALLAI_DEBUG;
-
 }
 
 // Initialize on module load
@@ -58,7 +58,8 @@ initKeyStore();
 function isNewKeyError(ierror: unknown, debug = false): boolean {
   const error = ierror as CallAIErrorParams;
   // Extract status from error object or message text
-  let status = error?.status || error?.statusCode || error?.response?.status || 450;
+  let status =
+    error?.status || error?.statusCode || error?.response?.status || 450;
   const errorMessage = String(error || "").toLowerCase();
 
   // Extract status code from error message if not found in the object properties
@@ -338,7 +339,7 @@ function storeKeyMetadata(data: KeyMetadata): void {
 
   // Store metadata with the key as the dictionary key
   keyStore.metadata[data.key] = {
-    hash: data.hash, 
+    hash: data.hash,
     created: data.created || Date.now(),
     expires: data.expires,
     remaining: data.remaining,

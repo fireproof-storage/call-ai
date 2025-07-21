@@ -2,7 +2,7 @@
  * Type definitions for call-ai
  */
 
-export type Falsy = false | null | undefined | 0 | ""; 
+export type Falsy = false | null | undefined | 0 | "";
 
 export interface OriginalError {
   readonly originalError: Error;
@@ -29,8 +29,6 @@ export interface Message {
   readonly content: string | ContentItem[];
 }
 
-
-
 /**
  * Metadata associated with a response
  * Available through the getMeta() helper function
@@ -42,9 +40,14 @@ export interface ResponseMeta {
   model: string;
 
   /**
+   * The endpoint used for the response
+   */
+  endpoint?: string;
+
+  /**
    * Timing information about the request
    */
-  readonly timing?: {
+  timing: {
     readonly startTime: number;
     endTime?: number;
     duration?: number;
@@ -54,7 +57,12 @@ export interface ResponseMeta {
    * Raw response data from the fetch call
    * Contains the parsed JSON result from the API call
    */
-  rawResponse?: NonNullable<Partial<{model: string, id: string}>>;
+  rawResponse?: ModelId | string;
+}
+
+export interface ModelId {
+  readonly model: string;
+  readonly id: string;
 }
 
 export interface Schema {
@@ -83,7 +91,8 @@ export interface Schema {
 
 export interface ToolUseType {
   readonly type: "tool_use";
-  readonly input: unknown;
+  readonly input: string;
+  readonly tool_calls: OpenAIFunctionCall[];
 }
 export function isToolUseType(obj: unknown): obj is ToolUseType {
   return !!obj && (obj as ToolUseType).type === "tool_use";
@@ -91,7 +100,7 @@ export function isToolUseType(obj: unknown): obj is ToolUseType {
 
 export interface ToolUseResponse {
   readonly tool_use: {
-    readonly input: unknown;
+    readonly input: string;
   };
 }
 export function isToolUseResponse(obj: unknown): obj is ToolUseResponse {
@@ -103,15 +112,19 @@ export interface AIResult {
     message: {
       content?: string;
       function_call: string | ToolUseType | ToolUseResponse;
-      tool_calls?: string
+      tool_calls?: string;
     };
     text?: string;
   }[];
 }
 
-interface OpenAIFunctionCall {
+export interface OpenAIFunctionCall {
+  readonly type: "function";
   readonly function: {
-    readonly arguments: unknown;
+    readonly arguments?: string;
+    readonly name?: string;
+    readonly description?: string;
+    readonly parameters?: RequestSchema | ProcessedSchema;
   };
 }
 
@@ -119,35 +132,118 @@ export function isOpenAIArray(obj: unknown): obj is OpenAIFunctionCall[] {
   return Array.isArray(obj) && obj.length > 0 && obj[0].function !== undefined;
 }
 
+export interface RequestSchema {
+  model?: string;
+  name?: string;
+  type: "object";
+  description?: string;
+  properties?: unknown;
+  required?: unknown[];
+  parameters?: RequestSchema;
+  additionalProperties?: unknown;
+}
+
+export interface SchemaAIMessageRequest {
+  model: string;
+  messages: Message[];
+  max_tokens: number;
+  temperature: number;
+  top_p: number;
+  stream: boolean;
+  response_format?:
+    | SchemaAIJsonSchemaRequest["response_format"]
+    | SchemaAIJsonObjectRequest["response_format"];
+  [key: string]: unknown;
+}
+
+export interface ProcessedSchema {
+  properties: Record<string, unknown>;
+  items?: ProcessedSchema;
+  [key: string]: unknown;
+}
+
+export interface SchemaType {
+  readonly type: string;
+}
+
+export interface SchemaDescription {
+  readonly description: string;
+}
+
+export interface SchemaAIJsonObjectRequest {
+  response_format: {
+    type: "json_object";
+  };
+}
+
+export interface SchemaAIJsonSchemaRequest {
+  response_format: {
+    type: "json_schema";
+    json_schema: {
+      name: string;
+      strict?: boolean;
+      schema: ProcessedSchema;
+    };
+  };
+}
+
+interface SchemaAIToolRequest {
+  tools: OpenAIFunctionCall[];
+  tool_choice: OpenAIFunctionCall;
+}
+
+interface SchemaAISimpleMsg {
+  readonly messages: Message[];
+}
+
 /**
  * Strategy interface for handling different model types
  */
 export interface ModelStrategy {
   readonly name: string;
-  readonly prepareRequest: (schema: Schema | Falsy , messages: Message[]) => Request | undefined;
-  readonly processResponse: (content: string | ToolUseType | ToolUseResponse| OpenAIFunctionCall[]) => string;
+  readonly prepareRequest: (
+    schema: Schema | Falsy,
+    messages: Message[],
+  ) =>
+    | SchemaAISimpleMsg
+    | SchemaAIMessageRequest
+    | SchemaAIToolRequest
+    | SchemaAIJsonSchemaRequest
+    | SchemaAIJsonObjectRequest;
+  // | undefined;
+  readonly processResponse: (
+    content: string | ToolUseType | ToolUseResponse | OpenAIFunctionCall[],
+  ) => string;
   readonly shouldForceStream?: boolean;
 }
 
 export interface CallAIErrorParams {
   readonly message: string;
   readonly status: number;
-  readonly statusText: string;
-  readonly details: unknown;
-  readonly contentType: string;
+  readonly statusText?: string;
+  readonly details?: unknown;
+  readonly contentType?: string;
   readonly statusCode?: number;
   readonly response?: {
     readonly status: number;
   };
+  readonly partialContent?: string;
   readonly name?: string;
   readonly cause?: unknown;
+  readonly originalError?: CallAIErrorParams | Error;
+  readonly refreshError?: unknown;
+  readonly errorType?: string;
 }
 export class CallAIError {
   readonly message: string;
   readonly status: number;
-  readonly statusText: string;
-  readonly details: unknown;
-  readonly contentType: string;
+  readonly statusText?: string;
+  readonly details?: unknown;
+  readonly contentType?: string;
+  readonly originalError?: CallAIErrorParams | Error;
+  readonly refreshError?: unknown;
+  readonly errorType?: string;
+  readonly partialContent?: string;
 
   constructor(params: CallAIErrorParams) {
     this.message = params.message;
@@ -155,6 +251,10 @@ export class CallAIError {
     this.statusText = params.statusText;
     this.details = params.details;
     this.contentType = params.contentType;
+    this.originalError = params.originalError;
+    this.partialContent = params.partialContent;
+    this.refreshError = params.refreshError;
+    this.errorType = params.errorType;
   }
 }
 
@@ -260,11 +360,15 @@ export interface CallAIOptions {
    */
   readonly debug?: boolean;
 
-
   readonly referer?: string;
   readonly title?: string;
 
   readonly schemaStrategy?: SchemaStrategy;
+
+  readonly maxTokens?: number;
+  temperature?: number;
+  readonly topP?: number;
+  response_format?: { type: "json_object" };
 
   /**
    * Any additional options to pass to the API
@@ -346,4 +450,3 @@ export interface ImageGenOptions {
  * @deprecated Use ImageGenOptions instead
  */
 export type ImageEditOptions = ImageGenOptions;
-

@@ -2,7 +2,15 @@
  * Streaming response handling for call-ai
  */
 
-import { CallAIError, CallAIOptions, SchemaStrategy, ToolUseType } from "./types.js";
+import {
+  CallAIError,
+  CallAIOptions,
+  Message,
+  ResponseMeta,
+  SchemaAIMessageRequest,
+  SchemaStrategy,
+  ToolUseType,
+} from "./types.js";
 import { globalDebug } from "./key-management.js";
 import { responseMetadata, boxString } from "./response-metadata.js";
 import { checkForInvalidModelError } from "./error-handling.js";
@@ -21,7 +29,7 @@ async function* createStreamingGenerator(
   model: string,
 ): AsyncGenerator<string, string, unknown> {
   // Create a metadata object for this streaming response
-  const meta = {
+  const meta: ResponseMeta = {
     model,
     endpoint: options.endpoint || "https://openrouter.ai/api/v1",
     timing: {
@@ -116,15 +124,13 @@ async function* createStreamingGenerator(
             }
 
             // Create a detailed error to throw
-            const detailedError = new CallAIError(
-              {
-                message: `API streaming error: ${errorMessage}`,
-                status: json.error?.status || 400,
-                statusText: json.error?.type || "Bad Request",
-                details: JSON.stringify(json.error || json),
-                contentType: "application/json",
-              }
-            );
+            const detailedError = new CallAIError({
+              message: `API streaming error: ${errorMessage}`,
+              status: json.error?.status || 400,
+              statusText: json.error?.type || "Bad Request",
+              details: JSON.stringify(json.error || json),
+              contentType: "application/json",
+            });
             console.error(
               `[callAi:${PACKAGE_VERSION}] Throwing stream error:`,
               detailedError,
@@ -158,7 +164,7 @@ async function* createStreamingGenerator(
                     try {
                       // First try parsing as-is
                       JSON.parse(toolCallsAssembled);
-                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                      // eslint-disable-next-line @typescript-eslint/no-unused-vars
                     } catch (e) {
                       if (options.debug) {
                         console.log(
@@ -171,7 +177,7 @@ async function* createStreamingGenerator(
                       let fixedJson = toolCallsAssembled;
 
                       // 1. Remove trailing commas
-                      fixedJson = fixedJson.replace(/,\s*([\}\]])/, "$1");
+                      fixedJson = fixedJson.replace(/,\s*([}\]])/, "$1");
 
                       // 2. Ensure proper JSON structure
                       // Add closing braces if missing
@@ -402,7 +408,7 @@ async function* createStreamingGenerator(
         // Apply more robust fixes for Claude's streaming JSON issues
 
         // 1. Remove trailing commas (common in malformed JSON)
-        result = result.replace(/,\s*([\}\]])/, "$1");
+        result = result.replace(/,\s*([}\]])/, "$1");
 
         // 2. Ensure we have proper JSON structure
         // Add closing braces if missing
@@ -468,7 +474,7 @@ async function* createStreamingGenerator(
 
     // Add the rawResponse field to match non-streaming behavior
     // For streaming, we use the final complete text as the raw response
-    (meta as any).rawResponse = completeText;
+    meta.rawResponse = completeText;
 
     // Store metadata for this response
     const boxed = boxString(completeText);
@@ -492,14 +498,14 @@ async function* createStreamingGenerator(
 // This is a higher-level function that prepares the request
 // and handles model fallback
 async function* callAIStreaming(
-  prompt: string | any[],
+  prompt: string | Message[],
   options: CallAIOptions = {},
   isRetry = false,
 ): AsyncGenerator<string, string, unknown> {
   // Convert simple string prompts to message array format
   const messages = Array.isArray(prompt)
     ? prompt
-    : [{ role: "user", content: prompt }];
+    : [{ role: "user", content: prompt } satisfies Message];
 
   // API key should be provided by options (validation happens in callAi)
   const apiKey = options.apiKey;
@@ -533,12 +539,12 @@ async function* callAIStreaming(
   }
 
   // Build request body
-  const requestBody: any = {
+  const requestBody: SchemaAIMessageRequest = {
     model,
     messages,
     max_tokens: options.maxTokens || 2048,
     temperature: options.temperature !== undefined ? options.temperature : 0.7,
-    top_p: options.topP !== undefined ? options.topP : 1,
+    top_p: options.topP ? options.topP : 1,
     stream: true,
   };
 
@@ -588,7 +594,7 @@ async function* callAIStreaming(
         "debug",
       ].includes(key)
     ) {
-      requestBody[key] = (options)[key];
+      requestBody[key] = options[key];
     }
   });
 

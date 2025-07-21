@@ -31,7 +31,7 @@ describe("Image Generation Integration Tests", () => {
   it("should generate an image with a text prompt", async () => {
     // Set up fetch mock for image generation
     fetch.mockResolvedValueOnce({
-      json: async () => JSON.stringify(mockImageResponse), 
+      json: async () => JSON.stringify(mockImageResponse),
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
@@ -84,7 +84,7 @@ describe("Image Generation Integration Tests", () => {
   it("should handle image editing with multiple input images", async () => {
     // Set up fetch mock for image editing
     fetch.mockResolvedValueOnce({
-      json: async () => JSON.stringify(mockImageResponse), 
+      json: async () => JSON.stringify(mockImageResponse),
       status: 200,
       headers: { "Content-Type": "application/json" },
     });

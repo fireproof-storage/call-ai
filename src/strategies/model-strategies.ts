@@ -1,7 +1,16 @@
 /**
  * Model strategies for different AI models
  */
-import { Message, ModelStrategy } from "../types.js";
+import {
+  isToolUseType,
+  Message,
+  ModelStrategy,
+  OpenAIFunctionCall,
+  ProcessedSchema,
+  SchemaAIJsonSchemaRequest,
+  SchemaDescription,
+  SchemaType,
+} from "../types.js";
 import { recursivelyAddAdditionalProperties } from "../utils.js";
 
 /**
@@ -10,7 +19,7 @@ import { recursivelyAddAdditionalProperties } from "../utils.js";
 export const openAIStrategy: ModelStrategy = {
   name: "openai",
   prepareRequest: (schema) => {
-    if (!schema) return {};
+    if (!schema) throw new Error("Schema strategy not implemented");
 
     // Process schema for JSON schema approach
     const requiredFields =
@@ -47,7 +56,7 @@ export const openAIStrategy: ModelStrategy = {
           schema: processedSchema,
         },
       },
-    };
+    } satisfies SchemaAIJsonSchemaRequest;
   },
   processResponse: (content) => {
     if (typeof content !== "string") {
@@ -84,7 +93,7 @@ export const claudeStrategy: ModelStrategy = {
   name: "anthropic",
   shouldForceStream: true,
   prepareRequest: (schema) => {
-    if (!schema) return {};
+    if (!schema) throw new Error("Schema strategy not implemented");
 
     // Process schema for tool use - format for OpenRouter/Claude
     const processedSchema = {
@@ -95,7 +104,7 @@ export const claudeStrategy: ModelStrategy = {
         schema.additionalProperties !== undefined
           ? schema.additionalProperties
           : false,
-    };
+    } satisfies ProcessedSchema;
 
     return {
       tools: [
@@ -113,12 +122,12 @@ export const claudeStrategy: ModelStrategy = {
         function: {
           name: schema.name || "generate_structured_data",
         },
-      },
+      } satisfies OpenAIFunctionCall,
     };
   },
   processResponse: (content) => {
     // Handle tool use response
-    if (typeof content === "object") {
+    if (isToolUseType(content)) {
       if (content.type === "tool_use") {
         return JSON.stringify(content.input);
       }
@@ -131,13 +140,14 @@ export const claudeStrategy: ModelStrategy = {
       ) {
         const toolCall = content.tool_calls[0];
         if (toolCall.function && toolCall.function.arguments) {
-          try {
-            // Try to parse as JSON first
-            return toolCall.function.arguments;
-          } catch (e) {
-            // Return as is if not valid JSON
-            return JSON.stringify(toolCall.function.arguments);
-          }
+          // @jchris i don't get this lines
+          // try {
+          //   // Try to parse as JSON first
+          //   return toolCall.function.arguments;
+          // } catch (e) {
+          //   // Return as is if not valid JSON
+          return JSON.stringify(toolCall.function.arguments);
+          // }
         }
       }
 
@@ -149,11 +159,12 @@ export const claudeStrategy: ModelStrategy = {
     }
 
     // Try to extract JSON from content if it might be wrapped
-    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) ||
+    const jsonMatch =
+      content.match(/```json\s*([\s\S]*?)\s*```/) ||
       content.match(/```\s*([\s\S]*?)\s*```/) ||
-      content.match(/\{[\s\S]*\}/) || [null, content];
+      content.match(/\{[\s\S]*\}/); // || [null, content];
 
-    return jsonMatch[1] || content;
+    return jsonMatch ? jsonMatch[1] : content;
   },
 };
 
@@ -172,9 +183,9 @@ export const systemMessageStrategy: ModelStrategy = {
       // Build a schema description
       const schemaProperties = Object.entries(schema.properties || {})
         .map(([key, value]) => {
-          const type = (value as any).type || "string";
-          const description = (value as any).description
-            ? ` // ${(value as any).description}`
+          const type = (value as SchemaType).type || "string";
+          const description = (value as SchemaDescription).description
+            ? ` // ${(value as SchemaDescription).description}`
             : "";
           return `  "${key}": ${type}${description}`;
         })
@@ -210,7 +221,9 @@ export const systemMessageStrategy: ModelStrategy = {
  */
 export const defaultStrategy: ModelStrategy = {
   name: "default",
-  prepareRequest: () => ({}),
+  prepareRequest: () => {
+    throw new Error("Schema strategy not implemented");
+  },
   processResponse: (content) =>
     typeof content === "string" ? content : JSON.stringify(content),
 };

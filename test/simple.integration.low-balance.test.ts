@@ -6,12 +6,12 @@ import { callAiEnv } from "../src/utils.js";
 dotenv.config();
 
 // Skip tests if no API key is available
-const haveApiKey = callAiEnv.LOW_BALANCE_OPENROUTER_API_KEY;
+// const haveApiKey = callAiEnv.LOW_BALANCE_OPENROUTER_API_KEY;
 
-// Copy LOW_BALANCE_OPENROUTER_API_KEY to CALLAI_API_KEY for this test
-if (callAiEnv.LOW_BALANCE_OPENROUTER_API_KEY) {
-  callAiEnv.CALLAI_API_KEY = callAiEnv.LOW_BALANCE_OPENROUTER_API_KEY;
-}
+// // Copy LOW_BALANCE_OPENROUTER_API_KEY to CALLAI_API_KEY for this test
+// if (callAiEnv.LOW_BALANCE_OPENROUTER_API_KEY) {
+//   callAiEnv.CALLAI_API_KEY = callAiEnv.LOW_BALANCE_OPENROUTER_API_KEY;
+// }
 
 // Test models based on the OpenRouter documentation
 const supportedModels = {
@@ -23,8 +23,10 @@ const modelEntries = Object.entries(supportedModels);
 
 describe("Low Balance API Key Tests", () => {
   // Skip the entire test suite if no low balance API key is available
-  if (!haveApiKey) {
-    it.skip("Skipping low balance tests - no LOW_BALANCE_OPENROUTER_API_KEY available", () => {});
+  if (!callAiEnv.CALLAI_API_KEY) {
+    it.skip("Skipping low balance tests - no LOW_BALANCE_OPENROUTER_API_KEY available", () => {
+      /* no-op */
+    });
     return;
   }
 

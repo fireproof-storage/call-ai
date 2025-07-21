@@ -36,13 +36,13 @@ beforeAll(() => {
   }
 
   // Mock constructors
-  global.Blob = vitest.fn().mockImplementation(() => mockBlobInstance) //as any;
+  global.Blob = vitest.fn().mockImplementation(() => mockBlobInstance); //as any;
   global.File = vitest.fn().mockImplementation((_, name, options) => {
     return { ...mockFileInstance, name, type: options?.type || "image/png" };
-  }) //as any;
+  }); //as any;
 
   // For FormData, create a new instance each time
-  global.FormData = MockFormData as unknown  as typeof FormData;
+  global.FormData = MockFormData as unknown as typeof FormData;
 });
 
 // Mock response for successful image generation

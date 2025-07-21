@@ -2,11 +2,15 @@
  * Utility functions for call-ai
  */
 
+import { ProcessedSchema } from "./types.js";
+
 /**
  * Recursively adds additionalProperties: false to all object types in a schema
  * This is needed for OpenAI's strict schema validation in streaming mode
  */
-export function recursivelyAddAdditionalProperties(schema: any): any {
+export function recursivelyAddAdditionalProperties(
+  schema: ProcessedSchema,
+): ProcessedSchema {
   // Clone to avoid modifying the original
   const result = { ...schema };
 
@@ -32,11 +36,12 @@ export function recursivelyAddAdditionalProperties(schema: any): any {
 
         // If property is an object or array type, recursively process it
         if (prop && typeof prop === "object") {
-          result.properties[key] = recursivelyAddAdditionalProperties(prop);
+          const oprop = prop as ProcessedSchema;
+          result.properties[key] = recursivelyAddAdditionalProperties(oprop);
 
           // For nested objects, ensure they also have all properties in their required field
-          if (prop.type === "object" && prop.properties) {
-            prop.required = Object.keys(prop.properties);
+          if (oprop.type === "object" && oprop.properties) {
+            oprop.required = Object.keys(oprop.properties);
           }
         }
       });
@@ -61,7 +66,6 @@ export function recursivelyAddAdditionalProperties(schema: any): any {
 }
 
 class CallAIEnv {
-
   private getEnv(key: string): string | undefined {
     if (window && key in window) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -74,6 +78,13 @@ class CallAIEnv {
     return undefined;
   }
 
+  readonly def = {
+    get CALLAI_REFRESH_ENDPOINT() {
+      // ugly as hell but useful
+      return callAiEnv.CALLAI_REFRESH_ENDPOINT ?? "https://vibecode.garden";
+    },
+  };
+
   get CALLAI_IMG_URL() {
     return this.getEnv("CALLAI_IMG_URL");
   }
@@ -83,9 +94,13 @@ class CallAIEnv {
   }
 
   get CALLAI_API_KEY() {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return this.getEnv("CALLAI_API_KEY") ?? this.getEnv("OPENROUTER_API_KEY") ?? (window as any).callAi?.API_KEY ??
-      this.getEnv("LOW_BALANCE_OPENROUTER_API_KEY");
+    return (
+      this.getEnv("CALLAI_API_KEY") ??
+      this.getEnv("OPENROUTER_API_KEY") ??
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).callAi?.API_KEY ??
+      this.getEnv("LOW_BALANCE_OPENROUTER_API_KEY")
+    );
   }
   get CALLAI_REFRESH_ENDPOINT() {
     return this.getEnv("CALLAI_REFRESH_ENDPOINT");
@@ -104,7 +119,11 @@ class CallAIEnv {
     return this.getEnv("CALLAI_REFRESH_TOKEN");
   }
   get CALLAI_DEBUG() {
-    return !!this.getEnv("CALLAI_DEBUG") ;
+    return !!this.getEnv("CALLAI_DEBUG");
+  }
+
+  get NODE_ENV() {
+    return this.getEnv("NODE_ENV");
   }
 }
 

@@ -4,8 +4,6 @@ import { callAiEnv } from "../src/utils.js";
 import { expectOrWarn } from "./test-helper.js";
 // import { Message } from "../src/types";
 
-
-
 // Load environment variables from .env file if present
 dotenv.config();
 

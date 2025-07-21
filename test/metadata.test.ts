@@ -1,5 +1,5 @@
 import { callAi, getMeta } from "../src/index.js";
-import { ResponseMeta } from "../src/types.js";
+import { ModelId, ResponseMeta } from "../src/types.js";
 
 // Mock global fetch
 global.fetch = jest.fn();
@@ -80,7 +80,7 @@ describe("getMeta", () => {
 
     // Verify raw response data
     expect(meta?.rawResponse).toBeDefined();
-    expect(meta?.rawResponse?.model).toBe("openai/gpt-4o");
+    expect((meta?.rawResponse as ModelId).model).toBe("openai/gpt-4o");
 
     // Verify timing information
     expect(meta?.timing).toBeDefined();

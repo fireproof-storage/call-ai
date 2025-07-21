@@ -15,7 +15,7 @@ import { CallAIError, CallAIErrorParams } from "./types.js";
 // @param debug Whether to log debug information
 // @param options Options for error handling including key refresh control
 async function handleApiError(
-  error: CallAIErrorParams,
+  ierror: unknown,
   context: string,
   debug: boolean = globalDebug,
   options: {
@@ -26,6 +26,8 @@ async function handleApiError(
     updateRefreshToken?: (currentToken: string) => Promise<string>;
   } = {},
 ): Promise<void> {
+  const error = ierror as CallAIErrorParams;
+
   // Extract error details
   const errorMessage = error?.message || String(error);
   const status =
@@ -171,23 +173,25 @@ async function handleApiError(
         );
       }
       // Create a more detailed error from the original one
-      const detailedError = new CallAIError( {
-          message: `${errorMessage} (Key refresh failed: ${refreshError instanceof Error ? refreshError.message : String(refreshError)})`,
-          originalError: error,
-          refreshError: refreshError,
-          status: status || 401
-      })
+      const detailedError = new CallAIError({
+        message: `${errorMessage} (Key refresh failed: ${refreshError instanceof Error ? refreshError.message : String(refreshError)})`,
+        originalError: error,
+        refreshError,
+        status: status || 401,
+        contentType: "text/plain",
+      });
 
       throw detailedError;
     }
   }
 
   // For non-key errors, create a detailed error object
-  const detailedError = new Error(`${context}: ${errorMessage}`);
-  (detailedError as any).originalError = error;
-  (detailedError as any).status = status || 500;
-  (detailedError as any).errorType = error?.name || "Error";
-
+  const detailedError = new CallAIError({
+    message: `${context}: ${errorMessage}`,
+    originalError: error,
+    status: status || 500,
+    errorType: error.name || "Error",
+  });
   throw detailedError;
 }
 
@@ -196,7 +200,7 @@ async function checkForInvalidModelError(
   response: Response,
   model: string,
   debug: boolean = globalDebug,
-): Promise<{ isInvalidModel: boolean; errorData?: any }> {
+): Promise<{ isInvalidModel: boolean; errorData?: unknown }> {
   // Only check 4xx errors (which could indicate invalid model)
   if (response.status < 400 || response.status >= 500) {
     return { isInvalidModel: false };
@@ -209,12 +213,14 @@ async function checkForInvalidModelError(
   let errorData;
   try {
     errorData = await responseClone.json();
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (e) {
     // If it's not JSON, get the text
     try {
       const text = await responseClone.text();
       errorData = { error: text };
-    } catch (textError) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (e) {
       errorData = { error: `Error ${response.status}: ${response.statusText}` };
     }
   }

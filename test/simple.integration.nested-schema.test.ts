@@ -7,7 +7,6 @@ import { expectOrWarn } from "./test-helper.js";
 // Load environment variables from .env file if present
 dotenv.config();
 
-
 // Increase Jest's default timeout to handle all parallel requests
 // jest.setTimeout(60000);
 
@@ -32,7 +31,6 @@ const supportedModels = {
 
 // Define the model names as an array for looping
 const modelEntries = Object.entries(supportedModels);
-
 
 // Create a test function that won't fail on timeouts for B and C grade models
 const gradeAwareTest = (modelId: { id: string; grade: string }) => {

@@ -12,6 +12,9 @@ import {
   isToolUseType,
   isToolUseResponse,
   isOpenAIArray,
+  OpenAIFunctionCall,
+  RequestSchema,
+  CallAIError,
 } from "./types.js";
 import { globalDebug } from "./key-management.js";
 import { callAINonStreaming } from "./non-streaming.js";
@@ -41,7 +44,9 @@ function callAi(prompt: string | Message[], options: CallAIOptions = {}) {
   let schemaStrategy: SchemaStrategy = {
     strategy: "none" as const,
     model: options.model || "openai/gpt-3.5-turbo",
-    prepareRequest: () => (undefined),
+    prepareRequest: () => {
+      throw new Error("Schema strategy not implemented");
+    },
     processResponse: (response) => {
       // If response is an object, stringify it to match expected test output
       if (response && typeof response === "object") {
@@ -67,16 +72,12 @@ function callAi(prompt: string | Message[], options: CallAIOptions = {}) {
         shouldForceStream: false,
         prepareRequest: (schema) => {
           // Parse the schema to extract the function definition
-          let toolDef: {
-            name?: string;
-            description?: string;
-            parameters?: unknown;
-          } = {};
+          let toolDef: Partial<RequestSchema> = {};
 
           if (typeof schema === "string") {
             try {
               toolDef = JSON.parse(schema);
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
             } catch (e) {
               // If it's not valid JSON, we'll use it as a plain description
               toolDef = { description: schema };
@@ -97,7 +98,7 @@ function callAi(prompt: string | Message[], options: CallAIOptions = {}) {
                   properties: {},
                 },
               },
-            },
+            } satisfies OpenAIFunctionCall,
           ];
 
           return {
@@ -149,7 +150,7 @@ function callAi(prompt: string | Message[], options: CallAIOptions = {}) {
         shouldForceStream: false,
         prepareRequest: (schema) => {
           // Create a properly formatted JSON schema request
-          const schemaObj = (schema as Schema) || {};
+          const schemaObj: Partial<Schema> = schema || {};
           return {
             response_format: {
               type: "json_schema",
@@ -200,7 +201,6 @@ function callAi(prompt: string | Message[], options: CallAIOptions = {}) {
     })();
 
     // Create a proxy object that acts both as a Promise and an AsyncGenerator for backward compatibility
-    // @ts-ignore - We're deliberately implementing a proxy with dual behavior
     return createBackwardCompatStreamingProxy(streamPromise);
   } else {
     if (debug) {
@@ -239,17 +239,21 @@ async function bufferStreamingResults(
   } catch (error) {
     // If we already collected some content, attach it to the error
     if (error instanceof Error) {
-      const enhancedError = new Error(
-        `${error.message} (Partial content: ${result.slice(0, 100)}...)`,
-      );
-      (enhancedError as any).partialContent = result;
-      (enhancedError as any).originalError = error;
+      const enhancedError = new CallAIError({
+        message: `${error.message} (Partial content: ${result.slice(0, 100)}...)`,
+        status: 511,
+        partialContent: result,
+        originalError: error,
+      });
       throw enhancedError;
     } else {
       // For non-Error objects, create an Error with info
-      const newError = new Error(`Streaming error: ${String(error)}`);
-      (newError as any).partialContent = result;
-      (newError as any).originalError = error;
+      const newError = new CallAIError({
+        message: `Streaming error: ${String(error)}`,
+        status: 511,
+        partialContent: result,
+        originalError: error as Error,
+      });
       throw newError;
     }
   }
@@ -263,7 +267,7 @@ function createBackwardCompatStreamingProxy(
   promise: Promise<StreamResponse>,
 ): ThenableStreamResponse {
   // Create a proxy that forwards methods to the Promise or AsyncGenerator as appropriate
-  return new Proxy({} as any, {
+  return new Proxy({} as ThenableStreamResponse, {
     get(_target, prop) {
       // First check if it's an AsyncGenerator method (needed for for-await)
       if (
@@ -277,7 +281,7 @@ function createBackwardCompatStreamingProxy(
           return function () {
             return {
               // Implement async iterator that gets the generator first
-              async next(value?: unknown) {
+              async next(value: unknown) {
                 try {
                   const generator = await promise;
                   return generator.next(value);
@@ -291,9 +295,18 @@ function createBackwardCompatStreamingProxy(
         }
 
         // Methods like next, throw, return
-        return async function (value?: unknown) {
+        return async function (value: unknown) {
           const generator = await promise;
-          return (generator as any)[prop](value);
+          switch (prop) {
+            case "next":
+              return generator.next(value);
+            case "throw":
+              return generator.throw(value);
+            case "return":
+              return generator.return(value as string);
+            default:
+              throw new Error(`Unknown method: ${String(prop)}`);
+          }
         };
       }
 
@@ -319,7 +332,7 @@ function prepareRequestParams(
   options: CallAIOptions = {},
 ) {
   // Get API key from options or window.CALLAI_API_KEY (exactly matching original)
-  const apiKey = options.apiKey || callAiEnv.CALLAI_API_KEY
+  const apiKey = options.apiKey || callAiEnv.CALLAI_API_KEY;
 
   // Validate API key with original error message
   if (!apiKey) {

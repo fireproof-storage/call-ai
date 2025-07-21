@@ -35,7 +35,6 @@ const supportedModels = {
 // Define the model names as an array for looping
 const modelEntries = Object.entries(supportedModels);
 
-
 // Create a test function that won't fail on timeouts for B and C grade models
 const gradeAwareTest = (modelId: { id: string; grade: string }) => {
   if (!haveApiKey) return it.skip;

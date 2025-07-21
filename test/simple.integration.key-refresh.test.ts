@@ -3,7 +3,6 @@ import { callAi, getMeta } from "../src/index.js";
 import { callAiEnv } from "../src/utils.js";
 import { expectOrWarn } from "./test-helper.js";
 
-
 // import { Message } from "../src/types";
 
 // Load environment variables from .env file if present
@@ -16,23 +15,23 @@ dotenv.config();
 // jest.setTimeout(60000);
 
 // Skip tests if no API key is available
-const haveApiKey = callAiEnv.LOW_BALANCE_OPENROUTER_API_KEY;
+// const haveApiKey = callAiEnv.LOW_BALANCE_OPENROUTER_API_KEY;
 
-// Set up environment variables for testing key refresh behavior
-if (callAiEnv.LOW_BALANCE_OPENROUTER_API_KEY) {
-  // Use the low balance key for triggering a refresh scenario
-  callAiEnv.CALLAI_API_KEY = callAiEnv.LOW_BALANCE_OPENROUTER_API_KEY;
+// // Set up environment variables for testing key refresh behavior
+// if (callAiEnv.LOW_BALANCE_OPENROUTER_API_KEY) {
+//   // Use the low balance key for triggering a refresh scenario
+//   callAiEnv.CALLAI_API_KEY = callAiEnv.LOW_BALANCE_OPENROUTER_API_KEY;
 
-  // Set the refresh endpoint to vibecode.garden if not already set
-  if (!callAiEnv.CALLAI_REFRESH_ENDPOINT) {
-    callAiEnv.CALLAI_REFRESH_ENDPOINT = "https://vibecode.garden";
-  }
+//   // Set the refresh endpoint to vibecode.garden if not already set
+//   if (!callAiEnv.CALLAI_REFRESH_ENDPOINT) {
+//     callAiEnv.CALLAI_REFRESH_ENDPOINT = "https://vibecode.garden";
+//   }
 
-  // Set the refresh token for authentication
-  if (!callAiEnv.CALL_AI_REFRESH_TOKEN) {
-    callAiEnv.CALL_AI_REFRESH_TOKEN = "use-vibes";
-  }
-}
+//   // Set the refresh token for authentication
+//   if (!callAiEnv.CALL_AI_REFRESH_TOKEN) {
+//     callAiEnv.CALL_AI_REFRESH_TOKEN = "use-vibes";
+//   }
+// }
 // const itif = (condition: boolean) => (condition ? it.concurrent : it.skip);
 
 // Timeout for individual test
@@ -55,7 +54,7 @@ const modelEntries = Object.entries(supportedModels);
 
 // Create a test function that won't fail on timeouts for B and C grade models
 const gradeAwareTest = (modelId: { id: string; grade: string }) => {
-  if (!haveApiKey) return it.skip;
+  if (!callAiEnv.CALLAI_API_KEY) return it.skip;
 
   if (modelId.grade === "A") {
     return it.concurrent;
