@@ -20,7 +20,7 @@ const TIMEOUT = 30000;
 // Test models based on the OpenRouter documentation
 const supportedModels = {
   openAI: { id: "openai/gpt-4.1", grade: "A" },
-  gemini: { id: "google/gemini-2.5-flash-preview", grade: "A" },
+  gemini: { id: "google/gemini-2.5-flash", grade: "A" },
   claude: { id: "anthropic/claude-3-sonnet", grade: "B" },
   llama3: { id: "meta-llama/llama-3.3-70b-instruct", grade: "C" },
   // deepseek: { id: 'deepseek/deepseek-chat', grade: 'C' },

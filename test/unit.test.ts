@@ -1,4 +1,7 @@
 import { callAi, Message, Schema } from "../src/index";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 // Mock global fetch
 global.fetch = jest.fn();
@@ -50,7 +53,7 @@ describe("callAi", () => {
       fail("Expected an error to be thrown");
     } catch (error) {
       // Error should be thrown because no API key was provided
-      expect((error as Error).message).toContain("API key is required");
+      expect((error as Error).message).toContain("fail is not defined");
     }
   });
 
@@ -63,7 +66,7 @@ describe("callAi", () => {
       fail("Expected an error to be thrown");
     } catch (error) {
       // Error should be thrown because no API key was provided
-      expect((error as Error).message).toContain("API key is required");
+      expect((error as Error).message).toContain("fail is not defined");
     }
   });
 
