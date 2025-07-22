@@ -1,7 +1,8 @@
 import fs from "fs";
 import path from "path";
 import { callAi, Schema, Message } from "../src/index.js";
-import { Mock, vitest } from "vitest";
+import { Mock, vitest, expect, describe, it, beforeEach } from "vitest";
+
 
 // Mock fetch to use our fixture files
 global.fetch = vitest.fn();
@@ -157,7 +158,7 @@ describe("DeepSeek Wire Protocol Tests", () => {
 
   it("should handle system message approach with DeepSeek", async () => {
     // Update mock to return system message response
-    (global.fetch as jest.Mock).mockImplementationOnce(async () => {
+    (global.fetch as Mock).mockImplementationOnce(async () => {
       return {
         ok: true,
         status: 200,

@@ -1,4 +1,6 @@
-export function itif(condition: boolean) {
+import { it, expect, TestAPI, } from "vitest";
+
+export function itif(condition: boolean): TestAPI | TestAPI["skip"] {
   return condition ? it : it.skip;
 }
 

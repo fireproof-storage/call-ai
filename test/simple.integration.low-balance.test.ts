@@ -1,6 +1,7 @@
 import { dotenv } from "zx";
 import { callAi } from "../src/index.js";
 import { callAiEnv } from "../src/utils.js";
+import { describe, it, expect, assert, } from "vitest";
 
 // Load environment variables from .env file if present
 dotenv.config();
@@ -54,7 +55,7 @@ describe("Low Balance API Key Tests", () => {
         });
 
         // If we get here, the key wasn't actually low balance - test should fail
-        fail("Expected key limit exceeded error but got successful result");
+        assert.fail("Expected key limit exceeded error but got successful result");
       } catch (error) {
         // We expect a 403 error with "Key limit exceeded" message
         const errorStr = String(error);

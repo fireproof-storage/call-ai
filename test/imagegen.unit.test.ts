@@ -1,4 +1,4 @@
-import { Mock, vitest } from "vitest";
+import { Mock, vitest, describe, it, expect, beforeEach, beforeAll, assert } from "vitest";
 import { imageGen } from "../src/index.js";
 
 // Mock fetch
@@ -152,7 +152,7 @@ describe("imageGen", () => {
       ok: false,
       status: 400,
       statusText: "Bad Request",
-      text: jest
+      text: vitest
         .fn()
         .mockResolvedValue(JSON.stringify({ error: "Invalid prompt" })),
     });
@@ -161,7 +161,7 @@ describe("imageGen", () => {
 
     try {
       await imageGen(prompt, { apiKey: "VIBES_DIY" });
-      fail("Expected the image generation to throw an error");
+      assert.fail("Expected the image generation to throw an error");
     } catch (error) {
       expect((error as Error).message).toContain("Image generation failed");
       expect((error as Error).message).toContain("400 Bad Request");
@@ -174,7 +174,7 @@ describe("imageGen", () => {
       ok: false,
       status: 400,
       statusText: "Bad Request",
-      text: jest
+      text: vitest
         .fn()
         .mockResolvedValue(JSON.stringify({ error: "Invalid image format" })),
     });
@@ -190,7 +190,7 @@ describe("imageGen", () => {
         apiKey: "VIBES_DIY",
         images: mockFiles,
       });
-      fail("Expected the image editing to throw an error");
+      assert.fail("Expected the image editing to throw an error");
     } catch (error) {
       expect((error as Error).message).toContain("Image editing failed");
       expect((error as Error).message).toContain("400 Bad Request");

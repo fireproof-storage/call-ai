@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { callAi, Schema, Message } from "../src/index.js";
-import { Mock, vitest } from "vitest";
+import { Mock, vitest, expect, describe, it, beforeEach } from "vitest";
 
 // Mock fetch to use our fixture files
 global.fetch = vitest.fn();
@@ -22,10 +22,10 @@ describe("GPT-4 Turbo Wire Protocol Tests", () => {
 
   beforeEach(() => {
     // Reset mocks
-    (global.fetch as jest.Mock).mockClear();
+    (global.fetch as Mock).mockClear();
 
     // Mock successful response
-    (global.fetch as jest.Mock).mockImplementation(async () => {
+    (global.fetch as Mock).mockImplementation(async () => {
       return {
         ok: true,
         status: 200,
@@ -202,7 +202,7 @@ describe("GPT-4 Turbo Wire Protocol Tests", () => {
 
     // Get the request body that was passed to fetch
     const actualRequestBody = JSON.parse(
-      (global.fetch as jest.Mock).mock.calls[0][1].body,
+      (global.fetch as Mock).mock.calls[0][1].body,
     );
 
     // Check that we're sending messages

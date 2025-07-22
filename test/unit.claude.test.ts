@@ -1,11 +1,12 @@
 import { callAi } from "../src/index.js";
+import { describe, it, expect, beforeEach, vitest, Mock } from "vitest";
 
 // Mock global fetch
-global.fetch = jest.fn();
+global.fetch = vitest.fn();
 
 // Simple mock for TextDecoder
-global.TextDecoder = jest.fn().mockImplementation(() => ({
-  decode: jest.fn((value) => {
+global.TextDecoder = vitest.fn().mockImplementation(() => ({
+  decode: vitest.fn((value) => {
     // Basic mock implementation without recursion
     if (value instanceof Uint8Array) {
       // Convert the Uint8Array to a simple string
@@ -19,7 +20,7 @@ global.TextDecoder = jest.fn().mockImplementation(() => ({
 
 describe("Claude Streaming JSON Property Splitting Test", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vitest.clearAllMocks();
   });
 
   it.skip("should handle Claude property splitting in streaming responses", async () => {
@@ -44,8 +45,8 @@ describe("Claude Streaming JSON Property Splitting Test", () => {
       ok: true,
       status: 200,
       body: {
-        getReader: jest.fn().mockReturnValue({
-          read: jest
+        getReader: vitest.fn().mockReturnValue({
+          read: vitest
             .fn()
             // First chunk: starts with {"capital"
             .mockResolvedValueOnce({
@@ -97,7 +98,7 @@ describe("Claude Streaming JSON Property Splitting Test", () => {
     };
 
     // Override the global.fetch mock for this test
-    (global.fetch as jest.Mock).mockResolvedValueOnce(mockResponse);
+    (global.fetch as Mock).mockResolvedValueOnce(mockResponse);
 
     const generator = (await callAi(
       "Provide information about France.",
@@ -149,8 +150,8 @@ describe("Claude Streaming JSON Property Splitting Test", () => {
       ok: true,
       status: 200,
       body: {
-        getReader: jest.fn().mockReturnValue({
-          read: jest
+        getReader: vitest.fn().mockReturnValue({
+          read: vitest
             .fn()
             // First chunk: starts with {"capital": "Par
             .mockResolvedValueOnce({
@@ -195,7 +196,7 @@ describe("Claude Streaming JSON Property Splitting Test", () => {
     };
 
     // Override the global.fetch mock for this test
-    (global.fetch as jest.Mock).mockResolvedValueOnce(
+    (global.fetch as Mock).mockResolvedValueOnce(
       mockResponseWithSplitValues,
     );
 
@@ -247,8 +248,8 @@ describe("Claude Streaming JSON Property Splitting Test", () => {
       ok: true,
       status: 200,
       body: {
-        getReader: jest.fn().mockReturnValue({
-          read: jest
+        getReader: vitest.fn().mockReturnValue({
+          read: vitest
             .fn()
             // First chunk: starts with {"capital":
             .mockResolvedValueOnce({
@@ -286,7 +287,7 @@ describe("Claude Streaming JSON Property Splitting Test", () => {
     };
 
     // Override the global.fetch mock for this test
-    (global.fetch as jest.Mock).mockResolvedValueOnce(
+    (global.fetch as Mock).mockResolvedValueOnce(
       mockResponseWithMissingValue,
     );
 

@@ -18,7 +18,7 @@ export interface KeyMetadata {
 // Internal key store to keep track of the latest key
 const keyStore = {
   // Default key from environment or config
-  current: null as string | null,
+  current: undefined as string | undefined,
   // The refresh endpoint URL - defaults to vibecode.garden
   refreshEndpoint: "https://vibecode.garden",
   // Authentication token for refresh endpoint - defaults to use-vibes

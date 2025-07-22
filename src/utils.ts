@@ -67,14 +67,26 @@ export function recursivelyAddAdditionalProperties(
 
 class CallAIEnv {
   private getEnv(key: string): string | undefined {
-    if (window && key in window) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (window as any)[key];
-    }
+    const wEnv = this.getEnvFromWindow(key)
+    if (wEnv) return wEnv;
+
     if (process && process.env) {
       return process.env[key];
     }
     console.warn("[callAi] Environment variable not found:", key);
+    return undefined;
+  }
+
+  private getWindow(): Window & { callAi?: { API_KEY: string } } | undefined {
+    return globalThis.window ? globalThis.window : undefined;
+  }
+
+  private getEnvFromWindow(key: string): string | undefined {
+    const window = this.getWindow();
+    if (window && key in window) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (window as any)[key];
+    }
     return undefined;
   }
 
@@ -98,7 +110,7 @@ class CallAIEnv {
       this.getEnv("CALLAI_API_KEY") ??
       this.getEnv("OPENROUTER_API_KEY") ??
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (window as any).callAi?.API_KEY ??
+      this.getWindow()?.callAi?.API_KEY ??
       this.getEnv("LOW_BALANCE_OPENROUTER_API_KEY")
     );
   }

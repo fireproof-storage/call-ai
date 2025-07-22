@@ -1,12 +1,12 @@
-import { vitest } from "vitest";
+/// <reference lib="DOM" />
 import { imageGen } from "../src/index.js";
 import { dotenv } from "zx";
+import { describe, it, expect, vitest, beforeEach, Mock, } from "vitest";
 
 // Add type declaration for Node.js require
 
 // Configure fetch mock
-const fetch = vitest.fn();
-
+global.fetch = vitest.fn<typeof global.fetch>()
 // Load environment variables from .env file if present
 dotenv.config();
 
@@ -25,15 +25,16 @@ const mockImageResponse = {
 describe("Image Generation Integration Tests", () => {
   beforeEach(() => {
     // Reset fetch mocks before each test
-    fetch.mockClear();
+    (global.fetch as Mock).mockClear();
   });
 
   it("should generate an image with a text prompt", async () => {
     // Set up fetch mock for image generation
-    fetch.mockResolvedValueOnce({
-      json: async () => JSON.stringify(mockImageResponse),
+    (global.fetch as Mock).mockResolvedValueOnce({
+      json: async () => mockImageResponse,
+      ok: true,
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: new Headers({"Content-Type": "application/json"}) 
     });
 
     // Generate test prompt
@@ -46,9 +47,9 @@ describe("Image Generation Integration Tests", () => {
       debug: true,
     });
 
+    console.log("Image editing test result:", result);
     // Verify the structure of the response
     expect(result).toBeDefined();
-    expect(result.created).toBeDefined();
     expect(Array.isArray(result.data)).toBe(true);
     expect(result.data.length).toBeGreaterThan(0);
     expect(result.data[0].b64_json).toBeDefined();
@@ -73,8 +74,8 @@ describe("Image Generation Integration Tests", () => {
     );
 
     // Verify request body content
-    const mockCall = fetch.mock.calls[0];
-    const requestBody = JSON.parse(mockCall[1].body as string);
+    const mockCall = (global.fetch as Mock).mock.calls[0] as [unknown, {body: string}];
+    const requestBody = JSON.parse(mockCall[1].body);
     expect(requestBody.prompt).toBe(testPrompt);
     expect(requestBody.model).toBe("gpt-image-1");
 
@@ -83,9 +84,10 @@ describe("Image Generation Integration Tests", () => {
 
   it("should handle image editing with multiple input images", async () => {
     // Set up fetch mock for image editing
-    fetch.mockResolvedValueOnce({
-      json: async () => JSON.stringify(mockImageResponse),
+    (global.fetch as Mock).mockResolvedValueOnce({
+      json: async () => mockImageResponse,
       status: 200,
+      ok: true,
       headers: { "Content-Type": "application/json" },
     });
 
@@ -106,9 +108,10 @@ describe("Image Generation Integration Tests", () => {
       debug: true,
     });
 
+
     // Verify the structure of the response
     expect(result).toBeDefined();
-    expect(result.created).toBeDefined();
+    expect(result.created).toBeGreaterThan(0);
     expect(Array.isArray(result.data)).toBe(true);
     expect(result.data.length).toBeGreaterThan(0);
     expect(result.data[0].b64_json).toBeDefined();

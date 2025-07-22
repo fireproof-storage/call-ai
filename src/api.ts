@@ -438,8 +438,7 @@ function prepareRequestParams(
   schemaStrategy: SchemaStrategy;
 } {
   // First try to get the API key from options or window globals
-  const apiKey =
-    options.apiKey || keyStore.current || callAiEnv.CALLAI_API_KEY(); // Try keyStore first in case it was refreshed in a previous call
+  const apiKey = options.apiKey || keyStore.current || callAiEnv.CALLAI_API_KEY; // Try keyStore first in case it was refreshed in a previous call
   const schema = options.schema || null;
 
   // If no API key exists, we won't throw immediately. We'll continue and let handleApiError

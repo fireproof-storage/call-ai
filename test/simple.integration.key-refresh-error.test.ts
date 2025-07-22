@@ -5,6 +5,8 @@ import { expectOrWarn } from "./test-helper.js";
 
 import { dotenv } from "zx";
 
+import { describe, it, expect } from "vitest";
+
 // Load environment variables from .env file if present
 dotenv.config();
 

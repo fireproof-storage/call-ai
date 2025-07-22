@@ -1,12 +1,13 @@
+import { beforeEach, describe, expect, it, Mock, vitest } from "vitest";
 import { callAi, getMeta } from "../src/index.js";
 import { ModelId, ResponseMeta } from "../src/types.js";
 
 // Mock global fetch
-global.fetch = jest.fn();
+global.fetch = vitest.fn();
 
 // Simple mock for TextDecoder
-global.TextDecoder = jest.fn().mockImplementation(() => ({
-  decode: jest.fn((value) => {
+global.TextDecoder = vitest.fn().mockImplementation(() => ({
+  decode: vitest.fn((value) => {
     // Basic mock implementation without recursion
     if (value instanceof Uint8Array) {
       // Convert the Uint8Array to a simple string
@@ -20,35 +21,35 @@ global.TextDecoder = jest.fn().mockImplementation(() => ({
 
 // Mock ReadableStream
 const mockReader = {
-  read: jest.fn(),
+  read: vitest.fn(),
 };
 
 // Create a mock response with headers
 const mockResponse = {
-  json: jest.fn(),
-  text: jest.fn(),
+  json: vitest.fn(),
+  text: vitest.fn(),
   body: {
-    getReader: jest.fn().mockReturnValue(mockReader),
+    getReader: vitest.fn().mockReturnValue(mockReader),
   },
   ok: true,
   status: 200,
   statusText: "OK",
   headers: {
-    get: jest.fn((name) => {
+    get: vitest.fn((name) => {
       if (name === "content-type") return "application/json";
       return null;
-    }) as jest.Mock,
-    forEach: jest.fn(),
+    }) as Mock,
+    forEach: vitest.fn(),
   },
-  clone: jest.fn(function () {
+  clone: vitest.fn(function (this: typeof mockResponse) {
     return { ...this };
   }),
 };
 
 describe("getMeta", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
+    vitest.clearAllMocks();
+    (global.fetch as Mock).mockResolvedValue(mockResponse);
   });
 
   it("should return metadata for non-streaming responses", async () => {
@@ -127,7 +128,7 @@ describe("getMeta", () => {
 
     // Mock the getMeta function for this test to use our test map
     // const originalGetMeta = getMeta;
-    const mockedGetMeta = jest.fn((resp) => testMap.get(resp));
+    const mockedGetMeta = vitest.fn((resp) => testMap.get(resp));
 
     // Check that we can get metadata from our mocked streaming response
     const meta = mockedGetMeta(generator);

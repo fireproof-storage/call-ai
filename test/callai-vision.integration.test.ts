@@ -5,6 +5,8 @@ import path from "path";
 import { callAiEnv } from "../src/utils.js";
 import { itif } from "./test-helper.js";
 
+import { describe, expect } from "vitest";
+
 // Load environment variables from .env file if present
 dotenv.config();
 

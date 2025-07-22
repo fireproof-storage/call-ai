@@ -1,10 +1,10 @@
-import fs from "fs";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
 import { callAi, Schema } from "../src/index.js";
-import { Mock } from "vitest";
+import { beforeEach, describe, expect, it, Mock, vitest } from "vitest";
 
 // Mock fetch to use our fixture files
-global.fetch = jest.fn();
+global.fetch = vitest.fn();
 
 describe("OpenAI Wire Protocol Tests", () => {
   // Read fixtures
@@ -114,7 +114,7 @@ describe("OpenAI Wire Protocol Tests", () => {
 
     // Get the request body that was passed to fetch
     const actualRequestBody = JSON.parse(
-      (global.fetch as jest.Mock).mock.calls[0][1].body,
+      (global.fetch as Mock).mock.calls[0][1].body,
     );
 
     // Check that the essential parts match our fixture
@@ -247,7 +247,7 @@ describe("OpenAI Wire Protocol Tests", () => {
 
     // Get the request body that was passed to fetch
     const actualRequestBody = JSON.parse(
-      (global.fetch as jest.Mock).mock.calls[0][1].body,
+      (global.fetch as Mock).mock.calls[0][1].body,
     );
 
     // GPT-4o should use response_format.json_schema for schema handling
@@ -295,7 +295,7 @@ describe("OpenAI Wire Protocol Tests", () => {
 
     // Get the request body that was passed to fetch
     const actualRequestBody = JSON.parse(
-      (global.fetch as jest.Mock).mock.calls[0][1].body,
+      (global.fetch as Mock).mock.calls[0][1].body,
     );
 
     // If tool mode is enabled for OpenAI, it should use tools format

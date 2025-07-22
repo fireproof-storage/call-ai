@@ -1,14 +1,15 @@
+import { vitest, describe, it, expect, beforeEach, Mock, assert } from "vitest";
 import { callAi, Message, Schema } from "../src/index.js";
 import { dotenv } from "zx";
 
 dotenv.config();
 
 // Mock global fetch
-global.fetch = jest.fn();
+global.fetch = vitest.fn();
 
 // Simple mock for TextDecoder
-global.TextDecoder = jest.fn().mockImplementation(() => ({
-  decode: jest.fn((value) => {
+global.TextDecoder = vitest.fn().mockImplementation(() => ({
+  decode: vitest.fn((value) => {
     // Basic mock implementation without recursion
     if (value instanceof Uint8Array) {
       // Convert the Uint8Array to a simple string
@@ -22,13 +23,13 @@ global.TextDecoder = jest.fn().mockImplementation(() => ({
 
 // Mock ReadableStream
 const mockReader = {
-  read: jest.fn(),
+  read: vitest.fn(),
 };
 
 const mockResponse = {
-  json: jest.fn(),
+  json: vitest.fn(),
   body: {
-    getReader: jest.fn().mockReturnValue(mockReader),
+    getReader: vitest.fn().mockReturnValue(mockReader),
   },
   ok: true, // Ensure response is treated as successful
   status: 200,
@@ -37,8 +38,8 @@ const mockResponse = {
 
 describe("callAi", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    (global.fetch as jest.Mock).mockResolvedValue(mockResponse);
+    vitest.clearAllMocks();
+    (global.fetch as Mock).mockResolvedValue(mockResponse);
   });
 
   it("should handle API key requirement for non-streaming", async () => {
@@ -50,7 +51,7 @@ describe("callAi", () => {
     try {
       await callAi("Hello, AI");
       // If we get here, the test should fail because an error should have been thrown
-      fail("Expected an error to be thrown");
+      assert.fail("Expected an error to be thrown");
     } catch (error) {
       // Error should be thrown because no API key was provided
       expect((error as Error).message).toContain("fail is not defined");
@@ -63,7 +64,7 @@ describe("callAi", () => {
     try {
       await callAi("Hello, AI", { stream: true });
       // If we get here, the test should fail because an error should have been thrown
-      fail("Expected an error to be thrown");
+      assert.fail("Expected an error to be thrown");
     } catch (error) {
       // Error should be thrown because no API key was provided
       expect((error as Error).message).toContain("fail is not defined");
@@ -98,7 +99,7 @@ describe("callAi", () => {
       }),
     );
 
-    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    const body = JSON.parse((global.fetch as Mock).mock.calls[0][1].body);
     expect(body.model).toBe("test-model");
     expect(body.messages).toEqual([{ role: "user", content: "Hello, AI" }]);
     expect(body.temperature).toBe(0.7);
@@ -126,7 +127,7 @@ describe("callAi", () => {
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
 
-    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    const body = JSON.parse((global.fetch as Mock).mock.calls[0][1].body);
     expect(body.model).toBe("test-model");
     expect(body.messages).toEqual([{ role: "user", content: "Hello, AI" }]);
     expect(body.temperature).toBe(0.7);
@@ -150,7 +151,7 @@ describe("callAi", () => {
     >;
     await generator.next();
 
-    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    const body = JSON.parse((global.fetch as Mock).mock.calls[0][1].body);
     expect(body.messages).toEqual(messages);
   });
 
@@ -179,7 +180,7 @@ describe("callAi", () => {
     )) as AsyncGenerator<string, string, unknown>;
     await generator.next();
 
-    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    const body = JSON.parse((global.fetch as Mock).mock.calls[0][1].body);
     expect(body.response_format.type).toBe("json_schema");
     expect(body.response_format.json_schema.schema.required).toEqual(["name"]);
   });
@@ -213,7 +214,7 @@ describe("callAi", () => {
 
     await callAi("Give me a todo list for learning React", options);
 
-    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    const body = JSON.parse((global.fetch as Mock).mock.calls[0][1].body);
     expect(body.response_format.type).toBe("json_schema");
     expect(body.response_format.json_schema.schema.properties).toEqual(
       todoSchema.properties,
@@ -266,7 +267,7 @@ describe("callAi", () => {
     >;
     await generator.next();
 
-    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    const body = JSON.parse((global.fetch as Mock).mock.calls[0][1].body);
     expect(body.response_format.type).toBe("json_schema");
     // The schema is processed with additionalProperties and required fields
     // So we just check that the main structure is preserved
@@ -320,7 +321,7 @@ describe("callAi", () => {
 
     await callAi("Test with schema name", options);
 
-    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    const body = JSON.parse((global.fetch as Mock).mock.calls[0][1].body);
     expect(body.response_format.type).toBe("json_schema");
     expect(body.response_format.json_schema.name).toBe("test_schema");
   });
@@ -344,7 +345,7 @@ describe("callAi", () => {
 
     await callAi("Test without schema name", options);
 
-    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    const body = JSON.parse((global.fetch as Mock).mock.calls[0][1].body);
     expect(body.response_format.type).toBe("json_schema");
     expect(body.response_format.json_schema.name).toBe("result");
   });
@@ -368,7 +369,7 @@ describe("callAi", () => {
 
     await callAi("Generate content with schema", options);
 
-    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    const body = JSON.parse((global.fetch as Mock).mock.calls[0][1].body);
     expect(body.response_format.type).toBe("json_schema");
     expect(body.response_format.json_schema.name).toBe("result");
   });
@@ -390,7 +391,7 @@ describe("callAi", () => {
 
     await callAi("Test with empty schema", options);
 
-    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    const body = JSON.parse((global.fetch as Mock).mock.calls[0][1].body);
     expect(body.response_format.type).toBe("json_schema");
     expect(body.response_format.json_schema.name).toBe("result");
     expect(body.response_format.json_schema.schema.properties).toEqual({});
@@ -424,20 +425,20 @@ describe("callAi", () => {
 
     await callAi("Test with additionalProperties", options);
 
-    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    const body = JSON.parse((global.fetch as Mock).mock.calls[0][1].body);
     expect(body.response_format.json_schema.schema.additionalProperties).toBe(
       true,
     );
   });
 
   it("should handle errors during API call for non-streaming", async () => {
-    (global.fetch as jest.Mock).mockRejectedValue(new Error("Network error"));
+    (global.fetch as Mock).mockRejectedValue(new Error("Network error"));
 
     try {
       const options = { apiKey: "test-api-key" };
       await callAi("Hello", options);
       // If we get here, the test should fail because an error should have been thrown
-      fail("Expected an error to be thrown");
+      assert.fail("Expected an error to be thrown");
     } catch (error) {
       // Error should contain the network error message
       expect((error as Error).message).toContain("Network error");
@@ -445,13 +446,13 @@ describe("callAi", () => {
   });
 
   it("should handle errors during API call for streaming", async () => {
-    (global.fetch as jest.Mock).mockRejectedValue(new Error("Network error"));
+    (global.fetch as Mock).mockRejectedValue(new Error("Network error"));
 
     try {
       const options = { apiKey: "test-api-key", stream: true };
       await callAi("Hello", options);
       // If we get here, the test should fail because an error should have been thrown
-      fail("Expected an error to be thrown");
+      assert.fail("Expected an error to be thrown");
     } catch (error) {
       // Error should contain the network error message
       expect((error as Error).message).toContain("Network error");
@@ -467,7 +468,7 @@ describe("callAi", () => {
 
     await callAi("Hello", options);
 
-    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    const body = JSON.parse((global.fetch as Mock).mock.calls[0][1].body);
     expect(body.stream).toBe(false);
   });
 
@@ -512,7 +513,7 @@ describe("callAi", () => {
 
     await callAi("Create a themed music playlist", options);
 
-    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    const body = JSON.parse((global.fetch as Mock).mock.calls[0][1].body);
     expect(body.response_format.type).toBe("json_schema");
     // Check that schema property exists in json_schema containing the schema definition
     expect(body.response_format.json_schema.schema).toBeDefined();
@@ -555,8 +556,8 @@ describe("callAi", () => {
       ok: true,
       status: 200,
       body: {
-        getReader: jest.fn().mockReturnValue({
-          read: jest
+        getReader: vitest.fn().mockReturnValue({
+          read: vitest
             .fn()
             .mockResolvedValueOnce({
               done: false,
@@ -584,7 +585,7 @@ describe("callAi", () => {
     };
 
     // Override the global.fetch mock for this test
-    (global.fetch as jest.Mock).mockResolvedValueOnce(mockResponseWithBody);
+    (global.fetch as Mock).mockResolvedValueOnce(mockResponseWithBody);
 
     const generator = (await callAi(
       "What is the weather?",
@@ -600,7 +601,7 @@ describe("callAi", () => {
     }
 
     // Verify request format
-    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    const body = JSON.parse((global.fetch as Mock).mock.calls[0][1].body);
     expect(body.response_format.type).toBe("json_schema");
     expect(body.response_format.json_schema.name).toBe("weather");
     expect(body.stream).toBe(true);

@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { callAi, Schema, Message } from "../src/index.js";
-import { Mock, vitest } from "vitest";
+import { Mock, vitest, expect, describe, it, beforeEach } from "vitest";
 
 // Mock fetch to use our fixture files
 global.fetch = vitest.fn();

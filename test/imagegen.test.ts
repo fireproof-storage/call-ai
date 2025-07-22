@@ -4,11 +4,11 @@
  */
 
 // Import the function directly from the module
-import { vitest } from "vitest";
+import { vitest, describe, test, expect, beforeEach } from "vitest";
 import { imageGen } from "../src/index.js";
 
 // Mock fetch for testing
-const fetch = vitest.fn(() =>
+global.fetch = vitest.fn(() =>
   Promise.resolve({
     ok: true,
     status: 200,
@@ -29,7 +29,7 @@ const fetch = vitest.fn(() =>
 
 describe("imageGen function", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vitest.clearAllMocks();
   });
 
   // Simple test to verify basic functionality

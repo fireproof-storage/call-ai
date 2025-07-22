@@ -1,13 +1,14 @@
 import { callAi } from "../src/index.js";
 import { dotenv } from "zx";
 import { callAiEnv } from "../src/utils.js";
+import { itif } from "./test-helper.js";
+import { describe, it, expect } from "vitest";
 
 // Load environment variables from .env file if present
 dotenv.config();
 
 // Skip tests if no API key is available
 const haveApiKey = callAiEnv.CALLAI_API_KEY;
-const itif = (condition: boolean) => (condition ? it : it.skip);
 
 // Timeout for image generation tests
 const TIMEOUT = 20000;

@@ -99,6 +99,7 @@ async function* createStreamingGenerator(
 
         // Try to parse the JSON
         try {
+          console.log(`[callAi:${PACKAGE_VERSION}] Raw chunk #${chunkCount}:`, jsonStr);
           const json = JSON.parse(jsonStr);
 
           // Check for error responses in the stream

@@ -1,6 +1,7 @@
 import { callAi } from "../src/index.js";
 import { dotenv } from "zx";
 import { callAiEnv } from "../src/utils.js";
+import { it, describe, expect } from "vitest";
 
 // Load environment variables from .env file if present
 dotenv.config();

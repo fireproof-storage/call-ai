@@ -3,6 +3,7 @@
 import { callAi } from "../src/index.js";
 import { dotenv } from "zx";
 import { callAiEnv } from "../src/utils.js";
+import * as process from "node:process"
 
 dotenv.config();
 

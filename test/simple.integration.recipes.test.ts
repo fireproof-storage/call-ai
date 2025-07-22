@@ -2,13 +2,16 @@ import { dotenv } from "zx";
 import { callAi, getMeta } from "../src/index.js";
 import { callAiEnv } from "../src/utils.js";
 import { expectOrWarn } from "./test-helper.js";
+
+import { describe, it } from "vitest";
+
 // import { Message } from "../src/types";
 
 // Load environment variables from .env file if present
 dotenv.config();
 
 // Configure retry settings for flaky tests - use fewer retries with faster failures
-jest.retryTimes(2, { logErrorsBeforeRetry: true });
+// jest.retryTimes(2, { logErrorsBeforeRetry: true });
 
 // Increase Jest's default timeout to handle all parallel requests
 // jest.setTimeout(60000);

@@ -2,6 +2,8 @@ import { callAi, getMeta } from "../src/index.js";
 import { dotenv } from "zx";
 import { callAiEnv } from "../src/utils.js";
 import { expectOrWarn } from "./test-helper.js";
+import { describe, it } from "vitest";
+
 // import { Message } from "../src/types";
 
 // Load environment variables from .env file if present

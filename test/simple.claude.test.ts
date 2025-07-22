@@ -1,11 +1,13 @@
+import { vitest, describe, it, expect, beforeEach, Mock } from "vitest";
 import { callAi } from "../src/index.js";
 
+
 // Mock global fetch
-global.fetch = jest.fn();
+global.fetch = vitest.fn();
 
 // Simple mock for TextDecoder
-global.TextDecoder = jest.fn().mockImplementation(() => ({
-  decode: jest.fn((value) => {
+global.TextDecoder = vitest.fn().mockImplementation(() => ({
+  decode: vitest.fn((value) => {
     // Basic mock implementation without recursion
     if (value instanceof Uint8Array) {
       // Convert the Uint8Array to a simple string
@@ -19,7 +21,7 @@ global.TextDecoder = jest.fn().mockImplementation(() => ({
 
 describe("Claude JSON Property Splitting Test", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vitest.clearAllMocks();
   });
 
   it("should handle property name splitting across chunks", async () => {
@@ -41,14 +43,15 @@ describe("Claude JSON Property Splitting Test", () => {
 
     // Create a simple mock that focuses on the specific property splitting issue
     const mockResponse = {
+      clone: () => mockResponse,
       ok: true,
       status: 200,
       headers: {
-        forEach: jest.fn(),
+        forEach: vitest.fn(),
       },
       body: {
-        getReader: jest.fn().mockReturnValue({
-          read: jest
+        getReader: vitest.fn().mockReturnValue({
+          read: vitest
             .fn()
             // Streaming setup chunk
             .mockResolvedValueOnce({
@@ -61,14 +64,16 @@ describe("Claude JSON Property Splitting Test", () => {
             .mockResolvedValueOnce({
               done: false,
               value: new TextEncoder().encode(
-                `data: {"type":"content_block_delta","delta":{"text":"{"capital":"Paris", "popul"}}\n\n`,
+                // eslint-disable-next-line no-useless-escape
+                `data: {"type":"content_block_delta","delta":{"text":"{\\\"capital\\\":\\\"Paris\\\", \\\"popul"}}\n\n`,
               ),
             })
             // Second part with "ation" completing the property name
             .mockResolvedValueOnce({
               done: false,
               value: new TextEncoder().encode(
-                `data: {"type":"content_block_delta","delta":{"text":"ation":67.5, "languages":["French"]}"}}\n\n`,
+                // eslint-disable-next-line no-useless-escape
+                `data: {"type":"content_block_delta","delta":{"text":"ation\\\":67.5, \\\"languages\\\":[\\\"French\\\"]}"}}\n\n`,
               ),
             })
             // Final chunk with tool_calls completion signal
@@ -87,7 +92,7 @@ describe("Claude JSON Property Splitting Test", () => {
     };
 
     // Override global.fetch mock for this test
-    (global.fetch as jest.Mock).mockResolvedValueOnce(mockResponse);
+    (global.fetch as Mock).mockResolvedValueOnce(mockResponse);
 
     const generator = (await callAi(
       "Provide information about France.",

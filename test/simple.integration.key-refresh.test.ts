@@ -2,6 +2,7 @@ import { dotenv } from "zx";
 import { callAi, getMeta } from "../src/index.js";
 import { callAiEnv } from "../src/utils.js";
 import { expectOrWarn } from "./test-helper.js";
+import { describe, it } from "vitest";
 
 // import { Message } from "../src/types";
 

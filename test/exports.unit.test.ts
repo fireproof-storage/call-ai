@@ -2,6 +2,7 @@
  * Test to verify export aliases for backward compatibility
  */
 
+import { describe, it, expect } from "vitest";
 import * as exports from "../src/index.js";
 
 describe("Export Aliases", () => {

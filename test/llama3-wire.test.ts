@@ -1,9 +1,11 @@
 import fs from "fs";
 import path from "path";
 import { callAi, Schema, Message } from "../src/index.js";
+import { describe, beforeEach, Mock, it, expect, vitest } from "vitest";
+// import { vitest } from "vitest";
 
 // Mock fetch to use our fixture files
-global.fetch = jest.fn();
+global.fetch = vitest.fn();
 
 describe("Llama3 Wire Protocol Tests", () => {
   // Read fixtures
@@ -33,10 +35,10 @@ describe("Llama3 Wire Protocol Tests", () => {
 
   beforeEach(() => {
     // Reset mocks
-    (global.fetch as jest.Mock).mockClear();
+    (global.fetch as Mock).mockClear();
 
     // Mock successful response
-    (global.fetch as jest.Mock).mockImplementation(async () => {
+    (global.fetch as Mock).mockImplementation(async () => {
       return {
         ok: true,
         status: 200,
@@ -74,7 +76,7 @@ describe("Llama3 Wire Protocol Tests", () => {
 
     // Get the request body that was passed to fetch
     const actualRequestBody = JSON.parse(
-      (global.fetch as jest.Mock).mock.calls[0][1].body,
+      (global.fetch as Mock).mock.calls[0][1].body,
     );
 
     // Check that we're using system message approach rather than JSON schema format
@@ -107,7 +109,7 @@ describe("Llama3 Wire Protocol Tests", () => {
 
   it("should correctly handle Llama3 response with schema", async () => {
     // Update mock to return proper response
-    (global.fetch as jest.Mock).mockImplementationOnce(async () => {
+    (global.fetch as Mock).mockImplementationOnce(async () => {
       return {
         ok: true,
         status: 200,
@@ -156,7 +158,7 @@ describe("Llama3 Wire Protocol Tests", () => {
 
   it("should handle system message approach with Llama3", async () => {
     // Update mock to return system message response
-    (global.fetch as jest.Mock).mockImplementationOnce(async () => {
+    (global.fetch as Mock).mockImplementationOnce(async () => {
       return {
         ok: true,
         status: 200,

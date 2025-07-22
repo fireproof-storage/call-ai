@@ -1,10 +1,10 @@
 import fs from "fs";
 import path from "path";
 import { callAi, Schema } from "../src/index.js";
-import { Mock } from "vitest";
+import { beforeEach, describe, expect, it, Mock, vitest } from "vitest";
 
 // Mock fetch to use our fixture files
-global.fetch = jest.fn();
+global.fetch = vitest.fn();
 
 describe("OpenAI Weather Streaming Tests", () => {
   // Read fixtures

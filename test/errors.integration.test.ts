@@ -1,6 +1,7 @@
 import { callAi } from "../src/index.js";
 import { dotenv } from "zx";
 import { callAiEnv } from "../src/utils.js";
+import { it, describe, expect, assert, vitest } from "vitest";
 // import { vitest } from "vitest";
 
 // Load environment variables from .env file if present
@@ -96,7 +97,7 @@ describe("Error handling integration tests", () => {
           skipRetry: true, // Skip retry mechanism to force the error
         });
         // If we get here, fail the test
-        fail("Should have thrown an error");
+        assert.fail("Should have thrown an error");
       } catch (error) {
         // Verify error message contains useful information
         expect(error instanceof Error).toBe(true);
@@ -105,7 +106,7 @@ describe("Error handling integration tests", () => {
           expect(error.message).toContain("HTTP error");
           expect(error.message).toContain("400"); // Bad Request status code
         } else {
-          fail("Error is not an Error instance");
+          assert.fail("Error is not an Error instance");
         }
       }
     },
@@ -117,7 +118,7 @@ describe("Error handling integration tests", () => {
     "should handle error with debug option",
     async () => {
       // Spy on console.error
-      const consoleErrorSpy = jest.spyOn(console, "error");
+      const consoleErrorSpy = vitest.spyOn(console, "error");
 
       // Attempt API call with a non-existent model and debug enabled
       try {
@@ -128,7 +129,7 @@ describe("Error handling integration tests", () => {
           skipRetry: true, // Skip retry mechanism to force the error
         });
         // If we get here, fail the test
-        fail("Should have thrown an error");
+        assert.fail("Should have thrown an error");
       } catch (error) {
         // Verify console.error was called with error details
         expect(consoleErrorSpy).toHaveBeenCalled();
@@ -180,7 +181,7 @@ describe("Error handling integration tests", () => {
           JSON.parse(finalResponse);
 
           // If we reach here, the JSON parsing unexpectedly succeeded
-          fail("JSON parsing should have failed but succeeded");
+          assert.fail("JSON parsing should have failed but succeeded");
         } catch (streamError) {
           // We expect a SyntaxError from JSON.parse
           if (streamError instanceof SyntaxError) {
@@ -203,7 +204,7 @@ describe("Error handling integration tests", () => {
             "fake-model-that-does-not-exist is not a valid model ID",
           );
           // we could uncomment this line:
-          // fail(`Streaming should not throw directly but should return invalid JSON: ${error.message}`);
+          // assert.fail(`Streaming should not throw directly but should return invalid JSON: ${error.message}`);
         } else {
           console.log("Unexpected non-Error object thrown:", error);
         }

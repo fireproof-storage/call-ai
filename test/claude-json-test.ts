@@ -3,6 +3,8 @@ import { dotenv } from "zx";
 import { callAiEnv } from "../src/utils.js";
 import { expectOrWarn } from "./test-helper.js";
 
+import { describe, it } from "vitest";
+
 // Load environment variables from .env file if present
 dotenv.config();
 
