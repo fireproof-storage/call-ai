@@ -1,16 +1,23 @@
 {
   "compilerOptions": {
-    "target": "es2020",
-    "module": "commonjs",
-    "declaration": true,
+    "target": "es2022",
+
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "lib": ["DOM", "DOM.Iterable", "ES2020"],
+
+    "jsx": "react",
+    "allowSyntheticDefaultImports": true,
+    "sourceMap": true,
     "outDir": "./dist",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
+    "removeComments": true,
+    "noEmit": true,
     "forceConsistentCasingInFileNames": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true
+    "strict": true,
+    "alwaysStrict": true,
+    "skipLibCheck": true,
+    "types": ["node"]
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "**/*.test.ts"]
-} 
+  "include": ["call-ai/**/*", "test/**/*"],
+  "exclude": ["**/dist/**", "**/node_modules/**"]
+}

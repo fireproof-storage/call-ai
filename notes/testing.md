@@ -14,6 +14,7 @@ npx jest test/callai.integration.test.ts -t "should handle streaming with gpt4tu
 ```
 
 Benefits:
+
 - Faster feedback loop
 - Clearer error messages
 - Easier to analyze one problem at a time
@@ -31,10 +32,11 @@ console.log(`[DEBUG] Response status:`, response.status);
 console.log(`[DEBUG] Response headers:`, Object.fromEntries([...response.headers.entries()]));
 
 // For streaming responses, log each chunk
-console.log(`[DEBUG] Raw chunk #${rawChunkCount}:`, chunk.substring(0, 100) + (chunk.length > 100 ? '...' : ''));
+console.log(`[DEBUG] Raw chunk #${rawChunkCount}:`, chunk.substring(0, 100) + (chunk.length > 100 ? "..." : ""));
 ```
 
 Look for:
+
 - What exact request are we sending?
 - What exact response are we receiving?
 - For streaming, what are the individual chunks?
@@ -49,6 +51,7 @@ for i in {1..3}; do npx jest test/callai.integration.test.ts -t "should handle s
 ```
 
 This helps distinguish between:
+
 - Genuine code issues
 - Transient API issues
 - Model inconsistency in responses
@@ -85,6 +88,7 @@ AI model responses are inherently non-deterministic, which can lead to flaky tes
 ### Comprehensive Test Coverage
 
 Ensure tests cover:
+
 - Different models (OpenAI, Claude, Gemini, etc.)
 - Different modes (streaming vs. non-streaming)
 - Various schema complexities (simple, nested, arrays)
@@ -93,8 +97,9 @@ Ensure tests cover:
 ## Test Automation
 
 Consider implementing:
+
 - Nightly full test runs against actual APIs
 - Limited test suites for PR validation
 - Mocked responses for unit tests to avoid API costs
 
-By following these practices, we can maintain a reliable test suite despite the inherent variability of AI model responses. 
+By following these practices, we can maintain a reliable test suite despite the inherent variability of AI model responses.

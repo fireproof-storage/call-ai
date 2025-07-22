@@ -38,6 +38,7 @@ const useToolMode = isClaudeModel && !!options.schema;
 ```
 
 When using Claude with a schema, the library uses Claude's tool use capability:
+
 - Converts schema to a tool definition with function type
 - Sets `tool_choice` to force Claude to use the tool
 - Schema properties are converted to a proper JSON schema format
@@ -50,6 +51,7 @@ const useSystemMessageApproach = isLlama3Model || isDeepSeekModel || isGPT4Turbo
 ```
 
 For models that don't fully support JSON schema:
+
 - Used for Llama 3, DeepSeek, and GPT-4 Turbo
 - Injects schema into a system message as instructions
 - Formats schema as text with property types and descriptions
@@ -62,6 +64,7 @@ const useJsonSchemaApproach = (isOpenAIModel || isGeminiModel) && options.schema
 ```
 
 For models with native schema support (OpenAI/GPT and Gemini):
+
 - Uses OpenAI's `response_format` with `json_schema` type
 - Processes schema for compatibility
 - Recursively adds `additionalProperties: false` to all nested objects
@@ -73,11 +76,13 @@ For models with native schema support (OpenAI/GPT and Gemini):
 The library handles responses differently based on model type and whether streaming is enabled:
 
 ### Non-streaming Mode
+
 - For Claude with tool use: extracts JSON from tool use blocks
 - For all models with schema: processes content based on model type and extracts JSON
 - Applies special handling for models that might wrap JSON in markdown code blocks
 
 ### Streaming Mode
+
 - Assembles partial responses incrementally
 - Handles model-specific streaming formats
 - For Claude with tool use in streaming: shows warning that it may not work optimally
@@ -90,13 +95,15 @@ const needsJsonExtraction = isClaudeModel || isGeminiModel || isLlama3Model || i
 ```
 
 For models that might return formatted text instead of direct JSON:
+
 - Extracts JSON from markdown code blocks
-- Handles various wrapper formats (```json, ```, or raw JSON objects)
+- Handles various wrapper formats (`json, `, or raw JSON objects)
 - Returns the extracted JSON or falls back to the original content
 
 ## Schema Processing
 
 The library recursively processes schemas to ensure all nested objects have appropriate properties:
+
 - Sets `additionalProperties: false` by default
 - Ensures all nested objects have required fields properly defined
 - Handles arrays of objects by processing their item schemas

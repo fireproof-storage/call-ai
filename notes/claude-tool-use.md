@@ -48,10 +48,7 @@ const isClaudeModel = options.model ? /claude/i.test(options.model) : false;
 const useToolMode = isClaudeModel && options.schema;
 
 // Models that should use system message approach for structured output
-const useSystemMessageApproach = 
-  isLlama3Model || 
-  isDeepSeekModel || 
-  isGPT4TurboModel;
+const useSystemMessageApproach = isLlama3Model || isDeepSeekModel || isGPT4TurboModel;
 ```
 
 With this change, Claude models automatically use tool mode when a schema is provided, OpenAI models use the JSON Schema approach, and other models use the system message approach.
@@ -61,39 +58,42 @@ With this change, Claude models automatically use tool mode when a schema is pro
 The current model switching could be simplified in several ways:
 
 1. **Simplify Model Detection**: Replace multiple boolean flags with a single model category:
+
    ```typescript
    // Current approach with multiple flags
    const isClaudeModel = options.model ? /claude/i.test(options.model) : false;
    const isGeminiModel = options.model ? /gemini/i.test(options.model) : false;
    const isLlama3Model = options.model ? /llama-3/i.test(options.model) : false;
    // etc.
-   
+
    // Simplified approach
    const modelCategory = getModelCategory(options.model);
    // Returns: 'claude', 'openai', 'gemini', 'llama', 'other', etc.
    ```
 
 2. **Schema Strategy Map**: Define schema strategies by model category:
+
    ```typescript
    const schemaStrategies = {
-     claude: 'tool',           // Uses tool mode
-     openai: 'json_schema',    // Uses response_format.json_schema
-     gemini: 'system_message', // Uses system message approach
-     llama: 'system_message',
-     default: 'system_message'
+     claude: "tool", // Uses tool mode
+     openai: "json_schema", // Uses response_format.json_schema
+     gemini: "system_message", // Uses system message approach
+     llama: "system_message",
+     default: "system_message",
    };
-   
+
    const strategy = schemaStrategies[modelCategory] || schemaStrategies.default;
    ```
 
 3. **Strategy Pattern**: Implement a strategy pattern for different schema approaches:
+
    ```typescript
    const schemaHandlers = {
      tool: applyToolMode,
      json_schema: applyJsonSchema,
-     system_message: applySystemMessage
+     system_message: applySystemMessage,
    };
-   
+
    // Then use the appropriate handler
    const handler = schemaHandlers[strategy];
    handler(requestParams, schema, messages);
@@ -103,7 +103,7 @@ This approach would make the codebase more maintainable and easier to extend wit
 
 ## Conclusion
 
-Tool mode is now the default schema enforcement approach for Claude models in the call-ai library. This provides a more "native" way for Claude to generate structured outputs, though there may be considerations around API provider compatibility and performance. 
+Tool mode is now the default schema enforcement approach for Claude models in the call-ai library. This provides a more "native" way for Claude to generate structured outputs, though there may be considerations around API provider compatibility and performance.
 
 The model detection and routing logic could be simplified with a more structured approach to categorizing models and their schema strategies, potentially making the codebase more maintainable.
 
