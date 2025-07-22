@@ -1,17 +1,10 @@
 // Basic test for Claude tool mode
 
-import { callAi } from "../src/index.js";
-import { dotenv } from "zx";
-import { callAiEnv } from "../src/utils.js";
-import * as process from "node:process"
-
-dotenv.config();
+import { callAi, callAiEnv } from "call-ai";
+import * as process from "node:process";
 
 // Helper function with timeout
-async function callWithTimeout(
-  promiseFn: () => Promise<unknown>,
-  timeout = 30000,
-) {
+async function callWithTimeout(promiseFn: () => Promise<unknown>, timeout = 30000) {
   return new Promise((resolve, reject) => {
     // Create a timeout that will reject the promise
     const timeoutId = setTimeout(() => {
@@ -36,9 +29,7 @@ async function main() {
   const apiKey = callAiEnv.CALLAI_API_KEY;
 
   if (!apiKey) {
-    console.error(
-      "Error: No API key found. Please set CALLAI_API_KEY or OPENROUTER_API_KEY in your .env file.",
-    );
+    console.error("Error: No API key found. Please set CALLAI_API_KEY or OPENROUTER_API_KEY in your .env file.");
     process.exit(1);
   }
 

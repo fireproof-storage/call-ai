@@ -9,6 +9,7 @@ We've identified a critical issue with the Claude API when using tool mode:
 3. This is causing the tests to time out when using Claude with tool mode
 
 Key observations:
+
 - System message approach works fine with Claude (completes in 2-6 seconds)
 - Tool mode approach times out when trying to read the response body
 - The issue appears to be in the response format (many empty newlines at the beginning of the response)
@@ -33,14 +34,14 @@ const readResponseTextWithTimeout = async (response: Response, timeoutMs: number
       reject(new Error(`Response.text() timed out after ${timeoutMs}ms`));
     }, timeoutMs);
   });
-  
+
   try {
     // Race the response.text() promise against the timeout
     const text = await Promise.race([response.text(), timeoutPromise]);
     return text;
   } catch (error) {
     // If timeout occurs, throw a more descriptive error
-    if (error instanceof Error && error.message.includes('timed out')) {
+    if (error instanceof Error && error.message.includes("timed out")) {
       throw new Error(`Timeout reading response from API. This is a known issue with Claude API when using tool mode.`);
     }
     throw error;
@@ -54,7 +55,7 @@ const readResponseTextWithTimeout = async (response: Response, timeoutMs: number
 let responseText;
 try {
   // Use the timeout function for Claude API with tool mode
-  if (model.includes('claude') && tools) {
+  if (model.includes("claude") && tools) {
     responseText = await readResponseTextWithTimeout(response);
   } else {
     // For other models, use the standard response.text()
@@ -62,7 +63,7 @@ try {
   }
 } catch (error) {
   // Handle the error, possibly fallback to system message approach
-  console.error('Error reading response:', error.message);
+  console.error("Error reading response:", error.message);
   throw error;
 }
 ```
@@ -70,10 +71,11 @@ try {
 ## Alternative Solutions
 
 1. **Workaround**: Use system message approach instead of tool mode for Claude models
+
    ```typescript
    // Detect Claude model and force system message approach even if tool mode was requested
-   if (model.includes('claude') && tools) {
-     console.warn('Tool mode with Claude may cause timeouts, using system message approach instead');
+   if (model.includes("claude") && tools) {
+     console.warn("Tool mode with Claude may cause timeouts, using system message approach instead");
      // Transform request to use system message approach
      // ...
    }
@@ -88,8 +90,8 @@ try {
      return result;
    } catch (error) {
      // If timeout error, fallback to system message approach
-     if (error.message.includes('timeout')) {
-       console.warn('Tool mode timed out, falling back to system message approach');
+     if (error.message.includes("timeout")) {
+       console.warn("Tool mode timed out, falling back to system message approach");
        const fallbackResult = await callWithSystemMessage();
        return fallbackResult;
      }
@@ -101,4 +103,4 @@ try {
 
 We recommend implementing the timeout protection for `response.text()` as the primary fix, as it directly addresses the root cause without changing the API behavior. The timeout will prevent indefinite hanging and provide a clear error message.
 
-Additionally, adding a warning in the documentation about potential timeouts when using Claude with tool mode would be helpful for users. 
+Additionally, adding a warning in the documentation about potential timeouts when using Claude with tool mode would be helpful for users.

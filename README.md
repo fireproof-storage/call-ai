@@ -15,22 +15,22 @@ pnpm add call-ai
 ## Usage
 
 ```typescript
-import { callAi } from 'call-ai';
+import { callAi } from "call-ai";
 
 // Basic usage with string prompt (non-streaming by default)
-const response = await callAi('Explain quantum computing in simple terms', {
-  apiKey: 'your-api-key',
-  model: 'gpt-4'
+const response = await callAi("Explain quantum computing in simple terms", {
+  apiKey: "your-api-key",
+  model: "gpt-4",
 });
 
 // The response is the complete text
 console.log(response);
 
 // With streaming enabled (returns an AsyncGenerator)
-const generator = callAi('Tell me a story', {
-  apiKey: 'your-api-key',
-  model: 'gpt-4',
-  stream: true
+const generator = callAi("Tell me a story", {
+  apiKey: "your-api-key",
+  model: "gpt-4",
+  stream: true,
 });
 
 // Process streaming updates
@@ -40,13 +40,13 @@ for await (const chunk of generator) {
 
 // Using message array for more control
 const messages = [
-  { role: 'system', content: 'You are a helpful assistant.' },
-  { role: 'user', content: 'Explain quantum computing in simple terms' }
+  { role: "system", content: "You are a helpful assistant." },
+  { role: "user", content: "Explain quantum computing in simple terms" },
 ];
 
 const response = await callAi(messages, {
-  apiKey: 'your-api-key',
-  model: 'gpt-4'
+  apiKey: "your-api-key",
+  model: "gpt-4",
 });
 
 console.log(response);
@@ -55,16 +55,16 @@ console.log(response);
 const schema = {
   name: "exercise_summary",
   properties: {
-    title: { type: 'string' },
-    summary: { type: 'string' },
-    points: { type: 'array', items: { type: 'string' } }
+    title: { type: "string" },
+    summary: { type: "string" },
+    points: { type: "array", items: { type: "string" } },
   },
-  required: ['title', 'summary']
+  required: ["title", "summary"],
 };
 
-const response = await callAi('Summarize the benefits of exercise', {
-  apiKey: 'your-api-key',
-  schema: schema
+const response = await callAi("Summarize the benefits of exercise", {
+  apiKey: "your-api-key",
+  schema: schema,
 });
 
 const structuredOutput = JSON.parse(response);
@@ -73,24 +73,24 @@ console.log(structuredOutput.title);
 // Streaming with schema for OpenRouter structured JSON output
 const schema = {
   properties: {
-    title: { type: 'string' },
-    items: { 
-      type: 'array', 
-      items: { 
-        type: 'object',
+    title: { type: "string" },
+    items: {
+      type: "array",
+      items: {
+        type: "object",
         properties: {
-          name: { type: 'string' },
-          description: { type: 'string' }
-        }
-      } 
-    }
-  }
+          name: { type: "string" },
+          description: { type: "string" },
+        },
+      },
+    },
+  },
 };
 
-const generator = callAi('Create a list of sci-fi books', {
-  apiKey: 'your-api-key',
+const generator = callAi("Create a list of sci-fi books", {
+  apiKey: "your-api-key",
   stream: true,
-  schema: schema
+  schema: schema,
 });
 
 for await (const chunk of generator) {
@@ -124,20 +124,20 @@ Different LLMs have different strengths when working with structured data. Based
 
 ### Schema Complexity Guide
 
-| Model Family | Grade | Simple Flat Schema | Complex Flat Schema | Nested Schema | Best For |
-|--------------|-------|-------------------|---------------------|---------------|----------|
-| OpenAI       | A     | ✅ Excellent      | ✅ Excellent        | ✅ Excellent  | Most reliable for all schema types |
-| Gemini       | A     | ✅ Excellent      | ✅ Excellent        | ✅ Good       | Good all-around performance, especially with flat schemas |
-| Claude       | B     | ✅ Excellent      | ⚠️ Good (occasional JSON errors) | ✅ Good | Simple schemas, robust handling of complex prompts |
-| Llama 3      | C     | ✅ Good           | ✅ Good             | ❌ Poor       | Simpler flat schemas, may struggle with nested structures |
-| Deepseek     | C     | ✅ Good           | ✅ Good             | ❌ Poor       | Basic flat schemas only |
+| Model Family | Grade | Simple Flat Schema | Complex Flat Schema              | Nested Schema | Best For                                                  |
+| ------------ | ----- | ------------------ | -------------------------------- | ------------- | --------------------------------------------------------- |
+| OpenAI       | A     | ✅ Excellent       | ✅ Excellent                     | ✅ Excellent  | Most reliable for all schema types                        |
+| Gemini       | A     | ✅ Excellent       | ✅ Excellent                     | ✅ Good       | Good all-around performance, especially with flat schemas |
+| Claude       | B     | ✅ Excellent       | ⚠️ Good (occasional JSON errors) | ✅ Good       | Simple schemas, robust handling of complex prompts        |
+| Llama 3      | C     | ✅ Good            | ✅ Good                          | ❌ Poor       | Simpler flat schemas, may struggle with nested structures |
+| Deepseek     | C     | ✅ Good            | ✅ Good                          | ❌ Poor       | Basic flat schemas only                                   |
 
 ### Schema Structure Recommendations
 
 1. **Flat schemas perform better across all models**. If you need maximum compatibility, avoid deeply nested structures.
 
 2. **Field names matter**. Some models have preferences for certain property naming patterns:
-   - Use simple, common naming patterns like `name`, `type`, `items`, `price` 
+   - Use simple, common naming patterns like `name`, `type`, `items`, `price`
    - Avoid deeply nested object hierarchies (more than 2 levels deep)
    - Keep array items simple (strings or flat objects)
 
@@ -154,36 +154,36 @@ Different LLMs have different strengths when working with structured data. Based
 You can provide your API key in three ways:
 
 1. Directly in the options:
+
 ```typescript
-const response = await callAi('Hello', { apiKey: 'your-api-key' });
+const response = await callAi("Hello", { apiKey: "your-api-key" });
 ```
 
 2. Set globally in the browser:
+
 ```typescript
-window.CALLAI_API_KEY = 'your-api-key';
-const response = await callAi('Hello');
+window.CALLAI_API_KEY = "your-api-key";
+const response = await callAi("Hello");
 ```
 
 3. Use environment variables in Node.js (with a custom implementation):
+
 ```typescript
 // Example of environment variable integration
-import { callAi } from 'call-ai';
+import { callAi } from "call-ai";
 const apiKey = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY;
-const response = await callAi('Hello', { apiKey });
+const response = await callAi("Hello", { apiKey });
 ```
 
 ## API
 
 ```typescript
 // Main function
-function callAi(
-  prompt: string | Message[],
-  options?: CallAIOptions
-): Promise<string> | AsyncGenerator<string, string, unknown>
+function callAi(prompt: string | Message[], options?: CallAIOptions): Promise<string> | AsyncGenerator<string, string, unknown>;
 
 // Types
 type Message = {
-  role: 'user' | 'system' | 'assistant';
+  role: "user" | "system" | "assistant";
   content: string;
 };
 
@@ -209,12 +209,12 @@ interface CallAIOptions {
 
 ### Options
 
-* `apiKey`: Your API key (can also be set via window.CALLAI_API_KEY)
-* `model`: Model identifier (default: 'openrouter/auto')
-* `endpoint`: API endpoint (default: 'https://openrouter.ai/api/v1/chat/completions')
-* `stream`: Enable streaming responses (default: false)
-* `schema`: Optional JSON schema for structured output
-* Any other options are passed directly to the API (temperature, max_tokens, etc.)
+- `apiKey`: Your API key (can also be set via window.CALLAI_API_KEY)
+- `model`: Model identifier (default: 'openrouter/auto')
+- `endpoint`: API endpoint (default: 'https://openrouter.ai/api/v1/chat/completions')
+- `stream`: Enable streaming responses (default: false)
+- `schema`: Optional JSON schema for structured output
+- Any other options are passed directly to the API (temperature, max_tokens, etc.)
 
 ## License
 
@@ -251,12 +251,14 @@ This library uses GitHub Actions to automate the release process:
 5. Push changes and tag: `git push origin main vX.Y.Z`
 
 The GitHub workflow in `.github/workflows/publish.yml` will:
+
 - Automatically trigger when a new tag is pushed
 - Run tests and type checking
 - Verify the tag signature
 - Publish the package to npm
 
 When making significant changes, remember to:
+
 - Document breaking changes in the changelog
 - Update documentation to reflect API changes
 - Update TypeScript types

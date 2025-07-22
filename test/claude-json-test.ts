@@ -1,12 +1,6 @@
-import { callAi, getMeta } from "../src/index.js";
-import { dotenv } from "zx";
-import { callAiEnv } from "../src/utils.js";
+import { callAi, getMeta, callAiEnv } from "call-ai";
 import { expectOrWarn } from "./test-helper.js";
-
 import { describe, it } from "vitest";
-
-// Load environment variables from .env file if present
-dotenv.config();
 
 // Configure retry settings for flaky tests - use fewer retries with faster failures
 // jest.retryTimes(2, { logErrorsBeforeRetry: true });
@@ -53,20 +47,15 @@ const gradeAwareTest = (modelId: { id: string; grade: string }) => {
               fn(),
               new Promise((resolve) =>
                 setTimeout(() => {
-                  console.warn(
-                    `Timeout for ${modelId.id} (Grade ${modelId.grade}): ${name}`,
-                  );
+                  console.warn(`Timeout for ${modelId.id} (Grade ${modelId.grade}): ${name}`);
                   resolve(undefined);
                 }, timeout || TIMEOUT),
               ),
             ]);
             return result;
           } catch (error: unknown) {
-            const errorMessage =
-              error instanceof Error ? error.message : String(error);
-            console.warn(
-              `Error in ${modelId.id} (Grade ${modelId.grade}): ${errorMessage}`,
-            );
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.warn(`Error in ${modelId.id} (Grade ${modelId.grade}): ${errorMessage}`);
             // Don't fail the test
             return;
           }
@@ -125,12 +114,8 @@ describe("Claude JSON property splitting test", () => {
 
             if (typeof result === "object" && Symbol.asyncIterator in result) {
               // Handle streaming response
-              console.log(
-                `\n===== Starting streaming test with ${modelName} =====`,
-              );
-              console.log(
-                `This test will pass if property names split across chunks are handled correctly`,
-              );
+              console.log(`\n===== Starting streaming test with ${modelName} =====`);
+              console.log(`This test will pass if property names split across chunks are handled correctly`);
 
               try {
                 // Collect all chunks
@@ -141,27 +126,18 @@ describe("Claude JSON property splitting test", () => {
                   finalResult = chunk;
                 }
 
-                console.log(
-                  `\n===== Received ${chunkCount} chunks from ${modelName} =====`,
-                );
-                console.log(
-                  finalResult.substring(0, 500) +
-                    (finalResult.length > 500 ? "..." : ""),
-                );
+                console.log(`\n===== Received ${chunkCount} chunks from ${modelName} =====`);
+                console.log(finalResult.substring(0, 500) + (finalResult.length > 500 ? "..." : ""));
 
                 // This is the key part - parse the final JSON result
                 // Without the fix, this might fail when property names are split across chunks
                 const data = JSON.parse(finalResult);
 
                 // Log parsed data for debugging
-                console.log(
-                  `\n===== Successfully parsed data from ${modelName} =====`,
-                );
+                console.log(`\n===== Successfully parsed data from ${modelName} =====`);
                 console.log(JSON.stringify(data, null, 2));
 
-                console.log(
-                  `\n===== TEST PASSED: JSON property splitting handled correctly =====`,
-                );
+                console.log(`\n===== TEST PASSED: JSON property splitting handled correctly =====`);
 
                 // Check timing info
                 const meta = getMeta(generator);
@@ -179,9 +155,7 @@ describe("Claude JSON property splitting test", () => {
                     meta.timing,
                   );
                 } else {
-                  console.warn(
-                    `No timing information available for ${modelName} model`,
-                  );
+                  console.warn(`No timing information available for ${modelName} model`);
                 }
 
                 expectOrWarn(
@@ -193,12 +167,7 @@ describe("Claude JSON property splitting test", () => {
 
                 if (typeof data === "object" && data !== null) {
                   // Check required fields
-                  expectOrWarn(
-                    modelId,
-                    "capital" in data,
-                    `Missing 'capital' in ${modelName} model response`,
-                    Object.keys(data),
-                  );
+                  expectOrWarn(modelId, "capital" in data, `Missing 'capital' in ${modelName} model response`, Object.keys(data));
                   expectOrWarn(
                     modelId,
                     "population" in data,
@@ -235,16 +204,12 @@ describe("Claude JSON property splitting test", () => {
                     if (typeof data.population === "number") {
                       // Population should be in a reasonable range (60-70 million for France)
                       // Check if number is already in millions (under 100) or in absolute (over 1 million)
-                      const populationInMillions =
-                        data.population < 1000
-                          ? data.population
-                          : data.population / 1000000;
+                      const populationInMillions = data.population < 1000 ? data.population : data.population / 1000000;
                       // This is a critical check for our property splitting test
                       // If "population" was split (e.g., "popul" + "ation"), parsing would fail without our fix
                       expectOrWarn(
                         modelId,
-                        populationInMillions >= 60 &&
-                          populationInMillions <= 70,
+                        populationInMillions >= 60 && populationInMillions <= 70,
                         `Population ${data.population} (${populationInMillions.toFixed(2)}M) outside expected range in ${modelName} model response - possibly due to property name splitting`,
                         data.population,
                       );
@@ -263,11 +228,7 @@ describe("Claude JSON property splitting test", () => {
                       // Should include French
                       expectOrWarn(
                         modelId,
-                        data.languages.some(
-                          (lang: string) =>
-                            typeof lang === "string" &&
-                            lang.toLowerCase().includes("french"),
-                        ),
+                        data.languages.some((lang: string) => typeof lang === "string" && lang.toLowerCase().includes("french")),
                         `Languages doesn't include French in ${modelName} model response`,
                         data.languages,
                       );
@@ -276,12 +237,8 @@ describe("Claude JSON property splitting test", () => {
                 }
               } catch (e) {
                 // This will be hit if JSON parsing fails, which is the issue we're testing for
-                console.log(
-                  `\n===== TEST FAILED: JSON parsing error in ${modelName} response =====`,
-                );
-                console.log(
-                  `This indicates the streaming property splitting issue is present!`,
-                );
+                console.log(`\n===== TEST FAILED: JSON parsing error in ${modelName} response =====`);
+                console.log(`This indicates the streaming property splitting issue is present!`);
                 console.log(`Error: ${e}`);
                 console.log(`JSON that failed to parse: ${finalResult}`);
 

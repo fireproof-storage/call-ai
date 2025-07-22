@@ -12,9 +12,11 @@ This document outlines the steps to create a new release of the call-ai package.
 ## Release Steps
 
 1. Update version in package.json:
+
    ```bash
    npm version patch|minor|major
    ```
+
    - Use `patch` for bug fixes (0.x.Y)
    - Use `minor` for new features (0.X.0)
    - Use `major` for breaking changes (X.0.0)
@@ -25,6 +27,7 @@ This document outlines the steps to create a new release of the call-ai package.
    - Create a new git tag
 
 3. Push the changes and the tag:
+
    ```bash
    git push && git push --tags
    ```
@@ -43,6 +46,7 @@ This document outlines the steps to create a new release of the call-ai package.
 ## Troubleshooting
 
 If the CI process fails:
+
 1. Check the GitHub Actions logs for details
 2. Make necessary fixes
 3. Delete the failed tag locally and remotely:
@@ -50,4 +54,4 @@ If the CI process fails:
    git tag -d v0.x.y
    git push --delete origin v0.x.y
    ```
-4. Start the process again once the issues are fixed 
+4. Start the process again once the issues are fixed

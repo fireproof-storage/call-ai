@@ -1,14 +1,12 @@
 {
-  "name": "call-ai",
-  "version": "0.10.2",
+  "name": "call-ai-monorepo",
+  "version": "0.0.0",
+  "private": true,
   "description": "Lightweight library for making AI API calls with streaming support",
-  "main": "dist/index.js",
   "type": "module",
-  "browser": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "files": [
-    "dist"
-  ],
+  "engines": {
+    "node": ">=22"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/fireproof-storage/call-ai.git"
@@ -23,11 +21,8 @@
     "test": "vitest --run",
     "test:integration": "vitest simple.integration",
     "test:all": "pnpm test && pnpm test:integration",
-    "prepublishOnly": "npm run build",
-    "typecheck": "tsc --noEmit",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "coverage": "vitest --coverage",
-    "check": "npm run typecheck && npm run format && npm run test && npm run build"
+    "format": "prettier --write .",
+    "coverage": "vitest --coverage"
   },
   "keywords": [
     "ai",
@@ -41,19 +36,13 @@
   "author": "",
   "license": "MIT or Apache-2.0",
   "devDependencies": {
-    "@types/node": "^24.0.15",
     "@eslint/js": "^9.31.0",
-    "@types/node": "^20.4.2",
+    "@types/node": "^24.1.0",
     "eslint": "^9.31.0",
     "eslint-plugin-import": "^2.32.0",
     "prettier": "^3.5.3",
-    "ts-jest": "^29.1.1",
-    "typescript": "^5.1.6",
+    "typescript": "^5.8.3",
     "typescript-eslint": "^8.37.0",
-    "vitest": "^3.2.4",
-    "zx": "^8.7.1"
-  },
-  "engines": {
-    "node": ">=14.0.0"
+    "vitest": "^3.2.4"
   }
 }

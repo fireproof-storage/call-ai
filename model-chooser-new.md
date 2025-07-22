@@ -28,39 +28,38 @@ Based on our testing, here's the strategy for reliable structured JSON output ac
 function chooseSchemaStrategy(model, schema) {
   // Extract model family from the full model name
   const modelFamily = getModelFamily(model);
-  
-  if (modelFamily === 'openai') {
+
+  if (modelFamily === "openai") {
     return {
-      strategy: 'json_schema',
+      strategy: "json_schema",
       schema: formatOpenAISchema(schema),
-      response_format: { type: 'json_object' }
+      response_format: { type: "json_object" },
     };
   }
-  
-  if (modelFamily === 'gemini') {
+
+  if (modelFamily === "gemini") {
     return {
-      strategy: 'json_schema',
-      schema: formatOpenAISchema(schema) // Same format works for Gemini
+      strategy: "json_schema",
+      schema: formatOpenAISchema(schema), // Same format works for Gemini
     };
   }
-  
-  if (modelFamily === 'anthropic') {
+
+  if (modelFamily === "anthropic") {
     return {
-      strategy: 'tool_mode',
+      strategy: "tool_mode",
       tools: [formatClaudeToolSchema(schema)],
-      stream: true // Force streaming for Claude
+      stream: true, // Force streaming for Claude
     };
   }
-  
+
   // Default fallback for all other models
   return {
-    strategy: 'system_message',
-    systemPrompt: formatSchemaAsSystemPrompt(schema)
+    strategy: "system_message",
+    systemPrompt: formatSchemaAsSystemPrompt(schema),
   };
 }
 // end Pseudocode
 ```
-
 
 ## Benefits of This Approach
 
@@ -83,6 +82,7 @@ The current implementation in `index.ts` uses multiple conditional checks and fl
 ### Simplifying Model Detection
 
 Current approach:
+
 ```typescript
 // Multiple individual model detection flags
 const isClaudeModel = options.model ? /claude/i.test(options.model) : false;
@@ -100,6 +100,7 @@ const useJsonSchemaApproach = (isOpenAIModel || isGeminiModel) && options.schema
 ```
 
 Refactored approach:
+
 ```typescript
 const schemaStrategy = chooseSchemaStrategy(options.model, options.schema);
 // Use schemaStrategy.strategy to determine the approach
@@ -131,7 +132,7 @@ const schemaStrategy = chooseSchemaStrategy(options.model, options.schema);
    const isGeminiModel = options.model ? /gemini/i.test(options.model) : false;
    const isLlama3Model = options.model ? /llama-3/i.test(options.model) : false;
    const isDeepSeekModel = options.model ? /deepseek/i.test(options.model) : false;
-   
+
    if (needsJsonExtraction) { ... }
    ```
 
@@ -145,11 +146,11 @@ const schemaStrategy = chooseSchemaStrategy(options.model, options.schema);
    }
 
    // Would be replaced with simpler strategy-based approach that HIDES implementation details
-   if (schemaStrategy.strategy === 'tool_mode' && schemaStrategy.stream && !options.stream) {
+   if (schemaStrategy.strategy === "tool_mode" && schemaStrategy.stream && !options.stream) {
      // Internally use streaming but buffer results for the caller
      const originalStream = options.stream;
      options.stream = true; // Force streaming internally
-     
+
      // If caller requested non-streaming, we need to buffer and return complete result
      if (!originalStream) {
        return bufferStreamingToSingleResponse(callAIInternal(prompt, options));
@@ -167,7 +168,7 @@ const schemaStrategy = chooseSchemaStrategy(options.model, options.schema);
 
    ```typescript
    // Logic like this appears in both callAINonStreaming and callAIStreaming
-   if (useToolMode && result.stop_reason === 'tool_use') {
+   if (useToolMode && result.stop_reason === "tool_use") {
      // Extract the tool use content...
    }
    ```
@@ -188,9 +189,10 @@ This approach would make the code more modular, easier to test, and simpler to e
 The fundamental purpose of `callAi` is to provide a simple, consistent interface that shields users from the underlying complexity of different AI models and their unique implementation requirements.
 
 Key principles:
+
 - **Simple API, Complex Implementation**: Users should have a straightforward experience while the library handles the intricate details.
 - **Respecting User Options**: When a user specifies options like `stream: false`, the API contract should be honored even if implementation details (like using streaming internally) differ.
 - **Consistent Results**: The same JSON schema should produce well-structured results across all supported models without requiring model-specific code from users.
 - **Intelligent Defaults**: The library should automatically select the best approach for each model while allowing overrides when needed.
 
-By refactoring to use the strategy pattern and properly abstracting the model-specific details, `callAi` can maintain its promise of simplicity while supporting an increasingly diverse ecosystem of AI models and their unique capabilities. 
+By refactoring to use the strategy pattern and properly abstracting the model-specific details, `callAi` can maintain its promise of simplicity while supporting an increasingly diverse ecosystem of AI models and their unique capabilities.

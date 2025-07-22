@@ -1,4 +1,4 @@
-import { it, expect, TestAPI, } from "vitest";
+import { it, expect, TestAPI } from "vitest";
 
 export function itif(condition: boolean): TestAPI | TestAPI["skip"] {
   return condition ? it : it.skip;
@@ -16,12 +16,7 @@ export function expectOrWarn(
       // Enhanced debug logging for failures
       console.log(`DETAILED FAILURE for ${model.id}: ${message}`);
       if (debugValue !== undefined) {
-        console.log(
-          "Debug value:",
-          typeof debugValue === "object"
-            ? JSON.stringify(debugValue, null, 2)
-            : debugValue,
-        );
+        console.log("Debug value:", typeof debugValue === "object" ? JSON.stringify(debugValue, null, 2) : debugValue);
       }
     }
     expect(condition).toBe(true);

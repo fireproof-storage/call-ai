@@ -28,13 +28,13 @@ Create utility functions to avoid duplication:
  * @returns True if the error suggests we need a new key
  */
 export function isNewKeyError(error: any, debug: boolean = false): boolean {
-  const status = error?.status || error?.statusCode || (error?.response?.status);
+  const status = error?.status || error?.statusCode || error?.response?.status;
   const is4xx = status >= 400 && status < 500;
-  
+
   if (is4xx && debug) {
     console.log(`[callAi:debug] Key error detected: status=${status}, message=${String(error)}`);
   }
-  
+
   return is4xx;
 }
 ```
@@ -97,12 +97,12 @@ function prepareRequestParams(
     keyStore.current ||
     (typeof window !== "undefined" ? (window as any).CALLAI_API_KEY : null) ||
     (typeof process !== "undefined" && process.env ? process.env.CALLAI_API_KEY : null);
-  
+
   // If key provided in options, update the store
   if (options.apiKey) {
     keyStore.current = options.apiKey;
   }
-  
+
   // Rest of the existing function...
 }
 ```
@@ -116,48 +116,48 @@ async function handleApiError(
   error: any,
   context: string,
   debug: boolean = false,
-  options: { apiKey?: string; endpoint?: string } = {}
+  options: { apiKey?: string; endpoint?: string } = {},
 ): Promise<void> {
   if (debug) {
     console.error(`[callAi:${context}]:`, error);
   }
-  
+
   // Check if this error indicates we need a new key
   const needsNewKey = isNewKeyError(error, debug);
   const noKey = !options.apiKey && !keyStore.current;
-  
+
   // Try to refresh key if (we need a new key OR we have no key) AND refreshEndpoint is configured
   if ((needsNewKey || noKey) && keyStore.refreshEndpoint) {
     // Don't try to refresh if we've tried too recently (unless we have no key at all)
     const now = Date.now();
     const minRefreshInterval = 5000; // 5 seconds
-    
-    if (!keyStore.isRefreshing && (noKey || (now - keyStore.lastRefreshAttempt) > minRefreshInterval)) {
+
+    if (!keyStore.isRefreshing && (noKey || now - keyStore.lastRefreshAttempt > minRefreshInterval)) {
       try {
         keyStore.isRefreshing = true;
         keyStore.lastRefreshAttempt = now;
-        
+
         // Call refresh endpoint - pass current key if we have one
         const currentKey = options.apiKey || keyStore.current;
         const result = await refreshApiKey(currentKey, keyStore.refreshEndpoint, keyStore.refreshToken);
-        
+
         // If the server indicated this is a top-up (and we already have a key), keep using our current key
         // Otherwise use the new key that was returned
         if (!result.topup) {
           // Update the key in our store with the new key
           keyStore.current = result.apiKey;
-          
+
           // If we're in a Node.js environment, also update process.env
           if (typeof process !== "undefined" && process.env) {
             process.env.CALLAI_API_KEY = result.apiKey;
           }
-          
+
           // If we're in a browser, also update window
           if (typeof window !== "undefined") {
             (window as any).CALLAI_API_KEY = result.apiKey;
           }
         }
-        
+
         // Signal that key refresh was attempted (whether top-up or new key)
         return; // This will allow the caller to retry
       } catch (refreshError) {
@@ -168,7 +168,7 @@ async function handleApiError(
       }
     }
   }
-  
+
   // If we reach here, either key refresh failed or wasn't attempted
   throw new Error(`${context}: ${String(error)}`);
 }
@@ -185,48 +185,48 @@ async function handleApiError(
  * @returns Object containing the API key and topup flag
  */
 async function refreshApiKey(
-  currentKey: string | null, 
+  currentKey: string | null,
   endpoint: string,
-  refreshToken: string | null
+  refreshToken: string | null,
 ): Promise<{ apiKey: string; topup: boolean }> {
   try {
     // Prepare headers with authentication
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json'
+      "Content-Type": "application/json",
     };
-    
+
     // Use the refresh token for authentication if available, otherwise use the current key
     if (refreshToken) {
-      headers['Authorization'] = `Bearer ${refreshToken}`;
+      headers["Authorization"] = `Bearer ${refreshToken}`;
     } else if (currentKey) {
-      headers['Authorization'] = `Bearer ${currentKey}`;
+      headers["Authorization"] = `Bearer ${currentKey}`;
     }
-    
+
     // Make request to refresh endpoint
     const response = await fetch(endpoint, {
-      method: 'POST',
+      method: "POST",
       headers,
-      body: JSON.stringify({ 
-        action: 'refresh',
-        currentKey: currentKey || undefined // only send if we have one
-      })
+      body: JSON.stringify({
+        action: "refresh",
+        currentKey: currentKey || undefined, // only send if we have one
+      }),
     });
-    
+
     if (!response.ok) {
       throw new Error(`Refresh failed: ${response.status} ${response.statusText}`);
     }
-    
+
     const data = await response.json();
-    
+
     // Check for required fields in the response
     if (!data.apiKey) {
-      throw new Error('API key not found in refresh response');
+      throw new Error("API key not found in refresh response");
     }
-    
+
     // Return both the API key and whether this was a top-up
     return {
       apiKey: data.apiKey,
-      topup: Boolean(data.topup) // convert to boolean in case it's truthy but not boolean
+      topup: Boolean(data.topup), // convert to boolean in case it's truthy but not boolean
     };
   } catch (error) {
     throw new Error(`Key refresh failed: ${String(error)}`);
@@ -246,7 +246,7 @@ export async function callAi(prompt: string | Message[], options: CallAIOptions 
       keyStore.isRefreshing = true;
       const result = await refreshApiKey(null, keyStore.refreshEndpoint, keyStore.refreshToken);
       keyStore.current = result.apiKey;
-      
+
       // Update environment variables/globals with the new key
       if (typeof process !== "undefined" && process.env) {
         process.env.CALLAI_API_KEY = result.apiKey;
@@ -254,7 +254,7 @@ export async function callAi(prompt: string | Message[], options: CallAIOptions 
       if (typeof window !== "undefined") {
         (window as any).CALLAI_API_KEY = result.apiKey;
       }
-      
+
       // Now we have a key, so continue with the call
     } catch (initialKeyError) {
       console.error("Failed to get initial API key:", initialKeyError);
@@ -270,17 +270,17 @@ export async function callAi(prompt: string | Message[], options: CallAIOptions 
   } catch (error) {
     // Check if we need a new key
     const needsNewKey = isNewKeyError(error, options.debug || false);
-    
+
     // Only attempt retry if we have a refreshEndpoint and either we need a new key or we have no key
     if (keyStore.refreshEndpoint && (needsNewKey || (!options.apiKey && !keyStore.current))) {
       // Attempt to refresh the key through handleApiError
       try {
         // This will throw if the refresh fails or can't be attempted
-        await handleApiError(error, 'callAi', options.debug || false, {
+        await handleApiError(error, "callAi", options.debug || false, {
           apiKey: options.apiKey || keyStore.current,
-          endpoint: options.endpoint
+          endpoint: options.endpoint,
         });
-        
+
         // If we reach here, key refresh was successful - retry with potentially new key
         const retryOptions = { ...options, apiKey: keyStore.current };
         return await callAIInternal(prompt, retryOptions);
@@ -289,7 +289,7 @@ export async function callAi(prompt: string | Message[], options: CallAIOptions 
         throw error;
       }
     }
-    
+
     // For other errors, just throw
     throw error;
   }
@@ -313,13 +313,14 @@ CALL_AI_REFRESH_TOKEN=your-refresh-service-authentication-token
 ```
 
 The variables serve these purposes:
+
 - `CALLAI_API_KEY`: The API key for making AI calls
 - `CALLAI_REFRESH_ENDPOINT`: The endpoint to call when refreshing keys
 - `CALL_AI_REFRESH_TOKEN`: Authentication token for the key refresh service (separate from the API key)
 
 **Important Note on Refresh Token Management:**
 
-The `CALL_AI_REFRESH_TOKEN` will be managed and refreshed by the owning page/application on a schedule we cannot predict. If the refresh token itself expires or becomes invalid, we need to clearly communicate this to the caller so they can handle refresh token renewal. 
+The `CALL_AI_REFRESH_TOKEN` will be managed and refreshed by the owning page/application on a schedule we cannot predict. If the refresh token itself expires or becomes invalid, we need to clearly communicate this to the caller so they can handle refresh token renewal.
 
 When the refresh endpoint returns a 401/403 error specifically indicating the refresh token is invalid (rather than the API key), we should throw a distinct error type that allows the caller to recognize this specific situation:
 
@@ -342,4 +343,3 @@ This allows applications to implement their own refresh token renewal logic when
 3. Updated keys are stored and used for future calls
 4. No instance state, everything is module-level
 5. Only one endpoint/keyset at a time (as specified)
-  
